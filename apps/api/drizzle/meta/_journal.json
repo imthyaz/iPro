@@ -113,6 +113,20 @@
       "when": 1793480227034,
       "tag": "0015_workflow_engine_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793481388006,
+      "tag": "0016_checklists",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793481391881,
+      "tag": "0017_checklists_rls",
+      "breakpoints": true
     }
   ]
 }
