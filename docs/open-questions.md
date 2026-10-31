@@ -42,7 +42,6 @@ configurable setting.
 - [x] Probation after a conversion: decided per conversion by HR and CXO (decision #42).
 
 ## Shifts (slice 3, decision #46 — please confirm)
-- [ ] Which holiday calendar do Sun–Thu (Middle East) teams follow: their office location's (e.g. Chennai), or a
-      customer-specific one? Holiday calendars arrive in slice 6.
-- [ ] Shift definitions and times for Ideassion (General 09:30–18:30 and Middle East Sun–Thu are seeded as examples).
-- [ ] Should managers be able to request shift allocations for their team (through an approval), or only HR?
+- [x] Holiday calendar for customer-week teams: customer’s or company’s, HR assigns, default customer’s (decision #48).
+- [x] Shift definitions and times are configurable by admins (decision #47); Ideassion to enter its own.
+- [x] Managers request shift changes for their team; HR approves (decision #47).

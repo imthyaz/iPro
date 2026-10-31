@@ -152,99 +152,110 @@ export class ShiftsService {
       });
       targets.push(summary);
     }
-    const by = { createdBy: actor!.userId, updatedBy: actor!.userId };
+    await this.db.tx((tx) => this.applyAllocation(tx, input, targets, actor!.userId, tenantId));
+    return { allocated: targets.length };
+  }
 
-    await this.db.tx(async (tx) => {
-      const [shift] = await tx
+  /**
+   * The allocation itself, in the caller's transaction. Callers have already checked permission:
+   * `allocate` (HR directly) or an approved shift change request (decision #47).
+   */
+  async applyAllocation(
+    tx: Tx,
+    input: AllocateShiftInput,
+    targets: PersonSummary[],
+    userId: string,
+    tenantId: string,
+  ): Promise<void> {
+    const by = { createdBy: userId, updatedBy: userId };
+    const [shift] = await tx
+      .select()
+      .from(shifts)
+      .where(and(eq(shifts.id, input.shiftId), isNull(shifts.deletedAt)));
+    if (!shift) throw new BadRequestException({ message: 'Unknown shift' });
+
+    for (const target of targets) {
+      const history = await tx
         .select()
-        .from(shifts)
-        .where(and(eq(shifts.id, input.shiftId), isNull(shifts.deletedAt)));
-      if (!shift) throw new BadRequestException({ message: 'Unknown shift' });
-
-      for (const target of targets) {
-        const history = await tx
-          .select()
-          .from(shiftAssignments)
-          .where(eq(shiftAssignments.engagementId, target.engagementId))
-          .orderBy(asc(shiftAssignments.effectiveFrom));
-        const plan = planChange(history, input.effectiveFrom);
-        if (!plan.ok) {
-          throw new ConflictException({ message: `${target.employeeCode}: ${plan.problem}` });
-        }
-        const covering = history.find((row) => row.id === plan.basedOn);
-        let newTo = plan.newRow.effectiveTo;
-        if (input.effectiveTo) {
-          const startsInside = history.some(
-            (row) =>
-              row.effectiveFrom > input.effectiveFrom && row.effectiveFrom <= input.effectiveTo!,
-          );
-          if (startsInside) {
-            throw new ConflictException({
-              message: `${target.employeeCode}: another shift change is planned within these dates`,
-            });
-          }
-          newTo = input.effectiveTo;
-        }
-
-        if (plan.close) {
-          await tx
-            .update(shiftAssignments)
-            .set({
-              effectiveTo: plan.close.effectiveTo,
-              updatedAt: new Date(),
-              updatedBy: actor!.userId,
-            })
-            .where(eq(shiftAssignments.id, plan.close.id));
-        }
-        const [row] = await tx
-          .insert(shiftAssignments)
-          .values({
-            tenantId,
-            engagementId: target.engagementId,
-            shiftId: shift.id,
-            effectiveFrom: input.effectiveFrom,
-            effectiveTo: newTo,
-            startTime: input.startTime ?? null,
-            endTime: input.endTime ?? null,
-            reason: input.reason,
-            ...by,
-          })
-          .returning({ id: shiftAssignments.id });
-        // The shift they were on before resumes after a bounded allocation.
-        if (
-          input.effectiveTo &&
-          covering &&
-          (covering.effectiveTo === null || covering.effectiveTo > input.effectiveTo)
-        ) {
-          await tx.insert(shiftAssignments).values({
-            tenantId,
-            engagementId: target.engagementId,
-            shiftId: covering.shiftId,
-            effectiveFrom: addDays(input.effectiveTo, 1),
-            effectiveTo: covering.effectiveTo,
-            startTime: covering.startTime,
-            endTime: covering.endTime,
-            reason: covering.reason,
-            ...by,
+        .from(shiftAssignments)
+        .where(eq(shiftAssignments.engagementId, target.engagementId))
+        .orderBy(asc(shiftAssignments.effectiveFrom));
+      const plan = planChange(history, input.effectiveFrom);
+      if (!plan.ok) {
+        throw new ConflictException({ message: `${target.employeeCode}: ${plan.problem}` });
+      }
+      const covering = history.find((row) => row.id === plan.basedOn);
+      let newTo = plan.newRow.effectiveTo;
+      if (input.effectiveTo) {
+        const startsInside = history.some(
+          (row) =>
+            row.effectiveFrom > input.effectiveFrom && row.effectiveFrom <= input.effectiveTo!,
+        );
+        if (startsInside) {
+          throw new ConflictException({
+            message: `${target.employeeCode}: another shift change is planned within these dates`,
           });
         }
-        await this.audit.record(tx, {
-          action: 'create',
-          table: 'shift_assignment',
-          recordId: row!.id,
-          subjectPersonId: target.personId,
-          fieldChanges: [
-            { field: 'shift', from: covering?.shiftId ?? null, to: shift.id },
-            { field: 'effective_from', to: input.effectiveFrom },
-            ...(input.effectiveTo ? [{ field: 'effective_to', to: input.effectiveTo }] : []),
-            ...(input.startTime
-              ? [{ field: 'day_times', to: `${input.startTime}–${input.endTime}` }]
-              : []),
-          ],
+        newTo = input.effectiveTo;
+      }
+
+      if (plan.close) {
+        await tx
+          .update(shiftAssignments)
+          .set({
+            effectiveTo: plan.close.effectiveTo,
+            updatedAt: new Date(),
+            updatedBy: userId,
+          })
+          .where(eq(shiftAssignments.id, plan.close.id));
+      }
+      const [row] = await tx
+        .insert(shiftAssignments)
+        .values({
+          tenantId,
+          engagementId: target.engagementId,
+          shiftId: shift.id,
+          effectiveFrom: input.effectiveFrom,
+          effectiveTo: newTo,
+          startTime: input.startTime ?? null,
+          endTime: input.endTime ?? null,
+          reason: input.reason,
+          ...by,
+        })
+        .returning({ id: shiftAssignments.id });
+      // The shift they were on before resumes after a bounded allocation.
+      if (
+        input.effectiveTo &&
+        covering &&
+        (covering.effectiveTo === null || covering.effectiveTo > input.effectiveTo)
+      ) {
+        await tx.insert(shiftAssignments).values({
+          tenantId,
+          engagementId: target.engagementId,
+          shiftId: covering.shiftId,
+          effectiveFrom: addDays(input.effectiveTo, 1),
+          effectiveTo: covering.effectiveTo,
+          startTime: covering.startTime,
+          endTime: covering.endTime,
+          reason: covering.reason,
+          ...by,
         });
       }
-    });
-    return { allocated: targets.length };
+      await this.audit.record(tx, {
+        action: 'create',
+        table: 'shift_assignment',
+        recordId: row!.id,
+        subjectPersonId: target.personId,
+        fieldChanges: [
+          { field: 'shift', from: covering?.shiftId ?? null, to: shift.id },
+          { field: 'effective_from', to: input.effectiveFrom },
+          ...(input.effectiveTo ? [{ field: 'effective_to', to: input.effectiveTo }] : []),
+          ...(input.startTime
+            ? [{ field: 'day_times', to: `${input.startTime}–${input.endTime}` }]
+            : []),
+        ],
+      });
+    }
   }
 
   async history(personId: string): Promise<ShiftAllocationView[]> {

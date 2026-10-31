@@ -47,7 +47,7 @@ storage on S3 (local: SeaweedFS, decision #37). Org tree as of a date. People di
 - [x] A retainer converted to payroll keeps one person record and one continuous journey.
 - [x] KYC values are masked for everyone except HR; each unmask writes an audit row.
 
-## [ ] Slice 3 — Workflow engine, letters, signatures
+## [~] Slice 3 — Workflow engine, letters, signatures
 
 **Spec:** Workflows (shared rules); Data model (ChecklistTemplate/Run, LetterTemplate, Approval); Integrations
 (Zoho Sign, policy acknowledgements); Screens A3.
@@ -57,7 +57,7 @@ templates with merge fields and versions, PDF generation; `esign` adapter with Z
 tests; in-app policy acknowledgement (PolicyAcknowledgement with document version and content hash).
 
 **Done when**
-- [ ] A workflow defined in config runs end to end with approve, reject (comment required) and escalation.
+- [x] A workflow defined in config runs end to end with approve, reject (comment required) and escalation.
 - [ ] A letter generated from a template is versioned and stored as a Document; signing via the fake adapter
       completes the document.
 - [ ] Publishing a new policy version re-opens acknowledgement for everyone it applies to.
@@ -84,6 +84,10 @@ tests; in-app policy acknowledgement (PolicyAcknowledgement with document versio
 
 **Spec:** Data model (Shift, HolidayCalendar, AttendanceDay, Punch); Workflow 5 (Regularisation); Business rules;
 Scheduled jobs (Attendance build, Biometric import); Screens E1, E2, E3, H9.
+
+**Also (decisions #46–48):** shifts and dated shift allocations already exist (slice 3a). Add holiday calendars, and a
+holiday calendar on each shift allocation: the customer's (default) or the company's, chosen by HR. Plug holidays into
+the working-day calculator.
 
 **Done when**
 - [ ] Biometric punches (via the device adapter; fake in tests) appear within 15 minutes.

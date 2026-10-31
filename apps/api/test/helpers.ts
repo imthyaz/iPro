@@ -51,6 +51,7 @@ export function as(app: INestApplication, cookie: string) {
       request(server).post(url).set('Cookie', cookie).send(body),
     patch: (url: string, body?: object) =>
       request(server).patch(url).set('Cookie', cookie).send(body),
+    put: (url: string, body?: object) => request(server).put(url).set('Cookie', cookie).send(body),
     delete: (url: string) => request(server).delete(url).set('Cookie', cookie),
   };
 }
