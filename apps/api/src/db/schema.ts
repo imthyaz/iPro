@@ -7,3 +7,4 @@ export * from '../journey/journey.schema.js';
 export * from '../people/documents.schema.js';
 export * from '../attendance/attendance.schema.js';
 export * from '../workflow/workflow.schema.js';
+export * from '../workflow/checklists.schema.js';

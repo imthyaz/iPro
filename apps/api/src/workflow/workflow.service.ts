@@ -28,13 +28,21 @@ import { businessDate } from '../common/effective-dating.js';
 import { requireContext, type Actor } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
-import { appUsers, approvalDelegations, roleAssignments } from '../identity/identity.schema.js';
+import { approvalDelegations } from '../identity/identity.schema.js';
 import { UsersService } from '../identity/users.service.js';
 import { JourneyService } from '../journey/journey.service.js';
-import { persons } from '../people/people.schema.js';
 import { PeopleService } from '../people/people.service.js';
 import { SettingsService } from '../people/settings.service.js';
 import { WorkflowActions } from './actions.js';
+import {
+  managerUserOfPerson,
+  managerUserOfUser,
+  notify,
+  personName,
+  roleHolders,
+  roleLabel,
+  userName,
+} from './lookups.js';
 import { builtInDefinitions } from './built-in-definitions.js';
 import { decisionCapacity, nextStepIndex } from './engine-rules.js';
 import {
@@ -274,7 +282,7 @@ export class WorkflowService {
         updatedBy: actor!.userId,
       });
       const participants = await this.participants(tx, instance);
-      await this.notify(
+      await notify(
         tx,
         participants.filter((id) => id !== actor!.userId),
         'workflow_comment',
@@ -323,15 +331,14 @@ export class WorkflowService {
           stepLabel: approval.stepLabel,
           subject: {
             personId: instance.subjectPersonId,
-            name: await this.personName(tx, instance.subjectPersonId),
+            name: await personName(tx, instance.subjectPersonId),
           },
-          submittedBy: await this.userName(tx, instance.submittedBy),
+          submittedBy: await userName(tx, instance.submittedBy),
           submittedAt: instance.submittedAt.toISOString(),
           dueOn: approval.dueOn,
           overdue: approval.dueOn < today,
           escalated: approval.escalatedAt !== null,
-          onBehalfOf:
-            capacity.as === 'delegate' ? await this.userName(tx, capacity.onBehalfOf) : null,
+          onBehalfOf: capacity.as === 'delegate' ? await userName(tx, capacity.onBehalfOf) : null,
           changes: await this.actions.get(definition.onApproved).describe(tx, instance),
         });
       }
@@ -376,11 +383,11 @@ export class WorkflowService {
         status: instance.status,
         subject: {
           personId: instance.subjectPersonId,
-          name: await this.personName(tx, instance.subjectPersonId),
+          name: await personName(tx, instance.subjectPersonId),
         },
         submittedBy: {
           userId: instance.submittedBy,
-          name: await this.userName(tx, instance.submittedBy),
+          name: await userName(tx, instance.submittedBy),
         },
         submittedAt: instance.submittedAt.toISOString(),
         completedAt: instance.completedAt?.toISOString() ?? null,
@@ -390,17 +397,17 @@ export class WorkflowService {
             approvalId: step.id,
             label: step.stepLabel,
             assignedTo: step.assignedUserId
-              ? await this.userName(tx, step.assignedUserId)
+              ? await userName(tx, step.assignedUserId)
               : roleLabel(step.assignedRole),
             dueOn: step.dueOn,
             escalatedTo: step.escalatedToUserId
-              ? await this.userName(tx, step.escalatedToUserId)
+              ? await userName(tx, step.escalatedToUserId)
               : step.escalatedToRole
                 ? roleLabel(step.escalatedToRole)
                 : null,
             decision: step.decision,
-            decidedBy: step.decidedBy ? await this.userName(tx, step.decidedBy) : null,
-            onBehalfOf: step.onBehalfOf ? await this.userName(tx, step.onBehalfOf) : null,
+            decidedBy: step.decidedBy ? await userName(tx, step.decidedBy) : null,
+            onBehalfOf: step.onBehalfOf ? await userName(tx, step.onBehalfOf) : null,
             decidedAt: step.decidedAt?.toISOString() ?? null,
             comment: step.comment,
             closed: step.closedAt !== null,
@@ -409,7 +416,7 @@ export class WorkflowService {
         comments: await Promise.all(
           comments.map(async (c) => ({
             id: c.id,
-            author: await this.userName(tx, c.authorUserId),
+            author: await userName(tx, c.authorUserId),
             body: c.body,
             at: c.createdAt.toISOString(),
           })),
@@ -482,7 +489,7 @@ export class WorkflowService {
             .update(approvals)
             .set({ remindedAt: new Date() })
             .where(eq(approvals.id, approval.id));
-          await this.notify(
+          await notify(
             tx,
             await this.approverUsers(tx, approval),
             'approval_reminder',
@@ -555,7 +562,7 @@ export class WorkflowService {
 
       if (decision === 'rejected') {
         await this.setStatus(tx, instance, 'returned');
-        await this.notify(
+        await notify(
           tx,
           [instance.submittedBy],
           'workflow_returned',
@@ -619,7 +626,7 @@ export class WorkflowService {
         dueOn: addWorkingDays(today, escalationDays, calendar.isWorking),
       })
       .returning();
-    await this.notify(
+    await notify(
       tx,
       await this.approverUsers(tx, approval!),
       'approval_requested',
@@ -651,7 +658,7 @@ export class WorkflowService {
         sourceId: instance.id,
       });
     }
-    await this.notify(
+    await notify(
       tx,
       [instance.submittedBy],
       'workflow_approved',
@@ -663,7 +670,7 @@ export class WorkflowService {
   private async escalate(tx: Tx, approval: ApprovalRow, instance: Instance, today: string) {
     // The approver's manager; a role queue (or an approver without a manager) goes to HR head.
     const manager = approval.assignedUserId
-      ? await this.managerUserOfUser(tx, approval.assignedUserId, today)
+      ? await managerUserOfUser(tx, approval.assignedUserId, today)
       : null;
     const set = manager
       ? { escalatedToUserId: manager, escalatedAt: new Date() }
@@ -678,8 +685,8 @@ export class WorkflowService {
     });
     const recipients = manager
       ? [manager]
-      : await this.roleHolders(tx, 'hr_head', approval.assignedLegalEntityId);
-    await this.notify(
+      : await roleHolders(tx, 'hr_head', approval.assignedLegalEntityId);
+    await notify(
       tx,
       recipients,
       'approval_escalated',
@@ -698,64 +705,20 @@ export class WorkflowService {
     role: 'hr' | 'hr_head' | 'manager' | 'employee' | 'cxo' | 'admin' | null;
   }> {
     if (approver.kind === 'role') return { userId: null, role: approver.role };
-    const manager = await this.managerUserOfPerson(tx, instance.subjectPersonId, today);
+    const manager = await managerUserOfPerson(tx, instance.subjectPersonId, today);
     if (approver.kind === 'manager' && manager) return { userId: manager, role: null };
     if (approver.kind === 'manager_of_manager' && manager) {
-      const next = await this.managerUserOfUser(tx, manager, today);
+      const next = await managerUserOfUser(tx, manager, today);
       if (next) return { userId: next, role: null };
     }
     // No manager with a sign-in: HR takes the step rather than it going nowhere.
     return { userId: null, role: 'hr' };
   }
 
-  /** The sign-in user of the person's solid-line manager on a date, if they have one. */
-  private async managerUserOfPerson(tx: Tx, personId: string, day: string): Promise<string | null> {
-    const result = await tx.execute<{ user_id: string }>(sql`
-      select u.id as user_id
-      from engagement e
-      join assignment a on a.engagement_id = e.id
-        and a.effective_from <= ${day} and (a.effective_to is null or a.effective_to >= ${day})
-      join engagement me on me.id = a.manager_engagement_id
-      join app_user u on u.person_id = me.person_id and u.status = 'active'
-      where e.person_id = ${personId} and e.status in ('offered', 'pre_joining', 'active', 'on_notice')
-      limit 1
-    `);
-    return result.rows[0]?.user_id ?? null;
-  }
-
-  private async managerUserOfUser(tx: Tx, userId: string, day: string): Promise<string | null> {
-    const [user] = await tx
-      .select({ personId: appUsers.personId })
-      .from(appUsers)
-      .where(eq(appUsers.id, userId));
-    return user?.personId ? this.managerUserOfPerson(tx, user.personId, day) : null;
-  }
-
-  private async roleHolders(tx: Tx, role: string, legalEntityId: string | null): Promise<string[]> {
-    const rows = await tx
-      .selectDistinct({ userId: roleAssignments.userId })
-      .from(roleAssignments)
-      .innerJoin(appUsers, eq(appUsers.id, roleAssignments.userId))
-      .where(
-        and(
-          eq(roleAssignments.role, role as 'hr'),
-          isNull(roleAssignments.deletedAt),
-          eq(appUsers.status, 'active'),
-          legalEntityId
-            ? or(
-                isNull(roleAssignments.legalEntityId),
-                eq(roleAssignments.legalEntityId, legalEntityId),
-              )
-            : isNull(roleAssignments.legalEntityId),
-        ),
-      );
-    return rows.map((r) => r.userId);
-  }
-
   private async approverUsers(tx: Tx, approval: ApprovalRow): Promise<string[]> {
     if (approval.escalatedToUserId) return [approval.escalatedToUserId];
     if (approval.assignedUserId) return [approval.assignedUserId];
-    return this.roleHolders(tx, approval.assignedRole!, approval.assignedLegalEntityId);
+    return roleHolders(tx, approval.assignedRole!, approval.assignedLegalEntityId);
   }
 
   private async delegatorsFor(tx: Tx, userId: string, today: string): Promise<string[]> {
@@ -812,15 +775,6 @@ export class WorkflowService {
       }
     }
     return [...ids];
-  }
-
-  private async notify(tx: Tx, userIds: string[], kind: string, title: string, link: string) {
-    const unique = [...new Set(userIds)];
-    if (unique.length === 0) return;
-    const { tenantId } = requireContext();
-    await tx
-      .insert(notifications)
-      .values(unique.map((recipientUserId) => ({ tenantId, recipientUserId, kind, title, link })));
   }
 
   private async setStatus(tx: Tx, instance: Instance, status: Instance['status']) {
@@ -912,30 +866,4 @@ export class WorkflowService {
       }
     }
   }
-
-  private async userName(tx: Tx, userId: string): Promise<string> {
-    const [user] = await tx
-      .select({ name: appUsers.displayName })
-      .from(appUsers)
-      .where(eq(appUsers.id, userId));
-    return user?.name ?? 'Unknown user';
-  }
-
-  private async personName(tx: Tx, personId: string): Promise<string> {
-    const [person] = await tx
-      .select({ legalName: persons.legalName, preferredName: persons.preferredName })
-      .from(persons)
-      .where(eq(persons.id, personId));
-    return person ? (person.preferredName ?? person.legalName) : 'Unknown person';
-  }
 }
-
-const roleLabels: Record<string, string> = {
-  hr: 'HR',
-  hr_head: 'HR head',
-  manager: 'Managers',
-  cxo: 'CXO',
-  admin: 'Admins',
-  employee: 'Employees',
-};
-const roleLabel = (role: string | null) => (role ? (roleLabels[role] ?? role) : '—');
