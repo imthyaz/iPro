@@ -40,3 +40,9 @@ configurable setting.
       with legal before go-live whether an Aadhaar Data Vault is required.
 - [x] Employees may open their own KYC scans (decision #39).
 - [x] Probation after a conversion: decided per conversion by HR and CXO (decision #42).
+
+## Shifts (slice 3, decision #46 — please confirm)
+- [ ] Which holiday calendar do Sun–Thu (Middle East) teams follow: their office location's (e.g. Chennai), or a
+      customer-specific one? Holiday calendars arrive in slice 6.
+- [ ] Shift definitions and times for Ideassion (General 09:30–18:30 and Middle East Sun–Thu are seeded as examples).
+- [ ] Should managers be able to request shift allocations for their team (through an approval), or only HR?

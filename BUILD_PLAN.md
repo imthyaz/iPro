@@ -8,7 +8,7 @@ Status legend: [ ] not started · [~] in progress · [x] done
 
 ---
 
-## [~] Slice 0 — Repository and environments
+## [x] Slice 0 — Repository and environments
 
 **Scope:** pnpm monorepo (`apps/api`, `apps/web`, `packages/shared`, `infra`), lint/format/typecheck, Vitest,
 Playwright, Docker Compose Postgres, Drizzle set-up, pg-boss, CI (GitHub Actions: lint, typecheck, unit,
@@ -16,7 +16,7 @@ integration, e2e), CDK skeleton for dev in ap-south-1 (not deployed until the ac
 
 **Done when**
 - [x] `pnpm dev` starts api, web and Postgres; health endpoint returns OK; web shows a placeholder shell.
-- [ ] CI runs on every PR and blocks merge on failure.
+- [x] CI runs on every PR and blocks merge on failure.
 - [x] `.env.example` lists every variable; no secrets in the repo.
 
 ## [x] Slice 1 — Identity, roles, permissions, audit

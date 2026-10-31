@@ -5,3 +5,4 @@ export * from '../org/org.schema.js';
 export * from '../people/people.schema.js';
 export * from '../journey/journey.schema.js';
 export * from '../people/documents.schema.js';
+export * from '../attendance/attendance.schema.js';
