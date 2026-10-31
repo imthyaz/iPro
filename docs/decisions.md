@@ -27,3 +27,6 @@ Decisions already made. Add new ones at the bottom with a date; do not edit past
 | 21 | 2026-10-31 | Org units (BusinessUnit, Department, Location) are effective-dated, so the org tree as of a past date shows the structure and names in force then. |
 | 22 | 2026-10-31 | All money fields, including Grade band_min/band_max and Position budgeted_ctc, are integer paise (`bigint`) plus a currency code. |
 | 23 | 2026-10-31 | Approval delegations (delegator, delegate, date range) are stored from slice 1 and applied by the workflow engine when approvals arrive in slice 3. |
+| 24 | 2026-10-31 | Toolchain versions for slice 0: Node 26 LTS, pnpm 10, TypeScript 6.0 (not 7: typescript-eslint supports < 6.1), NestJS 12 (ESM-only, so the API is ESM), Vite 8, Vitest 5. Constructor injection uses explicit `@Inject(token)` so tests don't depend on decorator metadata. |
+| 25 | 2026-10-31 | Health: `GET /api/health/live` (always 200, for load balancers) and `GET /api/health` (200 when the database is reachable, 503 otherwise). |
+| 26 | 2026-10-31 | Row-level security: tables use `FORCE ROW LEVEL SECURITY` with a policy on `app_current_tenant_id()`. Because superusers bypass RLS, the API will connect as a non-owner `ipro_app` role from slice 1, when the first tenant-scoped tables arrive; migrations run as the owner. |

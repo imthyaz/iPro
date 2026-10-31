@@ -1,0 +1,10 @@
+dist/
+coverage/
+cdk.out/
+playwright-report/
+test-results/
+dev-dist/
+pnpm-lock.yaml
+apps/api/drizzle/meta/
+# Specs and planning docs are exported from the iPro document; keep them as exported.
+*.md
