@@ -24,3 +24,8 @@ configurable setting.
 
 ## Other
 - [ ] Legal: do sponsored-certification service bonds need e-stamping? (Phase 3; Leegality if yes.)
+
+## Permissions table (slice 1 — built as written, please confirm)
+- [ ] HR head probation "R, A terminate": built as read + approve termination only. Should HR head also approve confirm/extend (HR does)?
+- [ ] HR attendance and leave updates require a reason; HR head's ("R, U") do not, as the table says. Should HR head also give a reason?
+- [ ] Delegation is not in the permissions table: built per decision #27 (managers for themselves, HR/HR head for anyone). Confirm.

@@ -19,7 +19,7 @@ integration, e2e), CDK skeleton for dev in ap-south-1 (not deployed until the ac
 - [ ] CI runs on every PR and blocks merge on failure.
 - [x] `.env.example` lists every variable; no secrets in the repo.
 
-## [ ] Slice 1 — Identity, roles, permissions, audit
+## [~] Slice 1 — Identity, roles, permissions, audit
 
 **Spec:** Permissions; Technical decisions (Identity, Audit); Data model (AuditLog, Approval).
 
@@ -28,7 +28,7 @@ entity), the central `authz` module implementing the permissions table, AuditLog
 masking helper, delegation of approvals.
 
 **Done when**
-- [ ] Every role in the permissions table has automated tests for allowed and denied actions.
+- [x] Every role in the permissions table has automated tests for allowed and denied actions.
 - [ ] Compensation and KYC reads write audit rows with actor and time.
 - [ ] A manager on leave can delegate approvals for a date range.
 
