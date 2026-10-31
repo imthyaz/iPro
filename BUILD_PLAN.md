@@ -32,19 +32,19 @@ masking helper, delegation of approvals.
 - [x] Compensation and KYC reads write audit rows with actor and time.
 - [x] A manager on leave can delegate approvals for a date range.
 
-## [ ] Slice 2 — Organisation and people
+## [~] Slice 2 — Organisation and people
 
 **Spec:** Data model (Organisation, People); Screens A1, H1, H2, H10, E7.
 
 **Scope:** Tenant, LegalEntity, BusinessUnit, Department, Location, CostCentre, Grade, Designation, Position; Person,
 KycRecord, EmergencyContact, Engagement, Assignment (effective-dated), Compensation (effective-dated), Document
-storage on S3 (local: MinIO). Org tree as of a date. People directory and person record.
+storage on S3 (local: SeaweedFS, decision #37). Org tree as of a date. People directory and person record.
 
 **Done when**
 - [ ] Creating a person with an engagement and assignment takes under 3 minutes and produces a Joined event.
-- [ ] The org tree for any past date matches the assignments effective on that date.
-- [ ] A retainer converted to payroll keeps one person record and one continuous journey.
-- [ ] KYC values are masked for everyone except HR; each unmask writes an audit row.
+- [x] The org tree for any past date matches the assignments effective on that date.
+- [x] A retainer converted to payroll keeps one person record and one continuous journey.
+- [x] KYC values are masked for everyone except HR; each unmask writes an audit row.
 
 ## [ ] Slice 3 — Workflow engine, letters, signatures
 

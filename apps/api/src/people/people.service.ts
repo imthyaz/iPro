@@ -6,9 +6,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import type {
   ChangeAssignmentInput,
+  ConvertEngagementInput,
+  JourneyEntry,
   ChangeCompensationInput,
   CreatePersonInput,
   PersonSummary,
@@ -17,11 +19,12 @@ import { AuditService, FIELD_CIPHER, SensitiveReads } from '../audit/audit.servi
 import type { FieldCipher } from '../audit/field-cipher.js';
 import { AuthzService, type Resource } from '../authz/authz.service.js';
 import type { Action, DataArea } from '../authz/permissions.js';
-import { businessDate, planChange } from '../common/effective-dating.js';
+import { addDays, businessDate, planChange } from '../common/effective-dating.js';
 import { requireContext } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
 import { appUsers } from '../identity/identity.schema.js';
+import { journalEvents } from '../journey/journey.schema.js';
 import { JourneyService } from '../journey/journey.service.js';
 import { departmentVersions, designations, locationVersions } from '../org/org.schema.js';
 import { noticePeriodDays, probationEndDate } from './hr-settings.js';
@@ -438,6 +441,212 @@ export class PeopleService {
       });
     });
     return this.get(personId);
+  }
+
+  /**
+   * Retainer (or consultant) to payroll: the same person and employee code continue on a new
+   * engagement (decision #19). The old engagement, assignment and pay close the day before; the person
+   * keeps one record and one journey. Effective today or earlier (decision #41).
+   */
+  async convert(personId: string, input: ConvertEngagementInput, now = new Date()) {
+    const summary = await this.summary(personId);
+    await this.assertOn(summary, 'assignment_history', 'create');
+    await this.assertOn(summary, 'assignment_history', 'update');
+    if (input.compensation) await this.assertOn(summary, 'compensation', 'create');
+    const today = businessDate(now);
+    if (input.effectiveFrom > today) {
+      throw new BadRequestException({
+        message: 'Future-dated conversions come with the in-life change workflow',
+      });
+    }
+    const { actor, tenantId } = requireContext();
+    const by = { createdBy: actor!.userId, updatedBy: actor!.userId };
+
+    await this.db.tx(async (tx) => {
+      const old = await this.engagementOf(tx, personId, summary.engagementId);
+      if (
+        !['retainer', 'consultant'].includes(old.type) ||
+        !['active', 'on_notice'].includes(old.status)
+      ) {
+        throw new BadRequestException({
+          message: 'Only a current retainer or consultant engagement converts',
+        });
+      }
+      if (input.effectiveFrom <= old.joiningDate) {
+        throw new BadRequestException({ message: 'Conversion must be after the joining date' });
+      }
+      const [current] = await tx
+        .select()
+        .from(assignments)
+        .where(
+          and(
+            eq(assignments.engagementId, old.id),
+            inForce(assignments.effectiveFrom, assignments.effectiveTo, input.effectiveFrom),
+          ),
+        );
+      if (!current)
+        throw new BadRequestException({ message: 'No assignment in force on that date' });
+      const next = { ...pickAssignment(current), ...stripUndefined(input.assignment ?? {}) };
+      const { designation } = await this.checkAssignmentRefs(tx, next, input.effectiveFrom);
+      const dayBefore = addDays(input.effectiveFrom, -1);
+
+      // Close the old engagement's dated rows the day before; nothing may be planned after it.
+      for (const table of [assignments, compensations] as const) {
+        const later = await tx
+          .select({ id: table.id })
+          .from(table)
+          .where(and(eq(table.engagementId, old.id), gt(table.effectiveFrom, dayBefore)));
+        if (later.length > 0) {
+          throw new BadRequestException({
+            message: 'Changes are planned after the conversion date',
+          });
+        }
+        await tx
+          .update(table)
+          .set({ effectiveTo: dayBefore, updatedAt: now, updatedBy: actor!.userId })
+          .where(
+            and(
+              eq(table.engagementId, old.id),
+              inForce(table.effectiveFrom, table.effectiveTo, dayBefore),
+            ),
+          );
+      }
+      await tx
+        .update(engagements)
+        .set({
+          status: 'exited',
+          lastWorkingDate: dayBefore,
+          exitReason: 'converted_to_payroll',
+          updatedAt: now,
+          updatedBy: actor!.userId,
+        })
+        .where(eq(engagements.id, old.id));
+
+      const probationEnd = probationEndDate(
+        input.effectiveFrom,
+        input.type,
+        await this.settings.get(tx, 'probation_months'),
+      );
+      const engagementId = randomUUID();
+      await this.insertEngagement(tx, {
+        id: engagementId,
+        tenantId,
+        personId,
+        employeeCode: old.employeeCode,
+        legalEntityId: old.legalEntityId,
+        type: input.type,
+        status: 'active',
+        workEmail: old.workEmail,
+        joiningDate: input.effectiveFrom,
+        probationEndDate: probationEnd,
+        noticePeriodDays: noticePeriodDays(
+          probationEnd !== null,
+          designation.designationBand,
+          await this.settings.get(tx, 'notice_days'),
+        ),
+        previousEngagementId: old.id,
+        ...by,
+      });
+      const [assignment] = await tx
+        .insert(assignments)
+        .values({
+          tenantId,
+          engagementId,
+          effectiveFrom: input.effectiveFrom,
+          ...next,
+          gradeId: designation.gradeId,
+          changeReason: 'Converted to payroll',
+          ...by,
+        })
+        .returning({ id: assignments.id });
+      if (input.compensation) {
+        await this.insertCompensation(tx, engagementId, personId, {
+          ...input.compensation,
+          effectiveFrom: input.effectiveFrom,
+        });
+      }
+
+      await this.journey.record(tx, {
+        engagementId,
+        personId,
+        eventType: 'converted',
+        category: 'lifecycle',
+        occurredOn: input.effectiveFrom,
+        title: `Converted from ${old.type} to ${input.type}`,
+        detail: {
+          fromEngagementId: old.id,
+          fromType: old.type,
+          toType: input.type,
+          employeeCode: old.employeeCode,
+        },
+        sensitivity: 'public',
+        sourceTable: 'engagement',
+        sourceId: engagementId,
+      });
+      await this.audit.record(tx, {
+        action: 'update',
+        table: 'engagement',
+        recordId: old.id,
+        subjectPersonId: personId,
+        fieldChanges: [
+          { field: 'status', from: old.status, to: 'exited' },
+          { field: 'exit_reason', from: old.exitReason, to: 'converted_to_payroll' },
+        ],
+      });
+      for (const [table, recordId] of [
+        ['engagement', engagementId],
+        ['assignment', assignment!.id],
+      ] as const) {
+        await this.audit.record(tx, {
+          action: 'create',
+          table,
+          recordId,
+          subjectPersonId: personId,
+        });
+      }
+    });
+    return this.get(personId);
+  }
+
+  /**
+   * The person's journey across all engagements (timelines are per person, decision #19). Compensation
+   * and exit-reason events need journey_sensitive; the full timeline screens come with slice 10.
+   */
+  async journeyOf(personId: string): Promise<JourneyEntry[]> {
+    const summary = await this.summary(personId);
+    await this.assertOn(summary, 'journey_public', 'read');
+    const sensitive = (
+      await this.authz.check(requireContext().actor!, 'read', {
+        area: 'journey_sensitive',
+        subjectPersonId: personId,
+        legalEntityId: summary.legalEntityId,
+      })
+    ).allowed;
+    const rows = await this.db.tx((tx) =>
+      tx
+        .select({ event: journalEvents, employeeCode: engagements.employeeCode })
+        .from(journalEvents)
+        .innerJoin(engagements, eq(engagements.id, journalEvents.engagementId))
+        .where(eq(journalEvents.personId, personId))
+        .orderBy(asc(journalEvents.occurredOn), asc(journalEvents.createdAt)),
+    );
+    return rows
+      .filter(
+        ({ event }) =>
+          sensitive || event.sensitivity === 'public' || event.sensitivity === 'manager',
+      )
+      .map(({ event, employeeCode }) => ({
+        id: event.id,
+        engagementId: event.engagementId,
+        employeeCode,
+        eventType: event.eventType,
+        category: event.category,
+        occurredOn: event.occurredOn,
+        isPlanned: event.isPlanned,
+        title: event.title,
+        sensitivity: event.sensitivity,
+        migrated: event.migrated,
+      }));
   }
 
   /** The summary authz decisions are made on (legal entity of the live or latest engagement). */

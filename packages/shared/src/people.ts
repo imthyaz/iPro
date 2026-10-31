@@ -113,3 +113,52 @@ export interface PersonSummary {
   manager: { engagementId: string; personId: string; name: string } | null;
   bucket: string | null;
 }
+
+/** GET /api/org-tree?asOf= (screen H10). Flat lists; parents point at ids in the same list. */
+export interface OrgTree {
+  asOf: string;
+  people: {
+    personId: string;
+    name: string;
+    employeeCode: string;
+    engagementType: z.infer<typeof engagementTypeSchema>;
+    designation: string;
+    departmentId: string;
+    departmentName: string;
+    /** null for roots, including people whose manager the viewer may not see. */
+    managerPersonId: string | null;
+  }[];
+  departments: {
+    departmentId: string;
+    name: string;
+    parentDepartmentId: string | null;
+    businessUnitId: string;
+    businessUnitName: string;
+    /** People in the department that the viewer may see. */
+    headcount: number;
+  }[];
+}
+
+/** POST /api/people/:id/convert: retainer (or consultant) to payroll, same person and employee code. */
+export const convertEngagementSchema = z.object({
+  effectiveFrom: isoDateSchema,
+  type: z.enum(['permanent', 'fixed_term']),
+  /** Assignment facts that change with the conversion; the rest carry forward. */
+  assignment: assignmentFieldsSchema.partial().optional(),
+  compensation: compensationInputSchema.optional(),
+});
+export type ConvertEngagementInput = z.infer<typeof convertEngagementSchema>;
+
+/** GET /api/people/:id/journey: one timeline across all of a person's engagements. */
+export interface JourneyEntry {
+  id: string;
+  engagementId: string;
+  employeeCode: string;
+  eventType: string;
+  category: string;
+  occurredOn: string;
+  isPlanned: boolean;
+  title: string;
+  sensitivity: 'public' | 'manager' | 'hr' | 'restricted';
+  migrated: boolean;
+}

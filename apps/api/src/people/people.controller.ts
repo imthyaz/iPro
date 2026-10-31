@@ -12,11 +12,13 @@ import {
 import {
   changeAssignmentSchema,
   changeCompensationSchema,
+  convertEngagementSchema,
   createPersonSchema,
   emergencyContactInputSchema,
   peopleQuerySchema,
   type ChangeAssignmentInput,
   type ChangeCompensationInput,
+  type ConvertEngagementInput,
   type CreatePersonInput,
 } from '@ipro/shared';
 import type { z } from 'zod';
@@ -77,6 +79,22 @@ export class PeopleController {
     @Body(new ZodPipe(changeCompensationSchema)) body: ChangeCompensationInput,
   ) {
     return this.people.changeCompensation(id, body);
+  }
+
+  /** Retainer or consultant to payroll (done-when: one person, one continuous journey). */
+  @Authorize('assignment_history', 'update')
+  @Post(':id/convert')
+  convert(
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(convertEngagementSchema)) body: ConvertEngagementInput,
+  ) {
+    return this.people.convert(id, body);
+  }
+
+  @Authorize('journey_public', 'read')
+  @Get(':id/journey')
+  journey(@Param('id', uuid) id: string) {
+    return this.people.journeyOf(id);
   }
 
   @Authorize('profile', 'update')
