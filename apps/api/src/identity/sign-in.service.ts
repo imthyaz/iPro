@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import * as client from 'openid-client';
 import { APP_CONFIG, type AppConfig } from '../config.js';
 import { requireContext } from '../context/request-context.js';
@@ -14,6 +14,7 @@ import {
 } from './entra/claims.js';
 import { OIDC_PROVIDER, type OidcProvider } from './entra/oidc-provider.js';
 import { appUsers, authRequests, entraGroupRoles, roleAssignments } from './identity.schema.js';
+import { engagements } from '../people/people.schema.js';
 import { safeReturnTo } from './session-token.js';
 
 const SIGN_IN_WINDOW_MS = 10 * 60_000;
@@ -80,7 +81,7 @@ export class SignInService {
     if (this.config.AUTH_MODE !== 'dev') throw new NotFoundException();
     const user = await this.db.tx(async (tx) => {
       const [row] = await tx
-        .select({ id: appUsers.id })
+        .select({ id: appUsers.id, email: appUsers.email })
         .from(appUsers)
         .where(
           and(
@@ -89,6 +90,7 @@ export class SignInService {
             eq(appUsers.status, 'active'),
           ),
         );
+      if (row) await refreshPersonLink(tx, row.id, row.email);
       return row;
     });
     if (!user) throw new NotFoundException();
@@ -177,6 +179,26 @@ export class SignInService {
           add.map((grant) => ({ ...grant, tenantId, userId, source: 'entra_group' as const })),
         );
     }
+    await refreshPersonLink(tx, userId, identity.email);
     return userId;
+  }
+}
+
+/**
+ * Points the user at the person whose current engagement has this work email (decision #34). Left
+ * unchanged when no current engagement matches, so an exited person keeps their history link.
+ */
+async function refreshPersonLink(tx: Tx, userId: string, email: string): Promise<void> {
+  const [match] = await tx
+    .select({ personId: engagements.personId })
+    .from(engagements)
+    .where(
+      and(
+        sql`lower(${engagements.workEmail}) = lower(${email})`,
+        inArray(engagements.status, ['offered', 'pre_joining', 'active', 'on_notice']),
+      ),
+    );
+  if (match) {
+    await tx.update(appUsers).set({ personId: match.personId }).where(eq(appUsers.id, userId));
   }
 }

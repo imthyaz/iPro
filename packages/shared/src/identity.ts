@@ -15,6 +15,8 @@ export type RoleGrant = z.infer<typeof roleGrantSchema>;
 /** GET /api/me */
 export const meResponseSchema = z.object({
   userId: z.uuid(),
+  /** The person this user is (null until linked by work email, decision #34). */
+  personId: z.uuid().nullable(),
   displayName: z.string(),
   roles: z.array(roleGrantSchema),
 });

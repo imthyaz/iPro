@@ -93,3 +93,437 @@ body {
 .shell-main {
   padding: var(--space);
 }
+
+/* Components (design system). Text colours keep WCAG AA contrast on their backgrounds. */
+
+:root {
+  --color-border: #d5dbe5;
+  --color-ok-bg: #e3f4ea;
+  --color-info-bg: #e5ecfb;
+  --color-warn-bg: #fdf0dc;
+  --color-error-bg: #fde8e6;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-border: #2c3442;
+    --color-ok-bg: #163222;
+    --color-info-bg: #18264a;
+    --color-warn-bg: #3a2a10;
+    --color-error-bg: #3d1a17;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 12px;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin: 0 0 4px;
+}
+
+h3 {
+  font-size: 1rem;
+  margin: 16px 0 8px;
+}
+
+a {
+  color: var(--color-brand);
+}
+
+.muted {
+  color: var(--color-muted);
+}
+
+.header-side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-item {
+  text-decoration: none;
+  border-radius: var(--radius);
+}
+
+.nav-item.active {
+  color: var(--color-brand);
+  background: var(--color-bg);
+  font-weight: 600;
+}
+
+.page {
+  max-width: 1100px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px; /* touch target */
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.button-primary {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .button-primary {
+    color: #10141c;
+  }
+}
+
+.button-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-brand);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+input,
+select {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  width: 100%;
+}
+
+input[type='checkbox'] {
+  min-height: auto;
+  width: auto;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.field label {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.field-hint {
+  font-size: 0.8125rem;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  max-width: 800px;
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: end;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.inline-form h3 {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.note {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  grid-column: 1 / -1;
+}
+
+.note-error {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.note-info {
+  background: var(--color-info-bg);
+}
+
+.empty {
+  padding: 16px 0;
+}
+
+.chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip-ok {
+  background: var(--color-ok-bg);
+  color: var(--color-ok);
+}
+
+.chip-info {
+  background: var(--color-info-bg);
+  color: var(--color-brand);
+}
+
+.chip-warn {
+  background: var(--color-warn-bg);
+  color: var(--color-warn);
+}
+
+.chip-muted {
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+
+/* List → detail side panel, the one layout pattern. */
+
+.list-detail {
+  display: grid;
+  gap: 24px;
+}
+
+@media (min-width: 960px) {
+  .list-detail.has-detail {
+    grid-template-columns: minmax(320px, 2fr) 3fr;
+  }
+
+  .detail-close {
+    display: none;
+  }
+}
+
+@media (max-width: 959px) {
+  .list-detail.has-detail .list-pane {
+    display: none;
+  }
+}
+
+.detail-pane {
+  border-left: 1px solid var(--color-border);
+  padding-left: 24px;
+}
+
+@media (max-width: 959px) {
+  .detail-pane {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+
+.rows,
+.plain,
+.choice-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--color-border);
+  color: inherit;
+  text-decoration: none;
+}
+
+a.row:hover,
+.row-selected {
+  background: var(--color-surface);
+}
+
+.row-main,
+.row-side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.row-side {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.record-header {
+  margin-bottom: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab-active {
+  color: var(--color-brand);
+  border-bottom-color: var(--color-brand);
+  font-weight: 600;
+}
+
+.tab-panel {
+  padding-top: 12px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 24px;
+  margin: 0;
+}
+
+.facts dt {
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 16px;
+  border-left: 2px solid var(--color-border);
+}
+
+.timeline li {
+  padding: 8px 0 8px 12px;
+}
+
+.masked {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree,
+.tree-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree-children {
+  padding-left: 20px;
+  border-left: 2px solid var(--color-border);
+  margin-left: 8px;
+}
+
+.tree-node {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius);
+}
+
+a.tree-node:hover {
+  background: var(--color-surface);
+}
+
+.sign-in {
+  max-width: 480px;
+  margin: 10vh auto;
+}
+
+.choice-list li {
+  margin: 8px 0;
+}
+
+.choice-list .button {
+  width: 100%;
+  justify-content: space-between;
+}
+
+/* Grid items default to min-width: auto, which lets wide rows (tabs) push past the screen. */
+.list-detail > * {
+  min-width: 0;
+}
+
+/* On phones every tab stays visible and tappable rather than scrolling out of reach. */
+@media (max-width: 599px) {
+  .tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}

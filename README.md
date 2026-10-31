@@ -8,7 +8,7 @@ assistant (Phase 1), built with Claude Code.
 1. The Phase 1 build spec is already in `docs/`. Optionally add the product requirements (see `docs/README.md`).
 2. Push this folder to a new private GitHub repository.
 3. Open it in Claude Code and follow `prompts/kickoff.md`.
-4. A person reviews and merges every pull request. Admin credentials (AWS, Entra ID, Zoho, Graph) are created by the
+4. Claude Code merges each slice into `main` once all checks pass (decision #44). Admin credentials (AWS, Entra ID, Zoho, Graph) are created by the
    account owner and stored in AWS Secrets Manager — never given to Claude Code for production.
 
 ## Running it locally

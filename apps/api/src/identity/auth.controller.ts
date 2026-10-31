@@ -120,6 +120,7 @@ export class MeController {
     const actor = requireContext().actor!;
     return {
       userId: actor.userId,
+      personId: actor.personId,
       displayName: (await this.users.displayName(actor.userId)) ?? '',
       roles: actor.roles,
     };

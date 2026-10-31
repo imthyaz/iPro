@@ -5,6 +5,8 @@ import pg from 'pg';
 import type { Role } from '@ipro/shared';
 import { loadConfig } from '../config.js';
 import * as schema from './schema.js';
+import { seedOrg } from './seed-org.js';
+import { seedPeople } from './seed-people.js';
 import { withTenant } from './tenant-context.js';
 
 export const DEV_TENANT_ID = '00000000-0000-4000-8000-000000000001';
@@ -67,6 +69,7 @@ await db
   .onConflictDoNothing();
 
 await withTenant(db, tenantId, async (tx) => {
+  await seedOrg(tx, tenantId);
   for (const user of devUsers) {
     const [existing] = await tx
       .select({ id: schema.appUsers.id })
@@ -85,6 +88,7 @@ await withTenant(db, tenantId, async (tx) => {
         user.roles.map((role) => ({ tenantId, userId: user.id, role, source: 'manual' as const })),
       );
   }
+  await seedPeople(tx, tenantId);
 });
 
 await pool.end();

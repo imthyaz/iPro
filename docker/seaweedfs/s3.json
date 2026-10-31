@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "ipro-local",
+      "credentials": [{ "accessKey": "ipro-local", "secretKey": "ipro-local-only" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

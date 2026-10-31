@@ -7,6 +7,9 @@ import { DbModule } from './db/db.module.js';
 import { HealthModule } from './health/health.module.js';
 import { IdentityModule } from './identity/identity.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { OrgModule } from './org/org.module.js';
+import { PeopleModule } from './people/people.module.js';
+import { StorageModule } from './storage/storage.module.js';
 
 @Module({
   imports: [
@@ -14,9 +17,12 @@ import { JobsModule } from './jobs/jobs.module.js';
     DbModule,
     JobsModule,
     AuditModule,
+    StorageModule,
     IdentityModule,
     AuthzModule,
     HealthModule,
+    OrgModule,
+    PeopleModule,
   ],
 })
 export class AppModule implements NestModule {

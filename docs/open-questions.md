@@ -31,6 +31,12 @@ configurable setting.
 - [ ] Delegation is not in the permissions table: built per decision #27 (managers for themselves, HR/HR head for anyone). Confirm.
 
 ## Engineering (for slice 2)
-- [ ] Local S3 stand-in: the `minio/minio` image can no longer be pulled from Docker Hub (or quay.io without
-      login). Pick a replacement before documents land in slice 2 (e.g. a maintained S3-compatible server, or
-      LocalStack). MinIO is behind the `storage` compose profile until then.
+- [x] Local S3 stand-in: SeaweedFS (decision #37).
+- [ ] Probation length is specified only for permanent staff (6 months) and retainers (none). Fixed-term, intern,
+      trainee and consultant engagements currently get no probation until Ideassion sets a value.
+
+## KYC (slice 2c — please confirm)
+- [x] Aadhaar: full number stored encrypted, shown only on an audited HR unmask, for now (decision #40). Still confirm
+      with legal before go-live whether an Aadhaar Data Vault is required.
+- [x] Employees may open their own KYC scans (decision #39).
+- [x] Probation after a conversion: decided per conversion by HR and CXO (decision #42).
