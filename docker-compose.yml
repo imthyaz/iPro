@@ -1,0 +1,39 @@
+# Local development only. Credentials here are throwaway local values, not secrets.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ipro
+      POSTGRES_PASSWORD: ipro
+      POSTGRES_DB: ipro
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ipro -d ipro']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ipro-local
+      MINIO_ROOT_PASSWORD: ipro-local-only
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
+  miniodata:
