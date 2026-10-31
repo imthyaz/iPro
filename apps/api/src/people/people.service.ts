@@ -1,0 +1,659 @@
+import { randomUUID } from 'node:crypto';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import type {
+  ChangeAssignmentInput,
+  ChangeCompensationInput,
+  CreatePersonInput,
+  PersonSummary,
+} from '@ipro/shared';
+import { AuditService, FIELD_CIPHER, SensitiveReads } from '../audit/audit.service.js';
+import type { FieldCipher } from '../audit/field-cipher.js';
+import { AuthzService, type Resource } from '../authz/authz.service.js';
+import type { Action, DataArea } from '../authz/permissions.js';
+import { businessDate, planChange } from '../common/effective-dating.js';
+import { requireContext } from '../context/request-context.js';
+import { TenantDb } from '../db/tenant-db.js';
+import type { Tx } from '../db/tenant-context.js';
+import { appUsers } from '../identity/identity.schema.js';
+import { JourneyService } from '../journey/journey.service.js';
+import { departmentVersions, designations, locationVersions } from '../org/org.schema.js';
+import { noticePeriodDays, probationEndDate } from './hr-settings.js';
+import { inForce, personSummaries, type SummaryFilter } from './people.queries.js';
+import {
+  assignments,
+  compensations,
+  emergencyContacts,
+  engagements,
+  persons,
+} from './people.schema.js';
+import { SettingsService } from './settings.service.js';
+
+const LIVE_STATUSES = ['offered', 'pre_joining', 'active', 'on_notice'] as const;
+
+/** Where compensation ciphertext lives, so it can't be moved between rows. */
+const compensationField = (id: string) => ({
+  table: 'compensation',
+  column: 'amount_encrypted',
+  recordId: id,
+});
+
+@Injectable()
+export class PeopleService {
+  constructor(
+    @Inject(TenantDb) private readonly db: TenantDb,
+    @Inject(AuthzService) private readonly authz: AuthzService,
+    @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(SensitiveReads) private readonly sensitive: SensitiveReads,
+    @Inject(FIELD_CIPHER) private readonly cipher: FieldCipher,
+    @Inject(JourneyService) private readonly journey: JourneyService,
+    @Inject(SettingsService) private readonly settings: SettingsService,
+  ) {}
+
+  /**
+   * Person, engagement and first assignment in one step, writing a Joined event (decision #20: HR may
+   * create directly without the offer flow). Authorised as creating assignment history (decision #35).
+   */
+  async create(input: CreatePersonInput, now = new Date()): Promise<PersonSummary> {
+    const { actor, tenantId } = requireContext();
+    const legalEntityId = input.engagement.legalEntityId;
+    await this.authz.assert(actor!, 'create', { area: 'assignment_history', legalEntityId });
+    if (input.compensation) {
+      await this.authz.assert(actor!, 'create', { area: 'compensation', legalEntityId });
+    }
+    const today = businessDate(now);
+    const by = { createdBy: actor!.userId, updatedBy: actor!.userId };
+
+    const personId = await this.db.tx(async (tx) => {
+      const { designation, departmentName } = await this.checkAssignmentRefs(
+        tx,
+        input.assignment,
+        input.engagement.joiningDate,
+      );
+      const probationEnd = probationEndDate(
+        input.engagement.joiningDate,
+        input.engagement.type,
+        await this.settings.get(tx, 'probation_months'),
+      );
+      const notice = noticePeriodDays(
+        probationEnd !== null,
+        designation.designationBand,
+        await this.settings.get(tx, 'notice_days'),
+      );
+
+      const [person] = await tx
+        .insert(persons)
+        .values({ tenantId, ...input.person, ...by })
+        .returning({ id: persons.id });
+      const employeeCode = await this.settings.nextEmployeeCode(tx);
+      const joined = input.engagement.joiningDate <= today;
+      const engagementId = randomUUID();
+      await this.insertEngagement(tx, {
+        id: engagementId,
+        tenantId,
+        personId: person!.id,
+        employeeCode,
+        legalEntityId,
+        type: input.engagement.type,
+        status: joined ? 'active' : 'pre_joining',
+        workEmail: input.engagement.workEmail ?? null,
+        offerDate: input.engagement.offerDate ?? null,
+        joiningDate: input.engagement.joiningDate,
+        probationEndDate: probationEnd,
+        noticePeriodDays: notice,
+        ...by,
+      });
+      const [assignment] = await tx
+        .insert(assignments)
+        .values({
+          tenantId,
+          engagementId,
+          effectiveFrom: input.engagement.joiningDate,
+          ...input.assignment,
+          gradeId: designation.gradeId,
+          changeReason: 'Joined',
+          ...by,
+        })
+        .returning({ id: assignments.id });
+      if (input.compensation) {
+        await this.insertCompensation(tx, engagementId, person!.id, {
+          ...input.compensation,
+          effectiveFrom: input.engagement.joiningDate,
+        });
+      }
+
+      await this.journey.record(tx, {
+        engagementId,
+        personId: person!.id,
+        eventType: 'joined',
+        category: 'lifecycle',
+        occurredOn: input.engagement.joiningDate,
+        isPlanned: !joined,
+        title: `Joined as ${designation.title}`,
+        detail: {
+          employeeCode,
+          designationId: designation.id,
+          departmentName,
+          engagementType: input.engagement.type,
+          viaOfferFlow: false,
+        },
+        sensitivity: 'public',
+        sourceTable: 'engagement',
+        sourceId: engagementId,
+      });
+      for (const [table, recordId] of [
+        ['person', person!.id],
+        ['engagement', engagementId],
+        ['assignment', assignment!.id],
+      ] as const) {
+        await this.audit.record(tx, {
+          action: 'create',
+          table,
+          recordId,
+          subjectPersonId: person!.id,
+        });
+      }
+      if (input.engagement.workEmail) {
+        await linkUsersToPerson(tx, input.engagement.workEmail, person!.id);
+      }
+      return person!.id;
+    });
+    return this.get(personId);
+  }
+
+  /** People directory (H1): everyone the actor may read, as of a date. */
+  async directory(filter: SummaryFilter & { asOf?: string }): Promise<PersonSummary[]> {
+    const { actor } = requireContext();
+    const asOf = filter.asOf ?? businessDate(new Date());
+    const all = await this.db.tx((tx) => personSummaries(tx, asOf, filter));
+    const visible: PersonSummary[] = [];
+    for (const person of all) {
+      const decision = await this.authz.check(actor!, 'read', {
+        area: 'profile',
+        subjectPersonId: person.personId,
+        legalEntityId: person.legalEntityId,
+        asOf,
+      });
+      if (decision.allowed) visible.push(person);
+    }
+    return visible;
+  }
+
+  /** Header and profile of a person record (H2, E7, M7). */
+  async get(personId: string, asOf = businessDate(new Date())) {
+    const [summary] = await this.db.tx((tx) =>
+      personSummaries(tx, asOf, { personIds: [personId] }),
+    );
+    if (!summary) throw new NotFoundException();
+    await this.assertOn(summary, 'profile', 'read');
+    const [person, contacts] = await this.db.tx(async (tx) => [
+      (await tx.select().from(persons).where(eq(persons.id, personId)))[0]!,
+      await tx
+        .select({
+          id: emergencyContacts.id,
+          name: emergencyContacts.name,
+          relation: emergencyContacts.relation,
+          phone: emergencyContacts.phone,
+        })
+        .from(emergencyContacts)
+        .where(and(eq(emergencyContacts.personId, personId), isNull(emergencyContacts.deletedAt))),
+    ]);
+    return {
+      ...summary,
+      profile: {
+        dateOfBirth: person.dateOfBirth,
+        gender: person.gender,
+        nationality: person.nationality,
+        personalEmail: person.personalEmail,
+        phone: person.phone,
+        priorExperienceMonths: person.priorExperienceMonths,
+      },
+      emergencyContacts: contacts,
+    };
+  }
+
+  /** Assignment history across all of the person's engagements (H2 tab). */
+  async assignmentHistory(personId: string) {
+    const summary = await this.summary(personId);
+    await this.assertOn(summary, 'assignment_history', 'read');
+    return this.db.tx(async (tx) => {
+      const rows = await tx
+        .select({
+          assignment: assignments,
+          engagement: engagements,
+          designationTitle: designations.title,
+        })
+        .from(assignments)
+        .innerJoin(engagements, eq(engagements.id, assignments.engagementId))
+        .innerJoin(designations, eq(designations.id, assignments.designationId))
+        .where(eq(engagements.personId, personId))
+        .orderBy(asc(assignments.effectiveFrom));
+      const names = await this.unitNames(tx);
+      return rows.map(({ assignment: a, engagement: e, designationTitle }) => ({
+        id: a.id,
+        engagementId: e.id,
+        employeeCode: e.employeeCode,
+        engagementType: e.type,
+        effectiveFrom: a.effectiveFrom,
+        effectiveTo: a.effectiveTo,
+        designation: { id: a.designationId, title: designationTitle },
+        department: { id: a.departmentId, name: names.department(a.departmentId, a.effectiveFrom) },
+        location: { id: a.locationId, name: names.location(a.locationId, a.effectiveFrom) },
+        managerEngagementId: a.managerEngagementId,
+        bucket: a.bucket,
+        changeReason: a.changeReason,
+      }));
+    });
+  }
+
+  /**
+   * HR changes assignment facts effective from a date (closing the row in force). Slice 5 puts the
+   * in-life change approval in front of this.
+   */
+  async changeAssignment(personId: string, input: ChangeAssignmentInput, now = new Date()) {
+    const summary = await this.summary(personId);
+    await this.assertOn(summary, 'assignment_history', 'update');
+    const { actor, tenantId } = requireContext();
+    const engagementId = input.engagementId ?? summary.engagementId;
+    await this.db.tx(async (tx) => {
+      const engagement = await this.engagementOf(tx, personId, engagementId);
+      const history = await tx
+        .select()
+        .from(assignments)
+        .where(eq(assignments.engagementId, engagement.id))
+        .orderBy(asc(assignments.effectiveFrom));
+      const plan = planChange(history, input.effectiveFrom);
+      if (!plan.ok) throw new BadRequestException({ message: plan.problem });
+      const base = history.find((row) => row.id === plan.basedOn);
+      if (!base) throw new BadRequestException({ message: 'No assignment in force on that date' });
+      const { engagementId: _engagementId, effectiveFrom, changeReason, ...changes } = input;
+      const next = { ...pickAssignment(base), ...stripUndefined(changes) };
+      const { designation } = await this.checkAssignmentRefs(tx, next, effectiveFrom);
+
+      if (plan.close) {
+        await tx
+          .update(assignments)
+          .set({ effectiveTo: plan.close.effectiveTo, updatedAt: now, updatedBy: actor!.userId })
+          .where(eq(assignments.id, plan.close.id));
+      }
+      const [row] = await tx
+        .insert(assignments)
+        .values({
+          tenantId,
+          engagementId: engagement.id,
+          ...plan.newRow,
+          ...next,
+          gradeId: designation.gradeId,
+          changeReason,
+          createdBy: actor!.userId,
+          updatedBy: actor!.userId,
+        })
+        .returning({ id: assignments.id });
+      const changed = Object.keys(stripUndefined(changes));
+      await this.audit.record(tx, {
+        action: 'create',
+        table: 'assignment',
+        recordId: row!.id,
+        subjectPersonId: personId,
+        fieldChanges: changed.map((field) => ({
+          field,
+          from: (pickAssignment(base) as Record<string, unknown>)[field] ?? null,
+          to: (next as Record<string, unknown>)[field] ?? null,
+        })),
+      });
+      await this.journey.record(tx, {
+        engagementId: engagement.id,
+        personId,
+        eventType: 'assignment_changed',
+        category: 'role',
+        occurredOn: effectiveFrom,
+        isPlanned: effectiveFrom > businessDate(now),
+        title: changeReason,
+        detail: { changed, designationId: next.designationId, departmentId: next.departmentId },
+        sensitivity: 'public',
+        sourceTable: 'assignment',
+        sourceId: row!.id,
+      });
+    });
+    return this.assignmentHistory(personId);
+  }
+
+  /** Compensation history. Each amount read writes an audit row (decision #16). */
+  async compensationHistory(personId: string) {
+    const summary = await this.summary(personId);
+    await this.assertOn(summary, 'compensation', 'read');
+    return this.db.tx(async (tx) => {
+      const rows = await tx
+        .select({ compensation: compensations, engagement: engagements })
+        .from(compensations)
+        .innerJoin(engagements, eq(engagements.id, compensations.engagementId))
+        .where(eq(engagements.personId, personId))
+        .orderBy(asc(compensations.effectiveFrom));
+      const result = [];
+      for (const { compensation: c, engagement: e } of rows) {
+        const amount = await this.sensitive.compensation(tx, {
+          ...compensationField(c.id),
+          stored: c.amountEncrypted,
+          subjectPersonId: personId,
+        });
+        result.push({
+          id: c.id,
+          engagementId: e.id,
+          employeeCode: e.employeeCode,
+          effectiveFrom: c.effectiveFrom,
+          effectiveTo: c.effectiveTo,
+          amount: amount.toString(),
+          rateUnit: c.rateUnit,
+          currency: c.currency,
+        });
+      }
+      return result;
+    });
+  }
+
+  /** New pay effective from a date. Approval above band comes with the offer and change workflows. */
+  async changeCompensation(personId: string, input: ChangeCompensationInput, now = new Date()) {
+    const summary = await this.summary(personId);
+    await this.assertOn(summary, 'compensation', 'create');
+    await this.db.tx(async (tx) => {
+      const engagement = await this.engagementOf(
+        tx,
+        personId,
+        input.engagementId ?? summary.engagementId,
+      );
+      const id = await this.insertCompensation(tx, engagement.id, personId, input);
+      await this.journey.record(tx, {
+        engagementId: engagement.id,
+        personId,
+        eventType: 'compensation_changed',
+        category: 'pay',
+        occurredOn: input.effectiveFrom,
+        isPlanned: input.effectiveFrom > businessDate(now),
+        title: 'Compensation revised',
+        sensitivity: 'hr',
+        sourceTable: 'compensation',
+        sourceId: id,
+      });
+    });
+    return this.compensationHistory(personId);
+  }
+
+  async addEmergencyContact(
+    personId: string,
+    input: { name: string; relation: string; phone: string },
+  ) {
+    const summary = await this.summary(personId);
+    await this.assertProfileUpdate(summary);
+    const { actor, tenantId } = requireContext();
+    await this.db.tx(async (tx) => {
+      const [row] = await tx
+        .insert(emergencyContacts)
+        .values({
+          tenantId,
+          personId,
+          ...input,
+          createdBy: actor!.userId,
+          updatedBy: actor!.userId,
+        })
+        .returning({ id: emergencyContacts.id });
+      await this.audit.record(tx, {
+        action: 'create',
+        table: 'emergency_contact',
+        recordId: row!.id,
+        subjectPersonId: personId,
+      });
+    });
+    return this.get(personId);
+  }
+
+  async removeEmergencyContact(personId: string, contactId: string) {
+    const summary = await this.summary(personId);
+    await this.assertProfileUpdate(summary);
+    const { actor } = requireContext();
+    await this.db.tx(async (tx) => {
+      const now = new Date();
+      const updated = await tx
+        .update(emergencyContacts)
+        .set({ deletedAt: now, deletedBy: actor!.userId, updatedAt: now, updatedBy: actor!.userId })
+        .where(
+          and(
+            eq(emergencyContacts.id, contactId),
+            eq(emergencyContacts.personId, personId),
+            isNull(emergencyContacts.deletedAt),
+          ),
+        )
+        .returning({ id: emergencyContacts.id });
+      if (updated.length === 0) throw new NotFoundException();
+      await this.audit.record(tx, {
+        action: 'delete',
+        table: 'emergency_contact',
+        recordId: contactId,
+        subjectPersonId: personId,
+      });
+    });
+    return this.get(personId);
+  }
+
+  /** The summary authz decisions are made on (legal entity of the live or latest engagement). */
+  async summary(personId: string): Promise<PersonSummary> {
+    const [summary] = await this.db.tx((tx) =>
+      personSummaries(tx, businessDate(new Date()), { personIds: [personId] }),
+    );
+    if (!summary) throw new NotFoundException();
+    return summary;
+  }
+
+  private assertOn(summary: PersonSummary, area: DataArea, action: Action) {
+    const resource: Resource = {
+      area,
+      subjectPersonId: summary.personId,
+      legalEntityId: summary.legalEntityId,
+    };
+    return this.authz.assert(requireContext().actor!, action, resource);
+  }
+
+  /** Employees change their own profile through a change request, which arrives with slice 3. */
+  private async assertProfileUpdate(summary: PersonSummary) {
+    const obligations = await this.assertOn(summary, 'profile', 'update');
+    if (obligations.has('via_change_request')) {
+      throw new ConflictException({
+        message: 'Profile changes need a change request (coming soon)',
+      });
+    }
+  }
+
+  private async insertEngagement(tx: Tx, values: typeof engagements.$inferInsert) {
+    try {
+      await tx.insert(engagements).values(values);
+    } catch (error) {
+      if (String((error as Error).cause ?? error).includes('engagement_work_email_live_key')) {
+        throw new ConflictException({
+          message: 'Work email is already used by a current engagement',
+        });
+      }
+      throw error;
+    }
+  }
+
+  private async insertCompensation(
+    tx: Tx,
+    engagementId: string,
+    personId: string,
+    input: {
+      amount: string;
+      rateUnit: ChangeCompensationInput['rateUnit'];
+      currency?: string;
+      effectiveFrom: string;
+    },
+  ): Promise<string> {
+    const { actor, tenantId } = requireContext();
+    const history = await tx
+      .select()
+      .from(compensations)
+      .where(eq(compensations.engagementId, engagementId));
+    const plan = planChange(history, input.effectiveFrom);
+    if (!plan.ok) throw new BadRequestException({ message: plan.problem });
+    if (plan.close) {
+      await tx
+        .update(compensations)
+        .set({
+          effectiveTo: plan.close.effectiveTo,
+          updatedAt: new Date(),
+          updatedBy: actor!.userId,
+        })
+        .where(eq(compensations.id, plan.close.id));
+    }
+    const id = randomUUID();
+    await tx.insert(compensations).values({
+      id,
+      tenantId,
+      engagementId,
+      ...plan.newRow,
+      amountEncrypted: await this.cipher.encrypt(tenantId, input.amount, compensationField(id)),
+      rateUnit: input.rateUnit,
+      currency: input.currency ?? 'INR',
+      createdBy: actor!.userId,
+      updatedBy: actor!.userId,
+    });
+    await this.audit.record(tx, {
+      action: 'create',
+      table: 'compensation',
+      recordId: id,
+      subjectPersonId: personId,
+      fieldChanges: [{ field: 'amount_encrypted', sensitive: true }],
+    });
+    return id;
+  }
+
+  private async engagementOf(tx: Tx, personId: string, engagementId: string) {
+    const [engagement] = await tx
+      .select()
+      .from(engagements)
+      .where(and(eq(engagements.id, engagementId), eq(engagements.personId, personId)));
+    if (!engagement) throw new NotFoundException();
+    return engagement;
+  }
+
+  /** The designation, department, location and manager must exist and be in force on the date. */
+  private async checkAssignmentRefs(
+    tx: Tx,
+    a: {
+      designationId: string;
+      departmentId: string;
+      locationId: string;
+      managerEngagementId?: string | null;
+      bucket: string;
+    },
+    onDate: string,
+  ) {
+    const [designation] = await tx
+      .select()
+      .from(designations)
+      .where(and(eq(designations.id, a.designationId), isNull(designations.deletedAt)));
+    if (!designation) throw new BadRequestException({ message: 'Unknown designation' });
+    const [department] = await tx
+      .select({ name: departmentVersions.name })
+      .from(departmentVersions)
+      .where(
+        and(
+          eq(departmentVersions.departmentId, a.departmentId),
+          inForce(departmentVersions.effectiveFrom, departmentVersions.effectiveTo, onDate),
+        ),
+      );
+    if (!department)
+      throw new BadRequestException({ message: 'Department is not in force on that date' });
+    const [location] = await tx
+      .select({ id: locationVersions.id })
+      .from(locationVersions)
+      .where(
+        and(
+          eq(locationVersions.locationId, a.locationId),
+          inForce(locationVersions.effectiveFrom, locationVersions.effectiveTo, onDate),
+        ),
+      );
+    if (!location)
+      throw new BadRequestException({ message: 'Location is not in force on that date' });
+    if (a.managerEngagementId) {
+      const [manager] = await tx
+        .select({ id: engagements.id })
+        .from(engagements)
+        .where(
+          and(
+            eq(engagements.id, a.managerEngagementId),
+            inArray(engagements.status, [...LIVE_STATUSES]),
+          ),
+        );
+      if (!manager) throw new BadRequestException({ message: 'Manager has no current engagement' });
+    }
+    const buckets = await this.settings.get(tx, 'buckets');
+    if (!buckets.includes(a.bucket)) throw new BadRequestException({ message: 'Unknown bucket' });
+    return { designation, departmentName: department.name };
+  }
+
+  /** Department and location names as of a date, for history rows. */
+  private async unitNames(tx: Tx) {
+    const [departmentRows, locationRows] = await Promise.all([
+      tx.select().from(departmentVersions),
+      tx.select().from(locationVersions),
+    ]);
+    const nameAt = (
+      rows: { effectiveFrom: string; effectiveTo: string | null; name: string }[],
+      date: string,
+    ) =>
+      rows.find((r) => r.effectiveFrom <= date && (r.effectiveTo === null || date <= r.effectiveTo))
+        ?.name ?? '';
+    return {
+      department: (id: string, date: string) =>
+        nameAt(
+          departmentRows.filter((r) => r.departmentId === id),
+          date,
+        ),
+      location: (id: string, date: string) =>
+        nameAt(
+          locationRows.filter((r) => r.locationId === id),
+          date,
+        ),
+    };
+  }
+}
+
+const assignmentFields = [
+  'designationId',
+  'departmentId',
+  'locationId',
+  'costCentreId',
+  'managerEngagementId',
+  'dottedManagerEngagementId',
+  'bucket',
+  'positionId',
+  'workPolicyId',
+] as const;
+
+function pickAssignment(row: typeof assignments.$inferSelect) {
+  return Object.fromEntries(assignmentFields.map((f) => [f, row[f]])) as Pick<
+    typeof assignments.$inferSelect,
+    (typeof assignmentFields)[number]
+  >;
+}
+
+function stripUndefined<T extends object>(value: T): Partial<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+/** Links sign-in users whose email matches a current engagement's work email (decision #34). */
+export async function linkUsersToPerson(
+  tx: Tx,
+  workEmail: string,
+  personId: string,
+): Promise<void> {
+  await tx
+    .update(appUsers)
+    .set({ personId, updatedAt: new Date() })
+    .where(and(sql`lower(${appUsers.email}) = lower(${workEmail})`, isNull(appUsers.personId)));
+}

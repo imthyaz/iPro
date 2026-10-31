@@ -65,7 +65,8 @@ afterAll(async () => {
 describe('row-level security', () => {
   it('a tenant cannot see or write another tenant’s rows', async () => {
     const visibleFromB = await withTenant(db, TENANT_B, (tx) => tx.select().from(schema.appUsers));
-    expect(visibleFromB).toEqual([]);
+    expect(visibleFromB.some((user) => user.tenantId === TENANT_A)).toBe(false);
+    expect(visibleFromB.some((user) => user.id === EMPLOYEE)).toBe(false);
     const error = await withTenant(db, TENANT_B, (tx) =>
       tx
         .insert(schema.appUsers)
@@ -154,6 +155,7 @@ describe('sign-in and sessions', () => {
       userId: EMPLOYEE,
       displayName: 'Test Employee',
       roles: [{ role: 'employee', legalEntityId: null }],
+      personId: null,
     });
     await request(app.getHttpServer()).post('/api/auth/logout').set('Cookie', cookie).expect(204);
     await request(app.getHttpServer()).get('/api/me').set('Cookie', cookie).expect(401);

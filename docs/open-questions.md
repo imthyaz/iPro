@@ -34,3 +34,5 @@ configurable setting.
 - [ ] Local S3 stand-in: the `minio/minio` image can no longer be pulled from Docker Hub (or quay.io without
       login). Pick a replacement before documents land in slice 2 (e.g. a maintained S3-compatible server, or
       LocalStack). MinIO is behind the `storage` compose profile until then.
+- [ ] Probation length is specified only for permanent staff (6 months) and retainers (none). Fixed-term, intern,
+      trainee and consultant engagements currently get no probation until Ideassion sets a value.

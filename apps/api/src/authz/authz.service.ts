@@ -1,5 +1,6 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import type { RoleGrant } from '@ipro/shared';
+import { businessDate } from '../common/effective-dating.js';
 import type { Actor } from '../context/request-context.js';
 import {
   permissions,
@@ -26,8 +27,8 @@ export interface Resource {
     decided?: boolean;
     createdByUserId?: string | null;
   };
-  /** Date the team relationship is checked at (defaults to now). */
-  asOf?: Date;
+  /** Business date (YYYY-MM-DD) the team relationship is checked at; defaults to today. */
+  asOf?: string;
 }
 
 export type Decision = { allowed: true; obligations: ReadonlySet<Obligation> } | { allowed: false };
@@ -86,7 +87,7 @@ export class AuthzService {
         return this.scopes.isInTeam(
           actor.personId,
           resource.subjectPersonId,
-          resource.asOf ?? new Date(),
+          resource.asOf ?? businessDate(new Date()),
         );
       case 'entity':
         return (
