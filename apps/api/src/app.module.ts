@@ -7,6 +7,7 @@ import { DbModule } from './db/db.module.js';
 import { HealthModule } from './health/health.module.js';
 import { IdentityModule } from './identity/identity.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { OrgModule } from './org/org.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { JobsModule } from './jobs/jobs.module.js';
     IdentityModule,
     AuthzModule,
     HealthModule,
+    OrgModule,
   ],
 })
 export class AppModule implements NestModule {

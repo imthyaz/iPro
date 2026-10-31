@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { businessDate } from '../common/effective-dating.js';
 import {
-  businessDate,
   delegationProblems,
   effectiveApprovers,
   type DelegationFacts,

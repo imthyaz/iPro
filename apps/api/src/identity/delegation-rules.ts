@@ -52,13 +52,3 @@ export function effectiveApprovers(
     .map((d) => d.delegateUserId);
   return [approverUserId, ...new Set(delegates)];
 }
-
-/** Today's business date in a timezone (Asia/Kolkata for Phase 1). */
-export function businessDate(now: Date, timeZone = 'Asia/Kolkata'): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(now);
-}
