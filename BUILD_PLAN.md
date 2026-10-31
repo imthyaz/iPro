@@ -15,11 +15,11 @@ Playwright, Docker Compose Postgres, Drizzle set-up, pg-boss, CI (GitHub Actions
 integration, e2e), CDK skeleton for dev in ap-south-1 (not deployed until the account owner provides credentials).
 
 **Done when**
-- [ ] `pnpm dev` starts api, web and Postgres; health endpoint returns OK; web shows a placeholder shell.
+- [x] `pnpm dev` starts api, web and Postgres; health endpoint returns OK; web shows a placeholder shell.
 - [ ] CI runs on every PR and blocks merge on failure.
 - [x] `.env.example` lists every variable; no secrets in the repo.
 
-## [ ] Slice 1 — Identity, roles, permissions, audit
+## [x] Slice 1 — Identity, roles, permissions, audit
 
 **Spec:** Permissions; Technical decisions (Identity, Audit); Data model (AuditLog, Approval).
 
@@ -28,9 +28,9 @@ entity), the central `authz` module implementing the permissions table, AuditLog
 masking helper, delegation of approvals.
 
 **Done when**
-- [ ] Every role in the permissions table has automated tests for allowed and denied actions.
-- [ ] Compensation and KYC reads write audit rows with actor and time.
-- [ ] A manager on leave can delegate approvals for a date range.
+- [x] Every role in the permissions table has automated tests for allowed and denied actions.
+- [x] Compensation and KYC reads write audit rows with actor and time.
+- [x] A manager on leave can delegate approvals for a date range.
 
 ## [ ] Slice 2 — Organisation and people
 

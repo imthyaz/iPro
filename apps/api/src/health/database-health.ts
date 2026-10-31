@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type pg from 'pg';
-import { PG_POOL } from '../db/db.module.js';
+import { PG_POOL } from '../db/tokens.js';
 
 @Injectable()
 export class DatabaseHealth {

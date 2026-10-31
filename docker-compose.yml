@@ -17,7 +17,10 @@ services:
       timeout: 3s
       retries: 30
 
+  # Opt-in (`docker compose --profile storage up`): the minio/minio image is no longer pullable from
+  # Docker Hub. The S3 stand-in is chosen in slice 2, when documents need it (docs/open-questions.md).
   minio:
+    profiles: ['storage']
     image: minio/minio:latest
     command: server /data --console-address :9001
     environment:

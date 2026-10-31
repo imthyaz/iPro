@@ -1,25 +1,15 @@
-import 'reflect-metadata';
 import type { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import { healthResponseSchema } from '@ipro/shared';
 import { PgBoss } from 'pg-boss';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AppModule } from '../src/app.module.js';
-import { APP_CONFIG, loadConfig } from '../src/config.js';
 import { JOBS } from '../src/jobs/jobs.module.js';
-import { TEST_DATABASE_URL } from './test-db.js';
+import { createTestApp } from './test-app.js';
 
 let app: INestApplication;
 
 beforeAll(async () => {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(APP_CONFIG)
-    .useValue(loadConfig({ DATABASE_URL: TEST_DATABASE_URL, NODE_ENV: 'test' }))
-    .compile();
-  app = moduleRef.createNestApplication();
-  app.setGlobalPrefix('api');
-  await app.init();
+  app = await createTestApp({ JOBS_ENABLED: 'true' });
 });
 
 afterAll(() => app.close());

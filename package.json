@@ -13,8 +13,8 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "pnpm build:shared && pnpm -r typecheck",
-    "test": "pnpm build:shared && pnpm -r test",
-    "test:unit": "pnpm build:shared && pnpm -r test:unit",
+    "test": "pnpm build:shared && pnpm -r --workspace-concurrency=1 test",
+    "test:unit": "pnpm build:shared && pnpm -r --workspace-concurrency=1 test:unit",
     "test:e2e": "pnpm build && pnpm --filter @ipro/web test:e2e",
     "db:migrate": "pnpm --filter @ipro/api db:migrate",
     "db:seed": "pnpm --filter @ipro/api db:seed"

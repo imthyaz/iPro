@@ -15,6 +15,20 @@
       "when": 1793441474099,
       "tag": "0001_tenant_context",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793442917176,
+      "tag": "0002_identity_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793442920363,
+      "tag": "0003_app_role_rls",
+      "breakpoints": true
     }
   ]
 }
