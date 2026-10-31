@@ -39,5 +39,4 @@ configurable setting.
 - [x] Aadhaar: full number stored encrypted, shown only on an audited HR unmask, for now (decision #40). Still confirm
       with legal before go-live whether an Aadhaar Data Vault is required.
 - [x] Employees may open their own KYC scans (decision #39).
-- [ ] After a retainer converts to payroll, does the new engagement serve probation? Today it gets the policy
-      probation for its new type (6 months for permanent).
+- [x] Probation after a conversion: decided per conversion by HR and CXO (decision #42).

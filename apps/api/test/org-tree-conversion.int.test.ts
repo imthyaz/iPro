@@ -178,17 +178,25 @@ describe('retainer converted to payroll (done-when #3)', () => {
     ).body;
   });
 
-  it('refuses future dates and non-retainer engagements', async () => {
+  it('refuses future dates, non-retainer engagements and a missing probation choice', async () => {
+    await hr
+      .post(`/api/people/${retainer.personId}/convert`, {
+        effectiveFrom: '2025-07-01',
+        type: 'permanent',
+      })
+      .expect(400);
     await hr
       .post(`/api/people/${retainer.personId}/convert`, {
         effectiveFrom: '2999-01-01',
         type: 'permanent',
+        probation: 'none',
       })
       .expect(400);
     await hr
       .post(`/api/people/${ids.ana!.personId}/convert`, {
         effectiveFrom: '2025-07-01',
         type: 'permanent',
+        probation: 'none',
       })
       .expect(400);
   });
@@ -198,6 +206,7 @@ describe('retainer converted to payroll (done-when #3)', () => {
       .post(`/api/people/${retainer.personId}/convert`, {
         effectiveFrom: '2025-07-01',
         type: 'permanent',
+        probation: 'none',
         compensation: { amount: '240000000', rateUnit: 'year' },
       })
       .expect(201);
@@ -213,7 +222,8 @@ describe('retainer converted to payroll (done-when #3)', () => {
     expect(directory.body).toHaveLength(1);
 
     const { rows: engagements } = await pool.query(
-      `select id, type, status, last_working_date::text, exit_reason, previous_engagement_id, employee_code
+      `select id, type, status, last_working_date::text, exit_reason, previous_engagement_id, employee_code,
+              probation_end_date
        from engagement where person_id = $1 order by joining_date`,
       [retainer.personId],
     );
@@ -224,7 +234,12 @@ describe('retainer converted to payroll (done-when #3)', () => {
         last_working_date: '2025-06-30',
         exit_reason: 'converted_to_payroll',
       },
-      { type: 'permanent', status: 'active', previous_engagement_id: retainer.engagementId },
+      {
+        type: 'permanent',
+        status: 'active',
+        previous_engagement_id: retainer.engagementId,
+        probation_end_date: null, // HR and CXO chose no probation for this conversion
+      },
     ]);
     expect(new Set(engagements.map((e) => e.employee_code)).size).toBe(1);
 

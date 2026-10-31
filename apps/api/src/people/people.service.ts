@@ -522,11 +522,15 @@ export class PeopleService {
         })
         .where(eq(engagements.id, old.id));
 
-      const probationEnd = probationEndDate(
-        input.effectiveFrom,
-        input.type,
-        await this.settings.get(tx, 'probation_months'),
-      );
+      // HR and CXO decide per conversion whether probation applies (decision #42).
+      const probationEnd =
+        input.probation === 'policy'
+          ? probationEndDate(
+              input.effectiveFrom,
+              input.type,
+              await this.settings.get(tx, 'probation_months'),
+            )
+          : null;
       const engagementId = randomUUID();
       await this.insertEngagement(tx, {
         id: engagementId,
@@ -578,6 +582,7 @@ export class PeopleService {
           fromType: old.type,
           toType: input.type,
           employeeCode: old.employeeCode,
+          probation: input.probation,
         },
         sensitivity: 'public',
         sourceTable: 'engagement',

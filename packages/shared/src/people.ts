@@ -143,6 +143,11 @@ export interface OrgTree {
 export const convertEngagementSchema = z.object({
   effectiveFrom: isoDateSchema,
   type: z.enum(['permanent', 'fixed_term']),
+  /**
+   * Whether the payroll engagement serves probation: decided per conversion by HR and CXO (decision #42).
+   * "policy" applies the probation length for the new type; "none" waives it. No default: it must be chosen.
+   */
+  probation: z.enum(['policy', 'none']),
   /** Assignment facts that change with the conversion; the rest carry forward. */
   assignment: assignmentFieldsSchema.partial().optional(),
   compensation: compensationInputSchema.optional(),
