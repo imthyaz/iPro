@@ -34,6 +34,8 @@ export const actions = [
   'cancel',
   'withdraw',
   'terminate',
+  /** Open a KYC scan (the full number is visible): own scans, and HR or HR head (decision #39). */
+  'open_scan',
 ] as const;
 export type Action = (typeof actions)[number];
 
@@ -78,7 +80,7 @@ export const permissions: Record<Role, readonly Grant[]> = {
     g('profile', 'own', ['read']),
     g('profile', 'own', ['update'], { obligations: ['via_change_request'] }),
     g('kyc', 'own', ['read'], { obligations: ['mask'] }),
-    g('kyc', 'own', ['create']),
+    g('kyc', 'own', ['create', 'open_scan']),
     g('compensation', 'own', ['read']),
     g('assignment_history', 'own', ['read']),
     g('attendance', 'own', ['read', 'create', 'regularise']),
@@ -106,7 +108,7 @@ export const permissions: Record<Role, readonly Grant[]> = {
   hr: [
     g('profile', 'entity', ['read', 'update']),
     g('kyc', 'entity', ['read'], { obligations: ['mask'] }),
-    g('kyc', 'entity', ['unmask', 'update', 'verify']),
+    g('kyc', 'entity', ['unmask', 'update', 'verify', 'open_scan']),
     g('compensation', 'entity', ['read', 'create', 'update']),
     g('assignment_history', 'entity', ['read', 'create', 'update']),
     g('attendance', 'entity', ['read']),
@@ -127,7 +129,7 @@ export const permissions: Record<Role, readonly Grant[]> = {
   hr_head: [
     g('profile', 'entity', ['read', 'update']),
     g('kyc', 'entity', ['read'], { obligations: ['mask'] }),
-    g('kyc', 'entity', ['unmask', 'update']),
+    g('kyc', 'entity', ['unmask', 'update', 'open_scan']),
     g('compensation', 'entity', ['read', 'create', 'update', 'approve']),
     g('assignment_history', 'entity', ['read', 'create', 'update', 'approve']),
     g('attendance', 'entity', ['read', 'update']),

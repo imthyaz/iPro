@@ -198,13 +198,14 @@ describe('documents', () => {
     await manager.post(`/api/people/${employeePersonId}/documents/${scanId}/link`).expect(404);
   });
 
-  it('opening a KYC scan is an audited unmask: HR may, the employee may not', async () => {
+  it('HR opening a KYC scan is an audited unmask; the employee opens their own (audited view)', async () => {
     const link = await hr
       .post(`/api/people/${employeePersonId}/documents/${scanId}/link`)
       .expect(201);
     expect(link.body).toMatchObject({ expiresInSeconds: 300 });
     expect(link.body.url).toMatch(/^memory:\/\//);
     expect(await auditActions('document', HR)).toContain('unmask');
-    await employee.post(`/api/people/${employeePersonId}/documents/${scanId}/link`).expect(404);
+    await employee.post(`/api/people/${employeePersonId}/documents/${scanId}/link`).expect(201);
+    expect(await auditActions('document', EMPLOYEE)).toEqual(['create', 'view']);
   });
 });

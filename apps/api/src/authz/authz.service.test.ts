@@ -9,12 +9,13 @@ import type { ScopeResolver } from './scope-resolver.js';
  * The spec's permissions table, transcribed independently of permissions.ts. Codes: R read, C create,
  * U update, A approve, D delete; named actions spelled out. Qualifiers (masked, via request, with reason,
  * aggregates, before cut-off, non-confidential, after decision, own actions) are tested further down.
- * Decisions #14 (CXO reads compensation), #17 (HR and HR head unmask KYC) and #27 (delegation) apply.
+ * Decisions #14 (CXO reads compensation), #17 (HR and HR head unmask KYC), #27 (delegation) and
+ * #39 (employees open their own KYC scans; HR and HR head open anyone’s) apply.
  */
 const specTable: Record<Role, Partial<Record<DataArea, string>>> = {
   employee: {
     profile: 'R U',
-    kyc: 'R C',
+    kyc: 'R C open_scan',
     compensation: 'R',
     assignment_history: 'R',
     attendance: 'R C regularise',
@@ -40,7 +41,7 @@ const specTable: Record<Role, Partial<Record<DataArea, string>>> = {
   },
   hr: {
     profile: 'R U',
-    kyc: 'R U verify unmask',
+    kyc: 'R U verify unmask open_scan',
     compensation: 'R C U',
     assignment_history: 'R C U',
     attendance: 'R U',
@@ -58,7 +59,7 @@ const specTable: Record<Role, Partial<Record<DataArea, string>>> = {
   },
   hr_head: {
     profile: 'R U',
-    kyc: 'R U unmask',
+    kyc: 'R U unmask open_scan',
     compensation: 'R C U A',
     assignment_history: 'R C U A',
     attendance: 'R U',

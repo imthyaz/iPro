@@ -36,8 +36,6 @@ configurable setting.
       trainee and consultant engagements currently get no probation until Ideassion sets a value.
 
 ## KYC (slice 2c — please confirm)
-- [ ] Legal: may Ideassion store full Aadhaar numbers (encrypted), or only the last 4 / a reference? The Aadhaar Act
-      restricts storing Aadhaar numbers; an Aadhaar Data Vault may be required. Until confirmed, the full value is
-      stored encrypted and shown only on an audited HR unmask.
-- [ ] May employees open their own KYC scans? The permissions table gives them masked KYC only, so today they can
-      upload a scan but not view it again.
+- [x] Aadhaar: full number stored encrypted, shown only on an audited HR unmask, for now (decision #40). Still confirm
+      with legal before go-live whether an Aadhaar Data Vault is required.
+- [x] Employees may open their own KYC scans (decision #39).

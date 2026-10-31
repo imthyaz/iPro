@@ -62,7 +62,7 @@ const toView = (row: DocumentRow): DocumentView => ({
 
 /**
  * Person documents in object storage. KYC scans are governed by the KYC row of the permissions table:
- * employees upload their own, and opening one shows the full number, so it needs `unmask`.
+ * employees upload and open their own; HR and HR head open anyone’s (decision #39).
  */
 @Injectable()
 export class DocumentsService {
@@ -150,7 +150,7 @@ export class DocumentsService {
     return visible;
   }
 
-  /** A short-lived download link. Opening a KYC scan counts as an unmask. */
+  /** A short-lived download link. HR opening someone’s KYC scan is audited as an unmask. */
   async downloadLink(
     personId: string,
     documentId: string,
@@ -170,11 +170,14 @@ export class DocumentsService {
       return found;
     });
     if (!row) throw new NotFoundException();
-    const action: Action = row.type === 'kyc_scan' ? 'unmask' : 'read';
+    const action: Action = row.type === 'kyc_scan' ? 'open_scan' : 'read';
     if (!(await this.decide(row, legalEntityId, action)).allowed) throw new NotFoundException();
     await this.db.tx((tx) =>
       this.audit.record(tx, {
-        action: row.type === 'kyc_scan' ? 'unmask' : 'view',
+        action:
+          row.type === 'kyc_scan' && requireContext().actor!.personId !== personId
+            ? 'unmask'
+            : 'view',
         table: 'document',
         recordId: row.id,
         subjectPersonId: personId,
