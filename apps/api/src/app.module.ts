@@ -1,10 +1,26 @@
-import { Module } from '@nestjs/common';
+import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
+import { AuditModule } from './audit/audit.module.js';
+import { AuthzModule } from './authz/authz.module.js';
 import { ConfigModule } from './config.module.js';
+import { RequestContextMiddleware } from './context/request-context.js';
 import { DbModule } from './db/db.module.js';
 import { HealthModule } from './health/health.module.js';
+import { IdentityModule } from './identity/identity.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 
 @Module({
-  imports: [ConfigModule, DbModule, JobsModule, HealthModule],
+  imports: [
+    ConfigModule,
+    DbModule,
+    JobsModule,
+    AuditModule,
+    IdentityModule,
+    AuthzModule,
+    HealthModule,
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestContextMiddleware).forRoutes('*path');
+  }
+}

@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
-import { TEST_DATABASE_URL } from './test-db.js';
+import { TENANT_A, TENANT_B, TEST_DATABASE_URL } from './test-db.js';
 
 /** Rebuilds the test database from the committed migrations, so tests prove the migrations too. */
 export default async function setup(): Promise<void> {
@@ -15,6 +15,10 @@ export default async function setup(): Promise<void> {
     await migrate(drizzle({ client: pool }), {
       migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)),
     });
+    await pool.query(
+      `insert into tenant (id, name) values ($1, 'Tenant A (test)'), ($2, 'Tenant B (test)')`,
+      [TENANT_A, TENANT_B],
+    );
   } catch (error) {
     // Vitest 5 can fail while printing global-setup errors, so state the cause plainly first.
     const detail =

@@ -16,11 +16,13 @@
     "db:seed": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/seed.js"
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "3.1161.0",
     "@ipro/shared": "workspace:*",
     "@nestjs/common": "12.3.2",
     "@nestjs/core": "12.3.2",
     "@nestjs/platform-express": "12.3.2",
     "drizzle-orm": "0.45.4",
+    "openid-client": "6.8.8",
     "pg": "8.23.1",
     "pg-boss": "12.38.0",
     "reflect-metadata": "0.2.2",

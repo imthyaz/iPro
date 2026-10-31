@@ -68,6 +68,7 @@ jobs:
           --health-interval 2s --health-timeout 3s --health-retries 30
     env:
       DATABASE_URL: postgres://ipro:ipro@localhost:5432/ipro
+      TENANT_ID: 00000000-0000-4000-8000-000000000001
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -75,9 +76,12 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+      # Throwaway key for this run only (local field-key provider, synthetic data).
+      - run: echo "LOCAL_FIELD_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @ipro/web exec playwright install --with-deps chromium
       - run: pnpm db:migrate
+      - run: pnpm db:seed
       - run: pnpm test:e2e
       - if: failure()
         uses: actions/upload-artifact@v4
