@@ -185,6 +185,20 @@ export async function seedPeople(tx: Tx, tenantId: string): Promise<void> {
         .where(sql`lower(${schema.appUsers.email}) = lower(${p.workEmail})`);
     }
   }
+  // Dev Manager Two's QA reportees work Sun–Thu for a (synthetic) Middle East customer.
+  await tx
+    .insert(schema.shiftAssignments)
+    .values(
+      [9, 10].map((n) => ({
+        ...t,
+        id: id(5000 + n),
+        engagementId: id(3000 + n),
+        shiftId: SEED_ORG.middleEastShift,
+        effectiveFrom: people.find((p) => p.n === n)!.joiningDate,
+        reason: 'Middle East customer project (synthetic)',
+      })),
+    )
+    .onConflictDoNothing();
   // The next code issued after the seed continues the sequence.
   await tx
     .insert(schema.employeeCodeCounters)

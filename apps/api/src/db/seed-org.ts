@@ -18,6 +18,8 @@ export function seedOrgIds(prefix = '00000000') {
     clientSite: id(1302),
     remote: id(1303),
     softwareEngineer: id(1602),
+    generalShift: id(1701),
+    middleEastShift: id(1702),
   };
 }
 
@@ -172,6 +174,33 @@ export async function seedOrg(tx: Tx, tenantId: string, prefix?: string): Promis
         title: 'HR Executive',
         gradeId: id(1502),
         designationBand: 'associate',
+      },
+    ])
+    .onConflictDoNothing();
+
+  // Shifts: spec defaults (09:30–18:30, 15 min grace, under 4 h = half-day). Mon–Fri is the default;
+  // some project teams work Sun–Thu for Middle East customers.
+  await tx
+    .insert(schema.shifts)
+    .values([
+      {
+        ...t,
+        id: ids.generalShift,
+        code: 'GEN',
+        name: 'General (Mon–Fri)',
+        startTime: '09:30',
+        endTime: '18:30',
+        weeklyOffs: [6, 7],
+        isDefault: true,
+      },
+      {
+        ...t,
+        id: ids.middleEastShift,
+        code: 'ME',
+        name: 'Middle East (Sun–Thu)',
+        startTime: '09:30',
+        endTime: '18:30',
+        weeklyOffs: [5, 6],
       },
     ])
     .onConflictDoNothing();

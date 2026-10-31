@@ -71,6 +71,34 @@
       "when": 1793473488754,
       "tag": "0009_documents_kyc_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793479396278,
+      "tag": "0010_shifts",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793479400179,
+      "tag": "0011_shifts_constraints_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793479652987,
+      "tag": "0012_shift_assignment_times",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793479660505,
+      "tag": "0013_shift_assignment_times_check",
+      "breakpoints": true
     }
   ]
 }

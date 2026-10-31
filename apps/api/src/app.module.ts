@@ -1,4 +1,5 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
+import { AttendanceModule } from './attendance/attendance.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthzModule } from './authz/authz.module.js';
 import { ConfigModule } from './config.module.js';
@@ -23,6 +24,7 @@ import { StorageModule } from './storage/storage.module.js';
     HealthModule,
     OrgModule,
     PeopleModule,
+    AttendanceModule,
   ],
 })
 export class AppModule implements NestModule {
