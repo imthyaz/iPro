@@ -29,3 +29,8 @@ configurable setting.
 - [ ] HR head probation "R, A terminate": built as read + approve termination only. Should HR head also approve confirm/extend (HR does)?
 - [ ] HR attendance and leave updates require a reason; HR head's ("R, U") do not, as the table says. Should HR head also give a reason?
 - [ ] Delegation is not in the permissions table: built per decision #27 (managers for themselves, HR/HR head for anyone). Confirm.
+
+## Engineering (for slice 2)
+- [ ] Local S3 stand-in: the `minio/minio` image can no longer be pulled from Docker Hub (or quay.io without
+      login). Pick a replacement before documents land in slice 2 (e.g. a maintained S3-compatible server, or
+      LocalStack). MinIO is behind the `storage` compose profile until then.

@@ -66,13 +66,15 @@ describe('row-level security', () => {
   it('a tenant cannot see or write another tenant’s rows', async () => {
     const visibleFromB = await withTenant(db, TENANT_B, (tx) => tx.select().from(schema.appUsers));
     expect(visibleFromB).toEqual([]);
-    await expect(
-      withTenant(db, TENANT_B, (tx) =>
-        tx
-          .insert(schema.appUsers)
-          .values({ tenantId: TENANT_A, email: 'x@test.ipro.test', displayName: 'X' }),
-      ),
-    ).rejects.toThrow(/row-level security/);
+    const error = await withTenant(db, TENANT_B, (tx) =>
+      tx
+        .insert(schema.appUsers)
+        .values({ tenantId: TENANT_A, email: 'x@test.ipro.test', displayName: 'X' }),
+    ).catch((e: unknown) => e);
+    // Drizzle wraps the Postgres error; the cause says why it was refused.
+    expect((error as Error).cause).toMatchObject({
+      message: expect.stringMatching(/row-level security/),
+    });
   });
 
   it('nothing is visible without a tenant context', async () => {
