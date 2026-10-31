@@ -95,3 +95,23 @@ export interface WorkingDayView {
   startTime: string;
   endTime: string;
 }
+
+/**
+ * A working week in words, read as a cycle starting the day after the days off: [6, 7] → "Mon–Fri",
+ * [5, 6] → "Sun–Thu". Weeks that aren't one unbroken run list their days ("Mon, Wed, Fri").
+ */
+export function describeWorkingWeek(weeklyOffs: readonly number[]): string {
+  const off = new Set(weeklyOffs);
+  const working = [1, 2, 3, 4, 5, 6, 7].filter((d) => !off.has(d));
+  if (working.length === 0) return 'No working days';
+  if (working.length === 7) return 'Every day';
+  const prev = (d: number) => (d === 1 ? 7 : d - 1);
+  const next = (d: number) => (d === 7 ? 1 : d + 1);
+  const starts = working.filter((d) => off.has(prev(d)));
+  if (starts.length === 1) {
+    let end = starts[0]!;
+    while (!off.has(next(end))) end = next(end);
+    return `${weekdayNames[starts[0]!]}–${weekdayNames[end]}`;
+  }
+  return working.map((d) => weekdayNames[d]).join(', ');
+}

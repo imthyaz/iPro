@@ -10,6 +10,9 @@ export const settingSchemas = {
   buckets: z.array(z.string().min(1)).min(1),
   /** Months of probation by engagement type; a missing type has no probation configured. */
   probation_months: z.record(z.string(), z.number().int().min(0)),
+  /** Working days (of the approver) before an approval escalates, and before a reminder. */
+  approval_escalation_days: z.number().int().min(1).max(30),
+  approval_reminder_days: z.number().int().min(1).max(30),
   notice_days: z.object({
     on_probation: z.number().int().min(0),
     confirmed: z.number().int().min(0),
@@ -25,6 +28,8 @@ export const settingDefaults: { [K in SettingKey]: SettingValue<K> } = {
   buckets: ['billable', 'bench', 'management', 'administration', 'pre_sales', 'trainee'],
   probation_months: { permanent: 6, retainer: 0 },
   notice_days: { on_probation: 30, confirmed: 60, manager_plus: 90 },
+  approval_escalation_days: 3,
+  approval_reminder_days: 2,
 };
 
 export function formatEmployeeCode(value: number, format: SettingValue<'employee_code'>): string {

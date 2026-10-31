@@ -11,6 +11,7 @@ import { JobsModule } from './jobs/jobs.module.js';
 import { OrgModule } from './org/org.module.js';
 import { PeopleModule } from './people/people.module.js';
 import { StorageModule } from './storage/storage.module.js';
+import { WorkflowModule } from './workflow/workflow.module.js';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { StorageModule } from './storage/storage.module.js';
     OrgModule,
     PeopleModule,
     AttendanceModule,
+    WorkflowModule,
   ],
 })
 export class AppModule implements NestModule {
