@@ -167,3 +167,13 @@ export interface JourneyEntry {
   sensitivity: 'public' | 'manager' | 'hr' | 'restricted';
   migrated: boolean;
 }
+
+/** GET /api/people/form-options: everything the new-person form needs, in one call. */
+export interface PersonFormOptions {
+  legalEntities: { id: string; name: string }[];
+  designations: { id: string; title: string; gradeId: string }[];
+  departments: { id: string; name: string }[];
+  locations: { id: string; name: string }[];
+  buckets: string[];
+  managers: { engagementId: string; name: string; employeeCode: string }[];
+}

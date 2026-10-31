@@ -45,6 +45,12 @@ export class PeopleController {
     return this.people.create(body);
   }
 
+  @Authorize('assignment_history', 'create')
+  @Get('form-options')
+  formOptions() {
+    return this.people.formOptions();
+  }
+
   @Authorize('profile', 'read')
   @Get(':id')
   get(@Param('id', uuid) id: string) {

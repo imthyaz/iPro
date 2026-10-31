@@ -13,6 +13,7 @@ import type {
   JourneyEntry,
   ChangeCompensationInput,
   CreatePersonInput,
+  PersonFormOptions,
   PersonSummary,
 } from '@ipro/shared';
 import { AuditService, FIELD_CIPHER, SensitiveReads } from '../audit/audit.service.js';
@@ -26,7 +27,12 @@ import type { Tx } from '../db/tenant-context.js';
 import { appUsers } from '../identity/identity.schema.js';
 import { journalEvents } from '../journey/journey.schema.js';
 import { JourneyService } from '../journey/journey.service.js';
-import { departmentVersions, designations, locationVersions } from '../org/org.schema.js';
+import {
+  departmentVersions,
+  designations,
+  legalEntities,
+  locationVersions,
+} from '../org/org.schema.js';
 import { noticePeriodDays, probationEndDate } from './hr-settings.js';
 import { inForce, personSummaries, type SummaryFilter } from './people.queries.js';
 import {
@@ -652,6 +658,52 @@ export class PeopleService {
         sensitivity: event.sensitivity,
         migrated: event.migrated,
       }));
+  }
+
+  /** Options for the new-person form (H2 "new person"), current as of today. */
+  async formOptions(): Promise<PersonFormOptions> {
+    await this.authz.assert(requireContext().actor!, 'create', { area: 'assignment_history' });
+    const today = businessDate(new Date());
+    return this.db.tx(async (tx) => {
+      const [entities, titles, departments, locations, buckets, people] = await Promise.all([
+        tx
+          .select({ id: legalEntities.id, name: legalEntities.name })
+          .from(legalEntities)
+          .where(isNull(legalEntities.deletedAt))
+          .orderBy(asc(legalEntities.name)),
+        tx
+          .select({ id: designations.id, title: designations.title, gradeId: designations.gradeId })
+          .from(designations)
+          .where(isNull(designations.deletedAt))
+          .orderBy(asc(designations.title)),
+        tx
+          .select({ id: departmentVersions.departmentId, name: departmentVersions.name })
+          .from(departmentVersions)
+          .where(inForce(departmentVersions.effectiveFrom, departmentVersions.effectiveTo, today))
+          .orderBy(asc(departmentVersions.name)),
+        tx
+          .select({ id: locationVersions.locationId, name: locationVersions.name })
+          .from(locationVersions)
+          .where(inForce(locationVersions.effectiveFrom, locationVersions.effectiveTo, today))
+          .orderBy(asc(locationVersions.name)),
+        this.settings.get(tx, 'buckets'),
+        personSummaries(tx, today),
+      ]);
+      return {
+        legalEntities: entities,
+        designations: titles,
+        departments,
+        locations,
+        buckets,
+        managers: people
+          .filter((p) => p.status === 'active' || p.status === 'on_notice')
+          .map((p) => ({
+            engagementId: p.engagementId,
+            name: p.preferredName ?? p.legalName,
+            employeeCode: p.employeeCode,
+          })),
+      };
+    });
   }
 
   /** The summary authz decisions are made on (legal entity of the live or latest engagement). */

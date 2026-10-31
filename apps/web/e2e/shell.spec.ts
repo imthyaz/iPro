@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 
-test('shell loads and reaches a healthy API', async ({ page }) => {
+test('signed out, the shell shows the dev sign-in and reaches a healthy API', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Action inbox' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Development sign-in' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Dev HR\b/ }).first()).toBeVisible();
   await expect(page.getByTestId('api-status')).toHaveText('Connected');
 });
 

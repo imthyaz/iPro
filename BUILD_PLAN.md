@@ -42,6 +42,7 @@ storage on S3 (local: SeaweedFS, decision #37). Org tree as of a date. People di
 
 **Done when**
 - [ ] Creating a person with an engagement and assignment takes under 3 minutes and produces a Joined event.
+      (One-screen form and Joined event done and e2e-tested; awaiting a timed run by an HR user.)
 - [x] The org tree for any past date matches the assignments effective on that date.
 - [x] A retainer converted to payroll keeps one person record and one continuous journey.
 - [x] KYC values are masked for everyone except HR; each unmask writes an audit row.
