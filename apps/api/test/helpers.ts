@@ -54,3 +54,12 @@ export function as(app: INestApplication, cookie: string) {
     delete: (url: string) => request(server).delete(url).set('Cookie', cookie),
   };
 }
+
+/** A fresh tenant for one test file, so files don't share counters or data. */
+export async function newTenant(pool: pg.Pool, name: string): Promise<string> {
+  const { rows } = await pool.query<{ id: string }>(
+    `insert into tenant (name) values ($1) returning id`,
+    [name],
+  );
+  return rows[0]!.id;
+}

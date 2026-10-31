@@ -47,7 +47,11 @@ export class AuthGuard implements CanActivate {
     requireContext().actor = actor;
 
     if (access.kind === 'signed-in') return true;
-    if (!this.authz.can(actor, access.area, access.action)) throw new ForbiddenException();
+    const grants =
+      access.kind === 'authorize' ? [[access.area, access.action] as const] : access.grants;
+    if (!grants.some(([area, action]) => this.authz.can(actor, area, action))) {
+      throw new ForbiddenException();
+    }
     return true;
   }
 }

@@ -2,33 +2,42 @@
 import * as schema from './schema.js';
 import type { Tx } from './tenant-context.js';
 
-const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-export const SEED_ORG = {
-  legalEntity: id(1001),
-  delivery: id(1101),
-  corporate: id(1102),
-  engineering: id(1201),
-  quality: id(1202),
-  peopleOps: id(1203),
-  finance: id(1204),
-  chennai: id(1301),
-  clientSite: id(1302),
-  remote: id(1303),
-} as const;
+/** Seed org ids. `prefix` (8 hex digits) keeps several seeded tenants apart in tests. */
+export function seedOrgIds(prefix = '00000000') {
+  const id = (n: number) => `${prefix}-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  return {
+    id,
+    legalEntity: id(1001),
+    delivery: id(1101),
+    corporate: id(1102),
+    engineering: id(1201),
+    quality: id(1202),
+    peopleOps: id(1203),
+    finance: id(1204),
+    chennai: id(1301),
+    clientSite: id(1302),
+    remote: id(1303),
+    softwareEngineer: id(1602),
+  };
+}
+
+export const SEED_ORG = seedOrgIds();
 
 const FROM = '2023-04-01';
 const lakh = (n: number) => BigInt(n) * 100_000n * 100n; // ₹ lakh → paise
 
-export async function seedOrg(tx: Tx, tenantId: string): Promise<void> {
+export async function seedOrg(tx: Tx, tenantId: string, prefix?: string): Promise<void> {
+  const ids = seedOrgIds(prefix);
+  const id = ids.id;
   const t = { tenantId };
   await tx
     .insert(schema.legalEntities)
-    .values({ ...t, id: SEED_ORG.legalEntity, name: 'Ideassion India (dev)', country: 'IN' })
+    .values({ ...t, id: ids.legalEntity, name: 'Ideassion India (dev)', country: 'IN' })
     .onConflictDoNothing();
 
   for (const [unitId, code, name] of [
-    [SEED_ORG.delivery, 'DEL', 'Delivery'],
-    [SEED_ORG.corporate, 'CORP', 'Corporate'],
+    [ids.delivery, 'DEL', 'Delivery'],
+    [ids.corporate, 'CORP', 'Corporate'],
   ] as const) {
     await tx
       .insert(schema.businessUnits)
@@ -47,10 +56,10 @@ export async function seedOrg(tx: Tx, tenantId: string): Promise<void> {
   }
 
   for (const [unitId, code, name, bu, parent] of [
-    [SEED_ORG.engineering, 'ENG', 'Engineering', SEED_ORG.delivery, null],
-    [SEED_ORG.quality, 'QA', 'Quality Engineering', SEED_ORG.delivery, SEED_ORG.engineering],
-    [SEED_ORG.peopleOps, 'HR', 'People Operations', SEED_ORG.corporate, null],
-    [SEED_ORG.finance, 'FIN', 'Finance', SEED_ORG.corporate, null],
+    [ids.engineering, 'ENG', 'Engineering', ids.delivery, null],
+    [ids.quality, 'QA', 'Quality Engineering', ids.delivery, ids.engineering],
+    [ids.peopleOps, 'HR', 'People Operations', ids.corporate, null],
+    [ids.finance, 'FIN', 'Finance', ids.corporate, null],
   ] as const) {
     await tx
       .insert(schema.departments)
@@ -71,13 +80,13 @@ export async function seedOrg(tx: Tx, tenantId: string): Promise<void> {
   }
 
   for (const [unitId, code, name, type, seats] of [
-    [SEED_ORG.chennai, 'CHN', 'Chennai office', 'office', 80],
-    [SEED_ORG.clientSite, 'CLIENT', 'Client site', 'client_site', null],
-    [SEED_ORG.remote, 'REMOTE', 'Remote', 'remote', null],
+    [ids.chennai, 'CHN', 'Chennai office', 'office', 80],
+    [ids.clientSite, 'CLIENT', 'Client site', 'client_site', null],
+    [ids.remote, 'REMOTE', 'Remote', 'remote', null],
   ] as const) {
     await tx
       .insert(schema.locations)
-      .values({ ...t, id: unitId, code, legalEntityId: SEED_ORG.legalEntity })
+      .values({ ...t, id: unitId, code, legalEntityId: ids.legalEntity })
       .onConflictDoNothing();
     await tx
       .insert(schema.locationVersions)

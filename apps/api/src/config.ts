@@ -26,6 +26,13 @@ const envSchema = z
     LOCAL_FIELD_KEY: optionalText,
     KMS_KEY_ID: optionalText,
     AWS_REGION: z.string().default('ap-south-1'),
+
+    /** Documents: "s3" (AWS, or SeaweedFS locally via S3_ENDPOINT) or "memory" (tests only). */
+    STORAGE_PROVIDER: z.enum(['s3', 'memory']).default('s3'),
+    S3_BUCKET: z.string().min(1).default('ipro-dev-documents'),
+    S3_ENDPOINT: z.preprocess(blankToUndefined, z.url().optional()),
+    S3_ACCESS_KEY_ID: optionalText,
+    S3_SECRET_ACCESS_KEY: optionalText,
   })
   .transform((env) => ({
     ...env,
@@ -54,6 +61,9 @@ const envSchema = z
         fail('ENTRA_TENANT_ID', 'dev sign-in is not allowed in production');
       if (env.FIELD_KEY_PROVIDER === 'local') {
         fail('FIELD_KEY_PROVIDER', 'the local key provider is not allowed in production');
+      }
+      if (env.STORAGE_PROVIDER === 'memory' || env.S3_ENDPOINT) {
+        fail('STORAGE_PROVIDER', 'production documents must be in AWS S3');
       }
     }
   });

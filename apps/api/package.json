@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-kms": "3.1161.0",
+    "@aws-sdk/client-s3": "3.1161.0",
+    "@aws-sdk/s3-request-presigner": "3.1161.0",
     "@ipro/shared": "workspace:*",
     "@nestjs/common": "12.3.2",
     "@nestjs/core": "12.3.2",

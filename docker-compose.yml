@@ -17,26 +17,21 @@ services:
       timeout: 3s
       retries: 30
 
-  # Opt-in (`docker compose --profile storage up`): the minio/minio image is no longer pullable from
-  # Docker Hub. The S3 stand-in is chosen in slice 2, when documents need it (docs/open-questions.md).
-  minio:
-    profiles: ['storage']
-    image: minio/minio:latest
-    command: server /data --console-address :9001
-    environment:
-      MINIO_ROOT_USER: ipro-local
-      MINIO_ROOT_PASSWORD: ipro-local-only
+  # Local S3 stand-in for documents (decision #37). Throwaway local credentials in docker/seaweedfs.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.50
+    command: server -s3 -s3.config=/etc/seaweedfs/s3.json -dir=/data -ip.bind=0.0.0.0
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '8333:8333'
     volumes:
-      - miniodata:/data
+      - seaweeddata:/data
+      - ./docker/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
-      interval: 2s
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:8333/status || exit 1']
+      interval: 3s
       timeout: 3s
-      retries: 30
+      retries: 40
 
 volumes:
   pgdata:
-  miniodata:
+  seaweeddata:

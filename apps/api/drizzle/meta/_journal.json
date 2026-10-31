@@ -57,6 +57,20 @@
       "when": 1793472566536,
       "tag": "0007_people_constraints_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793473484515,
+      "tag": "0008_documents_kyc",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793473488754,
+      "tag": "0009_documents_kyc_rls",
+      "breakpoints": true
     }
   ]
 }

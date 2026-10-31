@@ -13,4 +13,5 @@ export const testEnv = {
   TENANT_ID: TENANT_A,
   JOBS_ENABLED: 'false',
   LOCAL_FIELD_KEY: randomBytes(32).toString('base64'),
+  STORAGE_PROVIDER: 'memory',
 };
