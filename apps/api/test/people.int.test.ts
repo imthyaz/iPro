@@ -21,6 +21,8 @@ const MANAGER_DESIGNATION = '00000000-0000-4000-8000-000000001605';
 const { pool, db } = testDb();
 let app: INestApplication;
 let hr: ReturnType<typeof as>;
+/** HR head makes direct role changes (decision #62); HR asks through a change request. */
+let hrHead: ReturnType<typeof as>;
 const today = businessDate(new Date());
 
 const newPerson = (
@@ -53,11 +55,16 @@ const newPerson = (
 
 beforeAll(async () => {
   await withTenant(db, TENANT_B, (tx) => seedOrg(tx, TENANT_B));
+  await addUser(db, TENANT_B, '00000000-0000-4000-8000-00000000b0aa', 'Direct HR Head', [
+    'employee',
+    'hr_head',
+  ]);
   await addUser(db, TENANT_B, HR, 'People HR', ['employee', 'hr']);
   await addUser(db, TENANT_B, MANAGER, 'People Manager', ['employee', 'manager']);
   await addUser(db, TENANT_B, REPORTEE, 'People Reportee', ['employee']);
   app = await createTestApp({ TENANT_ID: TENANT_B });
   hr = as(app, await signIn(app, HR));
+  hrHead = as(app, await signIn(app, '00000000-0000-4000-8000-00000000b0aa'));
 });
 
 afterAll(async () => {
@@ -210,7 +217,7 @@ describe('creating a person (done-when #1)', () => {
 
   it('a designation change effective later is planned and keeps history', async () => {
     const effective = addDays(today, 40);
-    const history = await hr
+    const history = await hrHead
       .post(`/api/people/${strangerPerson.personId}/assignments`, {
         effectiveFrom: effective,
         designationId: TECH_LEAD,

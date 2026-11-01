@@ -17,6 +17,8 @@ const email = (id: string) => `${id}@test.ipro.test`;
 const { pool, db } = testDb();
 let app: INestApplication;
 let hr: ReturnType<typeof as>;
+/** HR head makes direct role changes (decision #62); HR asks through a change request. */
+let hrHead: ReturnType<typeof as>;
 let org: ReturnType<typeof seedOrgIds>;
 const ids: Record<string, { personId: string; engagementId: string }> = {};
 
@@ -44,6 +46,10 @@ beforeAll(async () => {
   const tenant = await newTenant(pool, 'Org tree tests');
   org = seedOrgIds(tenant.slice(0, 8));
   await withTenant(db, tenant, (tx) => seedOrg(tx, tenant, tenant.slice(0, 8)));
+  await addUser(db, tenant, '00000000-0000-4000-8000-00000000d0aa', 'Direct HR Head', [
+    'employee',
+    'hr_head',
+  ]);
   await addUser(db, tenant, HR, 'Tree HR', ['employee', 'hr']);
   await addUser(db, tenant, ADMIN, 'Tree Admin', ['admin']);
   await addUser(db, tenant, LEAD, 'Tree Lead', ['employee', 'manager']);
@@ -51,6 +57,7 @@ beforeAll(async () => {
   await addUser(db, tenant, RETAINER, 'Tree Retainer', ['employee']);
   app = await createTestApp({ TENANT_ID: tenant });
   hr = as(app, await signIn(app, HR));
+  hrHead = as(app, await signIn(app, '00000000-0000-4000-8000-00000000d0aa'));
   for (const [key, body] of [
     ['lead', person('Lata Lead', { workEmail: email(LEAD) })],
     ['other', person('Omar Otherlead')],
@@ -83,7 +90,7 @@ describe('org tree as of a date (done-when #2)', () => {
         name: 'Product Engineering',
       })
       .expect(201);
-    await hr
+    await hrHead
       .post(`/api/people/${ids.ana!.personId}/assignments`, {
         effectiveFrom: '2026-03-01',
         departmentId: org.quality,

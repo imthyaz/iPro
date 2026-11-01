@@ -25,7 +25,7 @@ import type { Tx } from '../db/tenant-context.js';
 import { ESIGN_PROVIDER, FakeEsign, type EsignProvider } from '../esign/esign.js';
 import { grades, legalEntities } from '../org/org.schema.js';
 import { documents } from '../people/documents.schema.js';
-import { inForce } from '../people/people.queries.js';
+import { inForce, personSummaries } from '../people/people.queries.js';
 import { assignments, compensations, engagements, persons } from '../people/people.schema.js';
 import { PeopleService } from '../people/people.service.js';
 import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage.js';
@@ -213,7 +213,13 @@ export class LettersService implements OnModuleInit {
   async generateIn(
     tx: Tx,
     summary: PersonSummary,
-    input: { templateKey: string; extra: Record<string, string>; approval: boolean },
+    input: {
+      templateKey: string;
+      extra: Record<string, string>;
+      approval: boolean;
+      /** Merge role and pay as of this date (a change effective later, decision #62). */
+      asOf?: string;
+    },
   ): Promise<string> {
     const { actor, tenantId } = requireContext();
     const personId = summary.personId;
@@ -225,7 +231,13 @@ export class LettersService implements OnModuleInit {
       if (!template)
         throw new NotFoundException({ message: `No letter template "${input.templateKey}"` });
 
-      const values = await this.values(tx, summary.engagementId, template.body, input.extra);
+      const values = await this.values(
+        tx,
+        summary.engagementId,
+        template.body,
+        input.extra,
+        input.asOf,
+      );
       const merged = merge(template.body, values);
       if (!merged.ok) {
         throw new BadRequestException({
@@ -516,6 +528,7 @@ export class LettersService implements OnModuleInit {
     engagementId: string,
     body: string,
     extra: Record<string, string>,
+    asOf?: string,
   ): Promise<Record<string, string | null>> {
     const today = businessDate(new Date());
     const used = new Set(fieldsIn(body));
@@ -527,8 +540,9 @@ export class LettersService implements OnModuleInit {
       .where(eq(engagements.id, engagementId));
     if (!row) throw new NotFoundException();
     // An offer letter describes the role and pay from the joining date.
-    const on = row.engagement.joiningDate > today ? row.engagement.joiningDate : today;
-    const summary = await this.people.summary(row.person.id);
+    const on = asOf ?? (row.engagement.joiningDate > today ? row.engagement.joiningDate : today);
+    const [summary] = await personSummaries(tx, on, { personIds: [row.person.id] });
+    if (!summary) throw new NotFoundException();
     const [assignment] = await tx
       .select({ gradeName: grades.name })
       .from(assignments)

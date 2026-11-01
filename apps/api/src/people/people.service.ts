@@ -280,12 +280,32 @@ export class PeopleService {
    * HR changes assignment facts effective from a date (closing the row in force). Slice 5 puts the
    * in-life change approval in front of this.
    */
+  /**
+   * A direct change, effective from a date: for HR head, whose approval it would need anyway (decision
+   * #62). HR asks through the in-life change request (H6).
+   */
   async changeAssignment(personId: string, input: ChangeAssignmentInput, now = new Date()) {
     const summary = await this.summary(personId);
-    await this.assertOn(summary, 'assignment_history', 'update');
+    await this.assertOn(summary, 'assignment_history', 'approve');
+    await this.db.tx((tx) => this.changeAssignmentIn(tx, summary, input, now));
+    return this.assignmentHistory(personId);
+  }
+
+  /**
+   * Closes the row in force and opens the new one from the date (a future date applies by itself on
+   * the day), with an audit row and a journey event that shows as upcoming until then. The caller has
+   * authorised it: HR head directly, or an approved in-life change request.
+   */
+  async changeAssignmentIn(
+    tx: Tx,
+    summary: PersonSummary,
+    input: ChangeAssignmentInput,
+    now: Date,
+  ): Promise<{ assignmentId: string; changed: string[] }> {
+    const personId = summary.personId;
     const { actor, tenantId } = requireContext();
     const engagementId = input.engagementId ?? summary.engagementId;
-    await this.db.tx(async (tx) => {
+    {
       const engagement = await this.engagementOf(tx, personId, engagementId);
       const history = await tx
         .select()
@@ -344,8 +364,8 @@ export class PeopleService {
         sourceTable: 'assignment',
         sourceId: row!.id,
       });
-    });
-    return this.assignmentHistory(personId);
+      return { assignmentId: row!.id, changed };
+    }
   }
 
   /** Compensation history. Each amount read writes an audit row (decision #16). */
@@ -638,7 +658,8 @@ export class PeopleService {
    * The person's journey across all engagements (timelines are per person, decision #19). Compensation
    * and exit-reason events need journey_sensitive; the full timeline screens come with slice 10.
    */
-  async journeyOf(personId: string): Promise<JourneyEntry[]> {
+  async journeyOf(personId: string, now = new Date()): Promise<JourneyEntry[]> {
+    const today = businessDate(now);
     const summary = await this.summary(personId);
     await this.assertOn(summary, 'journey_public', 'read');
     const sensitive = (
@@ -669,6 +690,7 @@ export class PeopleService {
         category: event.category,
         occurredOn: event.occurredOn,
         isPlanned: event.isPlanned,
+        upcoming: event.occurredOn > today,
         title: event.title,
         sensitivity: event.sensitivity,
         migrated: event.migrated,

@@ -21,6 +21,7 @@ import {
   Tabs,
 } from '../../design-system/index.js';
 import { formatPaise, rateLabel } from '../../money.js';
+import { ChangeWizard } from './ChangeWizard.js';
 import { Letters, ShiftHistory } from './PersonExtras.js';
 import type { AssignmentRow, CompensationRow, PersonDetail } from './types.js';
 
@@ -70,7 +71,12 @@ export function PersonRecord({ personId }: { personId: string }) {
       <Tabs tabs={tabs} active={tab} onChange={setTab} label="Person record sections" />
       <div role="tabpanel" aria-labelledby={`tab-${tab}`} className="tab-panel">
         {tab === 'profile' && <Profile person={p} canChange={isSelf || isHr} isHr={isHr} />}
-        {tab === 'roles' && <RoleHistory personId={personId} />}
+        {tab === 'roles' && (
+          <>
+            {isHr && <ChangeWizard person={p} isHrHead={hasRole(me, 'hr_head')} />}
+            <RoleHistory personId={personId} />
+          </>
+        )}
         {tab === 'shifts' && <ShiftHistory personId={personId} />}
         {tab === 'pay' && <Pay personId={personId} />}
         {tab === 'kyc' && <Kyc personId={personId} canUnmask={isHr} canSubmit={isSelf || isHr} />}
@@ -513,7 +519,7 @@ function Journey({ personId }: { personId: string }) {
       <ol className="timeline">
         {[...(events.data ?? [])].reverse().map((event) => (
           <li key={event.id}>
-            <strong>{event.title}</strong> {event.isPlanned && <Chip tone="info">Upcoming</Chip>}
+            <strong>{event.title}</strong> {event.upcoming && <Chip tone="info">Upcoming</Chip>}
             <div className="muted">{formatDate(event.occurredOn)}</div>
           </li>
         ))}
