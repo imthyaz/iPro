@@ -13,6 +13,7 @@ import { OrgModule } from './org/org.module.js';
 import { PeopleModule } from './people/people.module.js';
 import { OffersModule } from './offers/offers.module.js';
 import { PoliciesModule } from './policies/policies.module.js';
+import { ReviewsModule } from './reviews/reviews.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { WorkflowModule } from './workflow/workflow.module.js';
 
@@ -33,6 +34,7 @@ import { WorkflowModule } from './workflow/workflow.module.js';
     LettersModule,
     PoliciesModule,
     OffersModule,
+    ReviewsModule,
   ],
 })
 export class AppModule implements NestModule {

@@ -127,17 +127,21 @@ export class ChecklistsService {
       .limit(1);
     if (existing) return;
     const actor = requireContext().actor;
-    await tx.insert(checklistTemplates).values({
-      tenantId: requireContext().tenantId,
-      key,
-      version: 1,
-      name: input.name,
-      stage: input.stage,
-      appliesTo: input.appliesTo,
-      tasks: input.tasks,
-      createdBy: actor?.userId ?? null,
-      updatedBy: actor?.userId ?? null,
-    });
+    await tx
+      .insert(checklistTemplates)
+      .values({
+        tenantId: requireContext().tenantId,
+        key,
+        version: 1,
+        name: input.name,
+        stage: input.stage,
+        appliesTo: input.appliesTo,
+        tasks: input.tasks,
+        createdBy: actor?.userId ?? null,
+        updatedBy: actor?.userId ?? null,
+      })
+      // Two first uses at once: the second keeps the first one's version.
+      .onConflictDoNothing();
   }
 
   async listTemplates() {

@@ -853,7 +853,8 @@ export class WorkflowService {
       return { row: active, definition: workflowDefinitionSchema.parse(active.definition) };
     const builtIn = builtInDefinitions[key];
     if (!builtIn) throw new NotFoundException({ message: `No workflow "${key}"` });
-    const [row] = await tx
+    // Two first uses at once: the second finds the first one's row rather than failing.
+    await tx
       .insert(workflowDefinitions)
       .values({
         tenantId: requireContext().tenantId,
@@ -862,8 +863,12 @@ export class WorkflowService {
         name: builtIn.name,
         definition: builtIn,
       })
-      .returning();
-    return { row: row!, definition: builtIn };
+      .onConflictDoNothing();
+    const [row] = await tx
+      .select()
+      .from(workflowDefinitions)
+      .where(and(eq(workflowDefinitions.key, key), eq(workflowDefinitions.active, true)));
+    return { row: row!, definition: workflowDefinitionSchema.parse(row!.definition) };
   }
 
   /** Steps must name a real permission and approver; the action must exist. */

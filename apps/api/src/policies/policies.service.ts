@@ -23,7 +23,6 @@ import { requireContext } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
 import { detectContentType, type IncomingFile } from '../people/documents.service.js';
-import { inForce } from '../people/people.queries.js';
 import { assignments, engagements, persons } from '../people/people.schema.js';
 import {
   DOWNLOAD_LINK_SECONDS,
@@ -389,18 +388,33 @@ export class PoliciesService {
           personIds ? inArray(engagements.personId, personIds) : undefined,
         ),
       );
+    // Every assignment of these engagements in one query; each is judged on its own date below.
+    const all = rows.length
+      ? await tx
+          .select({
+            engagementId: assignments.engagementId,
+            effectiveFrom: assignments.effectiveFrom,
+            effectiveTo: assignments.effectiveTo,
+            departmentId: assignments.departmentId,
+            locationId: assignments.locationId,
+          })
+          .from(assignments)
+          .where(
+            inArray(
+              assignments.engagementId,
+              rows.map((r) => r.engagement.id),
+            ),
+          )
+      : [];
     const result: Applicable[] = [];
     for (const { engagement, person } of rows) {
       const on = engagement.joiningDate > today ? engagement.joiningDate : today;
-      const [assignment] = await tx
-        .select({ departmentId: assignments.departmentId, locationId: assignments.locationId })
-        .from(assignments)
-        .where(
-          and(
-            eq(assignments.engagementId, engagement.id),
-            inForce(assignments.effectiveFrom, assignments.effectiveTo, on),
-          ),
-        );
+      const assignment = all.find(
+        (a) =>
+          a.engagementId === engagement.id &&
+          a.effectiveFrom <= on &&
+          (a.effectiveTo === null || a.effectiveTo >= on),
+      );
       const matches = appliesToMatches(appliesTo, {
         legalEntityId: engagement.legalEntityId,
         engagementType: engagement.type,

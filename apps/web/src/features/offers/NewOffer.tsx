@@ -86,8 +86,8 @@ export function NewOffer() {
       const offer = await api<OfferView>('/offers', { body: input });
       return send ? api<OfferView>(`/offers/${offer.id}/submit`, { method: 'POST' }) : offer;
     },
-    onSuccess: async (offer) => {
-      await client.invalidateQueries({ queryKey: ['offers'] });
+    onSuccess: (offer) => {
+      void client.invalidateQueries({ queryKey: ['offers'] });
       navigate(`/offers/${offer.id}`);
     },
   });

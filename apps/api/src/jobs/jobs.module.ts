@@ -1,13 +1,18 @@
 import {
+  Controller,
   Global,
   Inject,
   Injectable,
   Logger,
   Module,
+  NotFoundException,
+  Param,
+  Post,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { PgBoss } from 'pg-boss';
+import { Authorize } from '../authz/decorators.js';
 import { APP_CONFIG, type AppConfig } from '../config.js';
 
 export const JOBS = Symbol('JOBS');
@@ -61,8 +66,29 @@ class JobsLifecycle implements OnApplicationBootstrap, OnApplicationShutdown {
   }
 }
 
+/**
+ * Development and test only: runs a scheduled job now (e.g. the probation sweep, so end-to-end tests
+ * and local checks needn't wait for 06:00). The jobs are idempotent; production has no such route.
+ */
+@Controller('jobs')
+export class JobsController {
+  constructor(
+    @Inject(ScheduledJobs) private readonly jobs: ScheduledJobs,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+  ) {}
+
+  @Authorize('org_config', 'update')
+  @Post(':name/run')
+  async run(@Param('name') name: string) {
+    const job = this.jobs.jobs.find((j) => j.name === name);
+    if (this.config.NODE_ENV === 'production' || !job) throw new NotFoundException();
+    return { name, result: (await job.run()) ?? null };
+  }
+}
+
 @Global()
 @Module({
+  controllers: [JobsController],
   providers: [
     {
       provide: JOBS,

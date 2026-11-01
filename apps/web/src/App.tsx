@@ -10,6 +10,8 @@ import { Templates } from './features/admin/Templates.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
 import { NewOffer } from './features/offers/NewOffer.js';
 import { Offers } from './features/offers/Offers.js';
+import { Probation } from './features/reviews/Probation.js';
+import { Reviews } from './features/reviews/Reviews.js';
 import { Onboarding, useOnboarding } from './features/onboarding/Onboarding.js';
 import { Inbox } from './features/inbox/Inbox.js';
 import { OrgSetup } from './features/org/OrgSetup.js';
@@ -45,6 +47,7 @@ function Shell() {
   const seesOrgSetup = hasRole(user, 'hr', 'hr_head', 'admin');
   const seesChecklists = hasRole(user, 'hr', 'hr_head');
   const seesOffers = hasRole(user, 'hr', 'hr_head', 'manager');
+  const seesProbation = hasRole(user, 'hr', 'hr_head');
   const seesShifts = hasRole(user, 'hr', 'hr_head', 'admin', 'manager');
 
   return (
@@ -96,6 +99,16 @@ function Shell() {
           {seesPeople && (
             <NavLink to="/org-tree" className="nav-item">
               Org tree
+            </NavLink>
+          )}
+          {seesOffers && (
+            <NavLink to="/reviews" className="nav-item">
+              Reviews
+            </NavLink>
+          )}
+          {seesProbation && (
+            <NavLink to="/probation" className="nav-item">
+              Probation
             </NavLink>
           )}
           {seesOffers && (
@@ -169,6 +182,9 @@ function Shell() {
             <Route path="/policy-admin/:policyId" element={<PolicyAdmin />} />
             <Route path="/shifts" element={<Shifts />} />
             <Route path="/shifts/:shiftId" element={<Shifts />} />
+            <Route path="/reviews" element={<Reviews />} />
+            <Route path="/reviews/:reviewId" element={<Reviews />} />
+            <Route path="/probation" element={<Probation />} />
             <Route path="/offers" element={<Offers />} />
             <Route path="/offers/new" element={<NewOffer />} />
             <Route path="/offers/:offerId" element={<Offers />} />

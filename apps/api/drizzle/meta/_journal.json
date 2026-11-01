@@ -183,6 +183,20 @@
       "when": 1793524680422,
       "tag": "0025_checklist_access_stage",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793525926261,
+      "tag": "0026_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793525928844,
+      "tag": "0027_reviews_rls",
+      "breakpoints": true
     }
   ]
 }
