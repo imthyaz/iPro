@@ -93,6 +93,8 @@ export const engagements = pgTable(
     confirmationDate: date('confirmation_date'),
     noticePeriodDays: integer('notice_period_days'),
     resignationDate: date('resignation_date'),
+    /** Planned last day of an internship or fixed-term engagement (decision #56). */
+    contractEndDate: date('contract_end_date'),
     lastWorkingDate: date('last_working_date'),
     exitReason: text('exit_reason'),
     rehireEligible: boolean('rehire_eligible'),

@@ -5,6 +5,29 @@ import type { WorkflowDefinition } from '@ipro/shared';
  * version 1 on first use). Like HR settings, they are configuration with a sensible starting point.
  */
 export const builtInDefinitions: Record<string, WorkflowDefinition> = {
+  /**
+   * An offer (spec workflow 1, decision #54): the hiring manager, then HR head when the pay is above
+   * the grade band or can't be compared with it. Approval sends the letter for e-signature.
+   */
+  offer_approval: {
+    name: 'Offer approval',
+    steps: [
+      {
+        id: 'hiring_manager',
+        label: 'Hiring manager approval',
+        approver: { kind: 'manager' },
+        authorize: { area: 'profile', action: 'read' },
+      },
+      {
+        id: 'hr_head',
+        label: 'HR head approval (pay above band)',
+        approver: { kind: 'role', role: 'hr_head' },
+        authorize: { area: 'compensation', action: 'approve' },
+        when: { field: 'needsHrHead', equals: true },
+      },
+    ],
+    onApproved: 'offer.release',
+  },
   /** Employee updates their own personal details (profile "U via request" in the permissions table). */
   profile_change: {
     name: 'Profile change request',

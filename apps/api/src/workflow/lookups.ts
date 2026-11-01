@@ -17,8 +17,13 @@ export async function managerUserOfPerson(
   const result = await tx.execute<{ user_id: string }>(sql`
     select u.id as user_id
     from engagement e
+    -- Someone not yet joined reports to the manager on their planned first assignment (decision #54).
+    cross join lateral (
+      select case when e.status in ('offered', 'pre_joining')
+        then greatest(${day}::date, e.joining_date) else ${day}::date end as on_day
+    ) d
     join assignment a on a.engagement_id = e.id
-      and a.effective_from <= ${day} and (a.effective_to is null or a.effective_to >= ${day})
+      and a.effective_from <= d.on_day and (a.effective_to is null or a.effective_to >= d.on_day)
     join engagement me on me.id = a.manager_engagement_id
     join app_user u on u.person_id = me.person_id and u.status = 'active'
     where e.person_id = ${personId} and e.status in ('offered', 'pre_joining', 'active', 'on_notice')

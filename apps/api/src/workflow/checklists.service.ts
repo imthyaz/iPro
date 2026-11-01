@@ -337,6 +337,80 @@ export class ChecklistsService {
     return this.runView(runId);
   }
 
+  /**
+   * Starts every active template of a stage that applies to the engagement, e.g. the onboarding
+   * checklists of an accepted offer (decision #54). Templates that don't apply, or already run, are
+   * skipped; their checks come before anything is written.
+   */
+  async startApplicable(
+    tx: Tx,
+    engagementId: string,
+    stage: 'onboarding' | 'exit' | 'transfer',
+    anchorDate: string,
+  ): Promise<string[]> {
+    const templates = await tx
+      .select({ key: checklistTemplates.key })
+      .from(checklistTemplates)
+      .where(and(eq(checklistTemplates.active, true), eq(checklistTemplates.stage, stage)))
+      .orderBy(asc(checklistTemplates.name));
+    const runIds: string[] = [];
+    for (const { key } of templates) {
+      try {
+        runIds.push(await this.startIn(tx, engagementId, key, anchorDate));
+      } catch (error) {
+        if (error instanceof BadRequestException || error instanceof ConflictException) continue;
+        throw error;
+      }
+    }
+    return runIds;
+  }
+
+  /** Cancels an engagement's open checklists in the caller's transaction (offer withdrawn, no-show). */
+  async cancelOpenIn(tx: Tx, engagementId: string, reason: string): Promise<void> {
+    const actor = requireContext().actor;
+    const open = await tx
+      .select()
+      .from(checklistRuns)
+      .where(and(eq(checklistRuns.engagementId, engagementId), eq(checklistRuns.status, 'open')));
+    for (const run of open) {
+      await tx
+        .update(checklistRuns)
+        .set({
+          status: 'cancelled',
+          cancelReason: reason,
+          updatedAt: new Date(),
+          updatedBy: actor?.userId ?? null,
+        })
+        .where(eq(checklistRuns.id, run.id));
+      await this.audit.record(tx, {
+        action: 'update',
+        table: 'checklist_run',
+        recordId: run.id,
+        subjectPersonId: run.personId,
+        fieldChanges: [{ field: 'status', from: 'open', to: 'cancelled' }],
+      });
+    }
+  }
+
+  /** Mandatory tasks due on or before a day that are still open: Day-1 readiness (decision #54). */
+  async openMandatoryDueBy(tx: Tx, engagementId: string, day: string): Promise<string[]> {
+    const rows = await tx
+      .select({ title: checklistTasks.title })
+      .from(checklistTasks)
+      .innerJoin(checklistRuns, eq(checklistRuns.id, checklistTasks.runId))
+      .where(
+        and(
+          eq(checklistRuns.engagementId, engagementId),
+          eq(checklistRuns.status, 'open'),
+          eq(checklistTasks.status, 'open'),
+          eq(checklistTasks.mandatory, true),
+          lte(checklistTasks.dueOn, day),
+        ),
+      )
+      .orderBy(asc(checklistTasks.dueOn));
+    return rows.map((r) => r.title);
+  }
+
   // ---- Tasks ----
 
   /** Open tasks waiting on the signed-in user, including a new joiner's own tasks. */

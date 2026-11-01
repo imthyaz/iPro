@@ -70,73 +70,89 @@ export class PeopleService {
    * create directly without the offer flow). Authorised as creating assignment history (decision #35).
    */
   async create(input: CreatePersonInput, now = new Date()): Promise<PersonSummary> {
+    const actor = requireContext().actor!;
+    const legalEntityId = input.engagement.legalEntityId;
+    await this.authz.assert(actor, 'create', { area: 'assignment_history', legalEntityId });
+    if (input.compensation) {
+      await this.authz.assert(actor, 'create', { area: 'compensation', legalEntityId });
+    }
+    const { personId } = await this.db.tx((tx) => this.createIn(tx, input, now));
+    return this.get(personId);
+  }
+
+  /**
+   * Creates the records inside the caller's transaction; the caller has authorised it. An offer
+   * (decision #54) starts as an `offered` engagement and writes its Joined event only on joining.
+   */
+  async createIn(
+    tx: Tx,
+    input: CreatePersonInput & { engagement: { contractEndDate?: string | null } },
+    now: Date,
+    options: { offer?: boolean } = {},
+  ): Promise<{ personId: string; engagementId: string; designationTitle: string }> {
     const { actor, tenantId } = requireContext();
     const legalEntityId = input.engagement.legalEntityId;
-    await this.authz.assert(actor!, 'create', { area: 'assignment_history', legalEntityId });
-    if (input.compensation) {
-      await this.authz.assert(actor!, 'create', { area: 'compensation', legalEntityId });
-    }
     const today = businessDate(now);
     const by = { createdBy: actor!.userId, updatedBy: actor!.userId };
+    const { designation, departmentName } = await this.checkAssignmentRefs(
+      tx,
+      input.assignment,
+      input.engagement.joiningDate,
+    );
+    const probationEnd = probationEndDate(
+      input.engagement.joiningDate,
+      input.engagement.type,
+      await this.settings.get(tx, 'probation_months'),
+    );
+    const notice = noticePeriodDays(
+      probationEnd !== null,
+      designation.designationBand,
+      await this.settings.get(tx, 'notice_days'),
+    );
 
-    const personId = await this.db.tx(async (tx) => {
-      const { designation, departmentName } = await this.checkAssignmentRefs(
-        tx,
-        input.assignment,
-        input.engagement.joiningDate,
-      );
-      const probationEnd = probationEndDate(
-        input.engagement.joiningDate,
-        input.engagement.type,
-        await this.settings.get(tx, 'probation_months'),
-      );
-      const notice = noticePeriodDays(
-        probationEnd !== null,
-        designation.designationBand,
-        await this.settings.get(tx, 'notice_days'),
-      );
-
-      const [person] = await tx
-        .insert(persons)
-        .values({ tenantId, ...input.person, ...by })
-        .returning({ id: persons.id });
-      const employeeCode = await this.settings.nextEmployeeCode(tx);
-      const joined = input.engagement.joiningDate <= today;
-      const engagementId = randomUUID();
-      await this.insertEngagement(tx, {
-        id: engagementId,
+    const [person] = await tx
+      .insert(persons)
+      .values({ tenantId, ...input.person, ...by })
+      .returning({ id: persons.id });
+    const employeeCode = await this.settings.nextEmployeeCode(tx);
+    const joined = input.engagement.joiningDate <= today;
+    const engagementId = randomUUID();
+    await this.insertEngagement(tx, {
+      id: engagementId,
+      tenantId,
+      personId: person!.id,
+      employeeCode,
+      legalEntityId,
+      type: input.engagement.type,
+      status: options.offer ? 'offered' : joined ? 'active' : 'pre_joining',
+      workEmail: input.engagement.workEmail ?? null,
+      offerDate: input.engagement.offerDate ?? null,
+      joiningDate: input.engagement.joiningDate,
+      contractEndDate: input.engagement.contractEndDate ?? null,
+      probationEndDate: probationEnd,
+      noticePeriodDays: notice,
+      ...by,
+    });
+    const [assignment] = await tx
+      .insert(assignments)
+      .values({
         tenantId,
-        personId: person!.id,
-        employeeCode,
-        legalEntityId,
-        type: input.engagement.type,
-        status: joined ? 'active' : 'pre_joining',
-        workEmail: input.engagement.workEmail ?? null,
-        offerDate: input.engagement.offerDate ?? null,
-        joiningDate: input.engagement.joiningDate,
-        probationEndDate: probationEnd,
-        noticePeriodDays: notice,
+        engagementId,
+        effectiveFrom: input.engagement.joiningDate,
+        ...input.assignment,
+        gradeId: designation.gradeId,
+        changeReason: 'Joined',
         ...by,
+      })
+      .returning({ id: assignments.id });
+    if (input.compensation) {
+      await this.insertCompensation(tx, engagementId, person!.id, {
+        ...input.compensation,
+        effectiveFrom: input.engagement.joiningDate,
       });
-      const [assignment] = await tx
-        .insert(assignments)
-        .values({
-          tenantId,
-          engagementId,
-          effectiveFrom: input.engagement.joiningDate,
-          ...input.assignment,
-          gradeId: designation.gradeId,
-          changeReason: 'Joined',
-          ...by,
-        })
-        .returning({ id: assignments.id });
-      if (input.compensation) {
-        await this.insertCompensation(tx, engagementId, person!.id, {
-          ...input.compensation,
-          effectiveFrom: input.engagement.joiningDate,
-        });
-      }
+    }
 
+    if (!options.offer) {
       await this.journey.record(tx, {
         engagementId,
         personId: person!.id,
@@ -156,24 +172,23 @@ export class PeopleService {
         sourceTable: 'engagement',
         sourceId: engagementId,
       });
-      for (const [table, recordId] of [
-        ['person', person!.id],
-        ['engagement', engagementId],
-        ['assignment', assignment!.id],
-      ] as const) {
-        await this.audit.record(tx, {
-          action: 'create',
-          table,
-          recordId,
-          subjectPersonId: person!.id,
-        });
-      }
-      if (input.engagement.workEmail) {
-        await linkUsersToPerson(tx, input.engagement.workEmail, person!.id);
-      }
-      return person!.id;
-    });
-    return this.get(personId);
+    }
+    for (const [table, recordId] of [
+      ['person', person!.id],
+      ['engagement', engagementId],
+      ['assignment', assignment!.id],
+    ] as const) {
+      await this.audit.record(tx, {
+        action: 'create',
+        table,
+        recordId,
+        subjectPersonId: person!.id,
+      });
+    }
+    if (input.engagement.workEmail) {
+      await linkUsersToPerson(tx, input.engagement.workEmail, person!.id);
+    }
+    return { personId: person!.id, engagementId, designationTitle: designation.title };
   }
 
   /** People directory (H1): everyone the actor may read, as of a date. */
@@ -707,12 +722,17 @@ export class PeopleService {
   }
 
   /** The summary authz decisions are made on (legal entity of the live or latest engagement). */
+  /** As of today; someone not yet joined is shown with their planned first assignment. */
   async summary(personId: string): Promise<PersonSummary> {
-    const [summary] = await this.db.tx((tx) =>
-      personSummaries(tx, businessDate(new Date()), { personIds: [personId] }),
-    );
+    const today = businessDate(new Date());
+    let [summary] = await this.db.tx((tx) => personSummaries(tx, today, { personIds: [personId] }));
     if (!summary) throw new NotFoundException();
-    return summary;
+    if (!summary.designation && summary.joiningDate > today) {
+      [summary] = await this.db.tx((tx) =>
+        personSummaries(tx, summary!.joiningDate, { personIds: [personId] }),
+      );
+    }
+    return summary!;
   }
 
   private assertOn(summary: PersonSummary, area: DataArea, action: Action) {

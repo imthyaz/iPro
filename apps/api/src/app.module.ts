@@ -11,6 +11,7 @@ import { JobsModule } from './jobs/jobs.module.js';
 import { LettersModule } from './letters/letters.module.js';
 import { OrgModule } from './org/org.module.js';
 import { PeopleModule } from './people/people.module.js';
+import { OffersModule } from './offers/offers.module.js';
 import { PoliciesModule } from './policies/policies.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { WorkflowModule } from './workflow/workflow.module.js';
@@ -31,6 +32,7 @@ import { WorkflowModule } from './workflow/workflow.module.js';
     WorkflowModule,
     LettersModule,
     PoliciesModule,
+    OffersModule,
   ],
 })
 export class AppModule implements NestModule {
