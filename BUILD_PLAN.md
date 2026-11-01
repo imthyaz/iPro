@@ -72,8 +72,8 @@ tests; in-app policy acknowledgement (PolicyAcknowledgement with document versio
 - [x] A new joiner can complete KYC uploads and policy sign-offs on a phone before Day 1.
 
 **Notes:** pre-joiners sign in as Entra guests (decision #55). Intern offers carry an end date and may be unpaid
-(decision #56). Sub-PRs: 4a offer workflow API; 4b pre-joiner access and onboarding portal (E11), joining-date
-changes; 4c screens H3, H4, H5.
+(decision #56). Sub-PRs: 4a offer workflow API; 4b pre-joiner access and onboarding portal (E11); 4c screens H3,
+H4, H5, joining-date changes, and the IT task to remove guest accounts (decision #58).
 
 ## [ ] Slice 5 — Probation and in-life changes
 

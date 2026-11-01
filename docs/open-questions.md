@@ -69,5 +69,5 @@ configurable setting.
       GroupMember.ReadWrite.All (admin consent), its secret in Secrets Manager (`GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`).
 - [ ] An Entra security group for pre-joiners (`PREJOINER_GROUP_ID`), assigned to the iPro app and mapped to the
       employee role in iPro. External collaboration settings must allow guest invitations with email one-time codes.
-- [ ] Should iPro remove the guest account from Entra after joining or a no-show (needs User.ReadWrite.All), or does
-      IT do it? Proposed: IT, from an exit-style checklist task.
+- [x] Who removes the guest account from Entra after joining or a no-show: IT, from a task iPro creates (decision #58).
+- [ ] Which IT user owns the guest-removal tasks (an admin sets it in iPro; until then admins get them).
