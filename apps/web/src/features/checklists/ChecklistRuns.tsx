@@ -28,10 +28,13 @@ export function ChecklistRuns() {
   const me = useMe().data;
   const canManage = hasRole(me, 'hr', 'hr_head');
   const [starting, setStarting] = useState(false);
+  const [stage, setStage] = useState('');
   const runs = useRuns();
-  const sorted = [...(runs.data ?? [])].sort(
-    (a, b) => b.progress.overdue - a.progress.overdue || a.anchorDate.localeCompare(b.anchorDate),
-  );
+  const sorted = [...(runs.data ?? [])]
+    .filter((r) => !stage || r.stage === stage)
+    .sort(
+      (a, b) => b.progress.overdue - a.progress.overdue || a.anchorDate.localeCompare(b.anchorDate),
+    );
   const run = runs.data?.find((r) => r.id === runId);
 
   const list = (
@@ -45,6 +48,19 @@ export function ChecklistRuns() {
         )}
       </div>
       {starting && <StartChecklist onDone={() => setStarting(false)} />}
+      <div className="filters">
+        <Field label="Stage">
+          {(id) => (
+            <select id={id} value={stage} onChange={(e) => setStage(e.target.value)}>
+              <option value="">All</option>
+              <option value="onboarding">Onboarding</option>
+              <option value="exit">Exit</option>
+              <option value="transfer">Transfer</option>
+              <option value="access">Access (IT)</option>
+            </select>
+          )}
+        </Field>
+      </div>
       {runs.error && <Note kind="error">{errorMessage(runs.error)}</Note>}
       {runs.data?.length === 0 && <Empty>No open checklists.</Empty>}
       <ul className="rows" aria-label="Checklists">

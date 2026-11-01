@@ -18,6 +18,7 @@ class RecordingAudit extends AuditService {
   entries: AuditEntry[] = [];
   override async record(_tx: Tx, entry: AuditEntry) {
     this.entries.push(entry);
+    return `audit-${this.entries.length}`;
   }
 }
 
@@ -71,7 +72,7 @@ describe('SensitiveReads', () => {
 
   it('no audit row means no value: a failed audit write stops the read', async () => {
     const failing = new (class extends AuditService {
-      override async record(): Promise<void> {
+      override async record(): Promise<string> {
         throw new Error('audit down');
       }
     })();

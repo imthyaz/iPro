@@ -26,7 +26,7 @@ export const checklistTemplates = pgTable(
     key: text('key').notNull(),
     version: integer('version').notNull(),
     name: text('name').notNull(),
-    stage: text('stage', { enum: ['onboarding', 'exit', 'transfer'] }).notNull(),
+    stage: text('stage', { enum: ['onboarding', 'exit', 'transfer', 'access'] }).notNull(),
     appliesTo: jsonb('applies_to').$type<Record<string, unknown>>().notNull(),
     /** The template's tasks (title, owner, due offset, mandatory, requires document). */
     tasks: jsonb('tasks').$type<Record<string, unknown>[]>().notNull(),

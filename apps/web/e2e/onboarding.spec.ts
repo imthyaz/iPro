@@ -24,6 +24,17 @@ const inDays = (days: number) => {
 };
 
 /**
+ * Saves a template both projects use. Desktop and mobile run at once, so when the other saved the same
+ * version a moment earlier, finding it there is enough.
+ */
+async function saveShared(api: APIRequestContext, kind: string, key: string, data: object) {
+  const saved = await api.put(`/api/${kind}/${key}`, { data });
+  if (saved.ok()) return;
+  const list = (await (await api.get(`/api/${kind}`)).json()) as { key: string }[];
+  expect(list.some((t) => t.key === key)).toBe(true);
+}
+
+/**
  * HR offers, the hiring manager approves and the candidate signs (through the development signer),
  * so a pre-joiner exists with a sign-in of their own (decisions #54, #55).
  */
@@ -31,35 +42,27 @@ async function preJoiner(page: Page, name: string, policyTitle: string): Promise
   const api = page.request;
   const run = `${Date.now()}`;
   await signInAs(page, DEV.admin);
-  await ok(
-    await api.put('/api/letter-templates/e2e_offer', {
-      data: {
-        name: 'Offer letter (e2e)',
-        type: 'offer',
-        body: 'Dear {{person.legalName}}, welcome as {{assignment.designation}}.',
-        approverRole: null,
-        signature: 'employee',
+  await saveShared(api, 'letter-templates', 'e2e_offer', {
+    name: 'Offer letter (e2e)',
+    type: 'offer',
+    body: 'Dear {{person.legalName}}, welcome as {{assignment.designation}}.',
+    approverRole: null,
+    signature: 'employee',
+  });
+  await saveShared(api, 'checklist-templates', 'e2e_onboarding', {
+    name: 'Onboarding (e2e)',
+    stage: 'onboarding',
+    appliesTo: {},
+    tasks: [
+      {
+        title: 'Upload your PAN card',
+        owner: { kind: 'employee' },
+        dueOffsetDays: -2,
+        mandatory: true,
+        requiresDocument: true,
       },
-    }),
-  );
-  await ok(
-    await api.put('/api/checklist-templates/e2e_onboarding', {
-      data: {
-        name: 'Onboarding (e2e)',
-        stage: 'onboarding',
-        appliesTo: {},
-        tasks: [
-          {
-            title: 'Upload your PAN card',
-            owner: { kind: 'employee' },
-            dueOffsetDays: -2,
-            mandatory: true,
-            requiresDocument: true,
-          },
-        ],
-      },
-    }),
-  );
+    ],
+  });
   const policy = await ok<{ policyId: string }>(
     await api.post('/api/policies', {
       data: {

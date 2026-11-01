@@ -18,20 +18,25 @@ export const FIELD_CIPHER = Symbol('FIELD_CIPHER');
 /** The only writer of AuditLog. Writes in the caller's transaction, so the audit row commits with the change. */
 @Injectable()
 export class AuditService {
-  async record(tx: Tx, entry: AuditEntry): Promise<void> {
+  /** Returns the audit row id, so a journal event can point at the change it records. */
+  async record(tx: Tx, entry: AuditEntry): Promise<string> {
     const context = requireContext();
-    await tx.insert(auditLog).values({
-      tenantId: context.tenantId,
-      createdBy: context.actor?.userId ?? null,
-      updatedBy: context.actor?.userId ?? null,
-      action: entry.action,
-      tableName: entry.table,
-      recordId: entry.recordId ?? null,
-      subjectPersonId: entry.subjectPersonId ?? null,
-      fieldChanges: entry.fieldChanges ?? null,
-      requestId: context.requestId,
-      ip: context.ip,
-    });
+    const [row] = await tx
+      .insert(auditLog)
+      .values({
+        tenantId: context.tenantId,
+        createdBy: context.actor?.userId ?? null,
+        updatedBy: context.actor?.userId ?? null,
+        action: entry.action,
+        tableName: entry.table,
+        recordId: entry.recordId ?? null,
+        subjectPersonId: entry.subjectPersonId ?? null,
+        fieldChanges: entry.fieldChanges ?? null,
+        requestId: context.requestId,
+        ip: context.ip,
+      })
+      .returning({ id: auditLog.id });
+    return row!.id;
   }
 }
 

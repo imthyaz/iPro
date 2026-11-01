@@ -8,6 +8,8 @@ import { Note } from './design-system/index.js';
 import { PolicyAdmin } from './features/admin/PolicyAdmin.js';
 import { Templates } from './features/admin/Templates.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
+import { NewOffer } from './features/offers/NewOffer.js';
+import { Offers } from './features/offers/Offers.js';
 import { Onboarding, useOnboarding } from './features/onboarding/Onboarding.js';
 import { Inbox } from './features/inbox/Inbox.js';
 import { OrgSetup } from './features/org/OrgSetup.js';
@@ -42,6 +44,7 @@ function Shell() {
   const seesPeople = hasRole(user, 'manager', 'hr', 'hr_head', 'cxo');
   const seesOrgSetup = hasRole(user, 'hr', 'hr_head', 'admin');
   const seesChecklists = hasRole(user, 'hr', 'hr_head');
+  const seesOffers = hasRole(user, 'hr', 'hr_head', 'manager');
   const seesShifts = hasRole(user, 'hr', 'hr_head', 'admin', 'manager');
 
   return (
@@ -93,6 +96,11 @@ function Shell() {
           {seesPeople && (
             <NavLink to="/org-tree" className="nav-item">
               Org tree
+            </NavLink>
+          )}
+          {seesOffers && (
+            <NavLink to="/offers" className="nav-item">
+              Offers
             </NavLink>
           )}
           {seesChecklists && (
@@ -161,6 +169,9 @@ function Shell() {
             <Route path="/policy-admin/:policyId" element={<PolicyAdmin />} />
             <Route path="/shifts" element={<Shifts />} />
             <Route path="/shifts/:shiftId" element={<Shifts />} />
+            <Route path="/offers" element={<Offers />} />
+            <Route path="/offers/new" element={<NewOffer />} />
+            <Route path="/offers/:offerId" element={<Offers />} />
             <Route path="/checklists" element={<ChecklistRuns />} />
             <Route path="/checklists/:runId" element={<ChecklistRuns />} />
             <Route path="*" element={<Navigate to="/" />} />

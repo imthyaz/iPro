@@ -176,6 +176,13 @@
       "when": 1793522479007,
       "tag": "0024_offer_guests",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793524680422,
+      "tag": "0025_checklist_access_stage",
+      "breakpoints": true
     }
   ]
 }

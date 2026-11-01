@@ -21,7 +21,12 @@ type Kind = 'checklists' | 'letters';
 type ChecklistTemplate = ChecklistTemplateInput & { key: string; version: number };
 
 const KEY = /^[a-z][a-z0-9_.]*$/;
-const stageWords = { onboarding: 'Onboarding', exit: 'Exit', transfer: 'Transfer' } as const;
+const stageWords = {
+  onboarding: 'Onboarding',
+  exit: 'Exit',
+  transfer: 'Transfer',
+  access: 'Access (IT)',
+} as const;
 const roleWords: Record<(typeof roles)[number], string> = {
   employee: 'Employee',
   manager: 'Manager',

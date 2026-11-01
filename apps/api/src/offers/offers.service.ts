@@ -29,7 +29,8 @@ import { JourneyService } from '../journey/journey.service.js';
 import { letters, letterTemplates } from '../letters/letters.schema.js';
 import { LettersService } from '../letters/letters.service.js';
 import { designations, grades } from '../org/org.schema.js';
-import { compensations, engagements, persons } from '../people/people.schema.js';
+import { probationEndDate } from '../people/hr-settings.js';
+import { assignments, compensations, engagements, persons } from '../people/people.schema.js';
 import { linkUsersToPerson, PeopleService } from '../people/people.service.js';
 import { SettingsService } from '../people/settings.service.js';
 import { ChecklistsService } from '../workflow/checklists.service.js';
@@ -39,6 +40,9 @@ import { WorkflowService } from '../workflow/workflow.service.js';
 import { offers } from './offers.schema.js';
 
 type OfferRow = typeof offers.$inferSelect;
+
+/** The built-in IT checklist for a pre-joiner's guest account (decision #58). */
+const GUEST_REMOVAL = 'guest_account_removal';
 
 const releasePayload = z.object({ offerId: z.uuid(), needsHrHead: z.boolean() });
 
@@ -337,6 +341,128 @@ export class OffersService implements OnModuleInit {
     return this.get(offerId);
   }
 
+  /**
+   * Moves the joining date (decision #59): before approval (the letter is made again on sending), or
+   * after acceptance (the candidate has signed; HR and the manager are told). An offer out for
+   * signature can't move: its letter states the date.
+   */
+  async changeJoiningDate(
+    offerId: string,
+    joiningDate: string,
+    reason: string,
+    now = new Date(),
+  ): Promise<OfferView> {
+    const offer = await this.loadFor(offerId, 'update');
+    if (offer.status !== 'draft' && offer.status !== 'accepted') {
+      throw new ConflictException({
+        message:
+          offer.status === 'offered'
+            ? 'The letter out for signature states the date; withdraw and make a new offer, or change it after acceptance'
+            : 'The joining date can only change before approval or after acceptance',
+      });
+    }
+    const today = businessDate(now);
+    if (offer.status === 'accepted' && joiningDate < today) {
+      throw new BadRequestException({ message: 'The new joining date has passed' });
+    }
+    const actor = requireContext().actor!;
+    await this.db.tx(async (tx) => {
+      const [engagement] = await tx
+        .select()
+        .from(engagements)
+        .where(eq(engagements.id, offer.engagementId));
+      const from = engagement!.joiningDate;
+      if (joiningDate === from) {
+        throw new BadRequestException({ message: 'That is already the joining date' });
+      }
+      if (engagement!.contractEndDate && engagement!.contractEndDate < joiningDate) {
+        throw new BadRequestException({ message: 'The new date is after the planned end date' });
+      }
+      const shift = Math.round((Date.parse(joiningDate) - Date.parse(from)) / 86_400_000);
+      const probationEnd = probationEndDate(
+        joiningDate,
+        engagement!.type,
+        await this.settings.get(tx, 'probation_months'),
+      );
+      await tx
+        .update(engagements)
+        .set({
+          joiningDate,
+          probationEndDate: probationEnd,
+          updatedAt: new Date(),
+          updatedBy: actor.userId,
+        })
+        .where(eq(engagements.id, offer.engagementId));
+      // The planned first assignment and pay haven't started, so they move with the date.
+      await tx
+        .update(assignments)
+        .set({ effectiveFrom: joiningDate, updatedAt: new Date(), updatedBy: actor.userId })
+        .where(
+          and(
+            eq(assignments.engagementId, offer.engagementId),
+            eq(assignments.effectiveFrom, from),
+          ),
+        );
+      await tx
+        .update(compensations)
+        .set({ effectiveFrom: joiningDate, updatedAt: new Date(), updatedBy: actor.userId })
+        .where(
+          and(
+            eq(compensations.engagementId, offer.engagementId),
+            eq(compensations.effectiveFrom, from),
+          ),
+        );
+      await this.checklists.moveAnchorIn(tx, offer.engagementId, from, shift);
+      const auditId = await this.audit.record(tx, {
+        action: 'update',
+        table: 'engagement',
+        recordId: offer.engagementId,
+        subjectPersonId: offer.personId,
+        fieldChanges: [{ field: 'joining_date', from, to: joiningDate }],
+      });
+      if (offer.status === 'draft' && offer.letterId) {
+        // The letter states the old date: a new one is made when the offer is sent.
+        await this.letters.cancelIn(tx, offer.letterId);
+        await tx.update(offers).set({ letterId: null }).where(eq(offers.id, offer.id));
+      }
+      if (offer.status === 'accepted') {
+        await this.journey.record(tx, {
+          engagementId: offer.engagementId,
+          personId: offer.personId,
+          eventType: 'joining_date_changed',
+          category: 'lifecycle',
+          occurredOn: today,
+          title: 'Joining date changed',
+          detail: { from, to: joiningDate, reason },
+          sensitivity: 'manager',
+          sourceTable: 'audit_log',
+          sourceId: auditId,
+        });
+        const manager = await managerUserOfPerson(tx, offer.personId, today);
+        await notify(
+          tx,
+          [
+            ...(await roleHolders(tx, 'hr', engagement!.legalEntityId)),
+            ...(manager ? [manager] : []),
+          ],
+          'joining_date_changed',
+          `Joining date moved to ${joiningDate}`,
+          `/people/${offer.personId}`,
+        );
+        if (offer.guestUserId) {
+          await notify(
+            tx,
+            [offer.guestUserId],
+            'joining_date_changed',
+            `Your joining date is now ${joiningDate}`,
+            '/onboarding',
+          );
+        }
+      }
+    });
+    return this.get(offerId);
+  }
+
   /** Every 30 minutes: retries invitations that failed. */
   async retryInvites(): Promise<{ retried: number }> {
     return this.db.tx(async (tx) => {
@@ -602,9 +728,13 @@ export class OffersService implements OnModuleInit {
     return user!.id;
   }
 
-  /** On joining or closing, the pre-joiner's guest sign-in stops working in iPro. */
+  /**
+   * On joining or closing, the pre-joiner's guest sign-in stops working in iPro, and IT gets a task to
+   * remove the guest account from Entra (decision #58).
+   */
   private async retireGuestIn(tx: Tx, offer: OfferRow): Promise<void> {
     if (!offer.guestStatus || offer.guestStatus === 'retired') return;
+    const hadGuestAccount = offer.guestStatus === 'invited';
     const users = [
       ...(offer.guestUserId ? [eq(appUsers.id, offer.guestUserId)] : []),
       ...(offer.guestObjectId ? [eq(appUsers.entraObjectId, offer.guestObjectId)] : []),
@@ -617,6 +747,23 @@ export class OffersService implements OnModuleInit {
     }
     await tx.update(offers).set({ guestStatus: 'retired' }).where(eq(offers.id, offer.id));
     offer.guestStatus = 'retired';
+    if (!hadGuestAccount) return;
+    await this.checklists.ensureBuiltIn(tx, GUEST_REMOVAL, {
+      name: 'Guest account removal',
+      stage: 'access',
+      appliesTo: {},
+      tasks: [
+        {
+          title: 'Remove the Entra guest account',
+          // Admins until an admin names the IT user on this template (decision #58).
+          owner: { kind: 'role', role: 'admin' },
+          dueOffsetDays: 2,
+          mandatory: true,
+          requiresDocument: false,
+        },
+      ],
+    });
+    await this.checklists.startIn(tx, offer.engagementId, GUEST_REMOVAL, businessDate(new Date()));
   }
 
   /** Declined, withdrawn or no-show: the engagement closes as withdrawn, with one journey event. */
@@ -628,9 +775,10 @@ export class OffersService implements OnModuleInit {
   ): Promise<void> {
     // Close first, so the approval request's own withdrawal (below) finds nothing left to do.
     await this.setStatus(tx, offer, status, { closedAt: new Date(), closeReason: reason });
-    await this.retireGuestIn(tx, offer);
     if (offer.approvalRequestId) await this.workflows.cancelIn(tx, offer.approvalRequestId);
     await this.checklists.cancelOpenIn(tx, offer.engagementId, reason);
+    // After cancelling onboarding, so the IT task it may start stays open.
+    await this.retireGuestIn(tx, offer);
     await tx
       .update(engagements)
       .set({ status: 'withdrawn', exitReason: status, updatedAt: new Date() })
