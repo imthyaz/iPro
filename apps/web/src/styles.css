@@ -704,3 +704,14 @@ a.onboarding-link:hover {
   margin-top: 16px;
   justify-items: start;
 }
+
+/* Probation review form (M5): one row of 1–5 per area, easy to tap on a phone. */
+.rating {
+  flex-direction: row;
+}
+
+.rating .check {
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+}

@@ -71,3 +71,11 @@ configurable setting.
       employee role in iPro. External collaboration settings must allow guest invitations with email one-time codes.
 - [x] Who removes the guest account from Entra after joining or a no-show: IT, from a task iPro creates (decision #58).
 - [ ] Which IT user owns the guest-removal tasks (an admin sets it in iPro; until then admins get them).
+
+## Probation (slice 5a, decision #60 — please confirm)
+- [ ] The review form: which areas are rated 1–5 (proposed: Quality of work, Ownership, Collaboration, Learning),
+      plus strengths, things to improve and comments.
+- [ ] The spec mentions "30- and 90-day check-ins" on the probation card: are these separate manager check-ins
+      during probation? Not built yet.
+- [ ] Probation letter templates (confirmation, extension, termination) to be supplied; until then HR is told to make
+      the letter by hand.

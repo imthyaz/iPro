@@ -15,6 +15,13 @@ export const settingSchemas = {
   approval_reminder_days: z.number().int().min(1).max(30),
   /** Days an offer stays open for signature before it counts as declined (decision #54). */
   offer_expiry_days: z.number().int().min(1).max(90),
+  /** Probation extensions allowed and how long each may be (spec: 1 of up to 3 months). */
+  probation_extension: z.object({
+    max_count: z.number().int().min(0).max(5),
+    max_months: z.number().int().min(1).max(12),
+  }),
+  /** What a review form rates 1–5 (probation and intern assessments). */
+  review_competencies: z.array(z.string().trim().min(1).max(100)).min(1).max(12),
   notice_days: z.object({
     on_probation: z.number().int().min(0),
     confirmed: z.number().int().min(0),
@@ -33,6 +40,8 @@ export const settingDefaults: { [K in SettingKey]: SettingValue<K> } = {
   approval_escalation_days: 3,
   approval_reminder_days: 2,
   offer_expiry_days: 7,
+  probation_extension: { max_count: 1, max_months: 3 },
+  review_competencies: ['Quality of work', 'Ownership', 'Collaboration', 'Learning'],
 };
 
 export function formatEmployeeCode(value: number, format: SettingValue<'employee_code'>): string {

@@ -75,13 +75,13 @@ tests; in-app policy acknowledgement (PolicyAcknowledgement with document versio
 (decision #56). Sub-PRs: 4a offer workflow API; 4b pre-joiner access and onboarding portal (E11); 4c screens H3,
 H4, H5, joining-date changes, and the IT task to remove guest accounts (decision #58).
 
-## [ ] Slice 5 — Probation and in-life changes
+## [~] Slice 5 — Probation and in-life changes
 
 **Spec:** Workflow 3 (Probation), Workflow 8 (In-life change); Screens H6, H7, M5.
 
 **Done when**
-- [ ] Reminders arrive at 30, 14 and 7 days; an overdue review escalates.
-- [ ] Confirm, extend and terminate each produce the right letter and journey event.
+- [x] Reminders arrive at 30, 14 and 7 days; an overdue review escalates.
+- [x] Confirm, extend and terminate each produce the right letter and journey event.
 - [ ] A designation change effective next month shows as upcoming on the journey and applies automatically that day.
 - [ ] An intern nearing the end date gets a manager assessment; HR converts to employee (one person, one
       journey), extends, ends the internship or records a break (decision #56).

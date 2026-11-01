@@ -47,8 +47,8 @@ export function NewPerson() {
 
   const create = useMutation({
     mutationFn: (input: CreatePersonInput) => api<PersonSummary>('/people', { body: input }),
-    onSuccess: async (person) => {
-      await client.invalidateQueries({ queryKey: ['people'] });
+    onSuccess: (person) => {
+      void client.invalidateQueries({ queryKey: ['people'] });
       navigate(`/people/${person.personId}`);
     },
   });

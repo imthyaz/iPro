@@ -11,6 +11,7 @@ import type {
 import { api, errorMessage } from '../../api.js';
 import { useMe } from '../../auth.js';
 import { useOnboarding } from '../onboarding/Onboarding.js';
+import { useReviews } from '../reviews/Reviews.js';
 import {
   ChangeList,
   Chip,
@@ -41,12 +42,15 @@ export function Inbox() {
     enabled: Boolean(me?.personId),
   });
   const onboarding = useOnboarding(Boolean(me?.personId));
+  const reviews = useReviews();
+  const toWrite = reviews.data?.filter((r) => r.canSubmit) ?? [];
   const pendingPolicies = policies.data?.filter((p) => p.pending) ?? [];
   const loaded = approvals.data && tasks.data && (!me?.personId || policies.data);
   const nothing =
     loaded &&
     approvals.data!.length === 0 &&
     tasks.data!.length === 0 &&
+    toWrite.length === 0 &&
     pendingPolicies.length === 0;
 
   return (
@@ -69,6 +73,28 @@ export function Inbox() {
           <ul className="cards" aria-label="Approvals">
             {approvals.data!.map((card) => (
               <Approval key={card.approvalId} card={card} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {toWrite.length > 0 && (
+        <section aria-labelledby="inbox-reviews">
+          <h2 id="inbox-reviews">Reviews to write ({toWrite.length})</h2>
+          <ul className="cards" aria-label="Reviews to write">
+            {toWrite.map((r) => (
+              <li key={r.id} className="card" aria-label={`Probation review: ${r.person.name}`}>
+                <div className="card-head">
+                  <strong>Probation review: {r.person.name}</strong>
+                  <DueChip dueOn={r.dueOn} overdue={r.overdue} />
+                </div>
+                <span className="muted">
+                  {r.designation ?? '—'} · joined {formatDate(r.joiningDate)}
+                </span>
+                <Link className="button" to={`/reviews/${r.id}`}>
+                  Write the review
+                </Link>
+              </li>
             ))}
           </ul>
         </section>

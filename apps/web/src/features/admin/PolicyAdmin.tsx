@@ -97,8 +97,9 @@ function NewPolicy({ onDone }: { onDone: () => void }) {
       api<PolicyStatusView>('/policies', {
         body: { code, title, appliesTo, requiresAcknowledgement },
       }),
-    onSuccess: async (policy) => {
-      await client.invalidateQueries({ queryKey: ['policies'] });
+    onSuccess: (policy) => {
+      // Open it now; the list refreshes behind (it can take a while with many policies).
+      void client.invalidateQueries({ queryKey: ['policies'] });
       onDone();
       navigate(`/policy-admin/${policy.policyId}`);
     },

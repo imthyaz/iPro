@@ -6,6 +6,30 @@ import type { WorkflowDefinition } from '@ipro/shared';
  */
 export const builtInDefinitions: Record<string, WorkflowDefinition> = {
   /**
+   * The decision on a probation review (spec workflow 3, decision #60): HR confirms or extends; a
+   * termination needs HR head. The manager who wrote the review submits it.
+   */
+  probation_decision: {
+    name: 'Probation decision',
+    steps: [
+      {
+        id: 'hr',
+        label: 'HR decision',
+        approver: { kind: 'role', role: 'hr' },
+        authorize: { area: 'probation_review', action: 'approve' },
+        when: { field: 'needsHrHead', equals: false },
+      },
+      {
+        id: 'hr_head',
+        label: 'HR head decision (termination)',
+        approver: { kind: 'role', role: 'hr_head' },
+        authorize: { area: 'probation_review', action: 'terminate' },
+        when: { field: 'needsHrHead', equals: true },
+      },
+    ],
+    onApproved: 'review.decide',
+  },
+  /**
    * An offer (spec workflow 1, decision #54): the hiring manager, then HR head when the pay is above
    * the grade band or can't be compared with it. Approval sends the letter for e-signature.
    */
