@@ -7,6 +7,7 @@ import {
   type KycType,
   type KycView,
 } from '@ipro/shared';
+import { Link } from 'react-router';
 import { api, errorMessage } from '../../api.js';
 import { hasRole, useMe } from '../../auth.js';
 import {
@@ -65,7 +66,7 @@ export function PersonRecord({ personId }: { personId: string }) {
       </header>
       <Tabs tabs={tabs} active={tab} onChange={setTab} label="Person record sections" />
       <div role="tabpanel" aria-labelledby={`tab-${tab}`} className="tab-panel">
-        {tab === 'profile' && <Profile person={p} />}
+        {tab === 'profile' && <Profile person={p} canChange={isSelf || isHr} isHr={isHr} />}
         {tab === 'roles' && <RoleHistory personId={personId} />}
         {tab === 'pay' && <Pay personId={personId} />}
         {tab === 'kyc' && <Kyc personId={personId} canUnmask={isHr} canSubmit={isSelf || isHr} />}
@@ -76,7 +77,15 @@ export function PersonRecord({ personId }: { personId: string }) {
   );
 }
 
-function Profile({ person }: { person: PersonDetail }) {
+function Profile({
+  person,
+  canChange,
+  isHr,
+}: {
+  person: PersonDetail;
+  canChange: boolean;
+  isHr: boolean;
+}) {
   const rows: [string, string][] = [
     ['Legal name', person.legalName],
     ['Work email', person.workEmail ?? '—'],
@@ -98,6 +107,7 @@ function Profile({ person }: { person: PersonDetail }) {
           </div>
         ))}
       </dl>
+      {canChange && <ChangeDetails person={person} isHr={isHr} />}
       <h3>Emergency contacts</h3>
       {person.emergencyContacts.length === 0 ? (
         <Empty>None recorded.</Empty>
@@ -162,6 +172,94 @@ function Pay({ personId }: { personId: string }) {
         ))}
       </ol>
     </>
+  );
+}
+
+/** Personal details: HR changes them directly; a person's own change goes to HR for approval. */
+function ChangeDetails({ person, isHr }: { person: PersonDetail; isHr: boolean }) {
+  const client = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [preferredName, setPreferredName] = useState(person.preferredName ?? '');
+  const [personalEmail, setPersonalEmail] = useState(person.profile.personalEmail ?? '');
+  const [phone, setPhone] = useState(person.profile.phone ?? '');
+  const change = useMutation({
+    mutationFn: () => {
+      const body: Record<string, string | null> = {};
+      const set = (key: string, value: string, was: string | null) => {
+        if (value.trim() !== (was ?? '')) body[key] = value.trim() || null;
+      };
+      set('preferredName', preferredName, person.preferredName);
+      set('personalEmail', personalEmail, person.profile.personalEmail);
+      set('phone', phone, person.profile.phone);
+      return api<{ applied: true } | { requestId: string }>(`/people/${person.personId}/profile`, {
+        method: 'PATCH',
+        body,
+      });
+    },
+    onSuccess: () => {
+      setOpen(false);
+      return Promise.all([
+        client.invalidateQueries({ queryKey: ['person', person.personId] }),
+        client.invalidateQueries({ queryKey: ['requests'] }),
+      ]);
+    },
+  });
+
+  if (!open) {
+    return (
+      <>
+        {change.data && 'requestId' in change.data && (
+          <Note kind="info">
+            Sent to HR for approval. Follow it in{' '}
+            <Link to={`/requests/${change.data.requestId}`}>My requests</Link>.
+          </Note>
+        )}
+        <button className="button" onClick={() => setOpen(true)}>
+          {isHr ? 'Change details' : 'Request a change'}
+        </button>
+      </>
+    );
+  }
+  return (
+    <form
+      className="inline-form"
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        change.mutate();
+      }}
+    >
+      <h3>{isHr ? 'Change details' : 'Request a change'}</h3>
+      {!isHr && <p className="muted">HR approves changes to your details.</p>}
+      <Field label="Preferred name">
+        {(id) => (
+          <input id={id} value={preferredName} onChange={(e) => setPreferredName(e.target.value)} />
+        )}
+      </Field>
+      <Field label="Personal email">
+        {(id) => (
+          <input
+            id={id}
+            type="email"
+            value={personalEmail}
+            onChange={(e) => setPersonalEmail(e.target.value)}
+          />
+        )}
+      </Field>
+      <Field label="Phone">
+        {(id) => (
+          <input id={id} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        )}
+      </Field>
+      <div className="form-actions">
+        <button className="button button-primary" disabled={change.isPending}>
+          {isHr ? 'Save' : 'Send to HR'}
+        </button>
+        <button type="button" className="button button-quiet" onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+      </div>
+      {change.error && <Note kind="error">{errorMessage(change.error)}</Note>}
+    </form>
   );
 }
 

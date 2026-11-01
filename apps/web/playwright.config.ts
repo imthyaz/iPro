@@ -16,7 +16,8 @@ export default defineConfig({
       command: 'pnpm --filter @ipro/api start',
       url: 'http://localhost:3000/api/health/live',
       reuseExistingServer: !process.env.CI,
-      env: { JOBS_ENABLED: 'false' },
+      // No object store in CI: documents and policies live in memory for the run.
+      env: { JOBS_ENABLED: 'false', STORAGE_PROVIDER: 'memory' },
     },
     {
       command: 'pnpm preview',
