@@ -10,7 +10,12 @@ import {
 } from '@nestjs/common';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import type { LetterTemplateInput, LetterTemplateView, LetterView } from '@ipro/shared';
+import type {
+  LetterTemplateInput,
+  LetterTemplateView,
+  LetterView,
+  PersonSummary,
+} from '@ipro/shared';
 import { AuditService, SensitiveReads } from '../audit/audit.service.js';
 import { AuthzService } from '../authz/authz.service.js';
 import { businessDate } from '../common/effective-dating.js';
@@ -32,6 +37,17 @@ import { fieldsIn, merge, templateProblems, toBlocks } from './merge-fields.js';
 import { renderLetterPdf } from './pdf.js';
 
 type LetterRow = typeof letters.$inferSelect;
+
+/** Called in the refresh transaction when the signer signs, declines or the request is withdrawn. */
+export type SettledListener = (
+  tx: Tx,
+  letter: {
+    letterId: string;
+    personId: string;
+    engagementId: string;
+    state: 'signed' | 'declined' | 'cancelled';
+  },
+) => Promise<void>;
 
 const longDate = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric',
@@ -66,6 +82,7 @@ const releasePayload = z.object({ letterId: z.uuid(), approverRole: z.enum(['hr'
 @Injectable()
 export class LettersService implements OnModuleInit {
   private readonly logger = new Logger('Letters');
+  private readonly settledListeners: SettledListener[] = [];
 
   constructor(
     @Inject(TenantDb) private readonly db: TenantDb,
@@ -177,14 +194,30 @@ export class LettersService implements OnModuleInit {
     personId: string,
     input: { templateKey: string; extra: Record<string, string> },
   ): Promise<LetterView> {
-    const { actor, tenantId } = requireContext();
     const summary = await this.people.summary(personId);
-    await this.authz.assert(actor!, 'create', {
+    await this.authz.assert(requireContext().actor!, 'create', {
       area: 'documents',
       subjectPersonId: personId,
       legalEntityId: summary.legalEntityId,
     });
-    const letterId = await this.db.tx(async (tx) => {
+    const letterId = await this.db.tx((tx) =>
+      this.generateIn(tx, summary, { ...input, approval: true }),
+    );
+    return this.view(letterId);
+  }
+
+  /**
+   * Generates inside the caller's transaction. `approval: false` is for letters whose approval is part
+   * of another workflow (an offer's, decision #54); the letter is then ready at once.
+   */
+  async generateIn(
+    tx: Tx,
+    summary: PersonSummary,
+    input: { templateKey: string; extra: Record<string, string>; approval: boolean },
+  ): Promise<string> {
+    const { actor, tenantId } = requireContext();
+    const personId = summary.personId;
+    {
       const [template] = await tx
         .select()
         .from(letterTemplates)
@@ -239,7 +272,7 @@ export class LettersService implements OnModuleInit {
           engagementId: summary.engagementId,
           templateId: template.id,
           documentId,
-          status: template.approverRole ? 'pending_approval' : 'ready',
+          status: template.approverRole && input.approval ? 'pending_approval' : 'ready',
           extra: input.extra,
           createdBy: actor!.userId,
           updatedBy: actor!.userId,
@@ -251,7 +284,7 @@ export class LettersService implements OnModuleInit {
         recordId: letter!.id,
         subjectPersonId: personId,
       });
-      if (template.approverRole) {
+      if (template.approverRole && input.approval) {
         const requestId = await this.workflows.submit(tx, {
           key: 'letter_approval',
           subjectPersonId: personId,
@@ -264,39 +297,50 @@ export class LettersService implements OnModuleInit {
           .where(eq(letters.id, letter!.id));
       }
       return letter!.id;
-    });
-    return this.view(letterId);
+    }
   }
 
   /** Sends a released letter to the person for e-signature. */
   async send(letterId: string): Promise<LetterView> {
-    const actor = requireContext().actor!;
-    const { letter, template } = await this.db.tx((tx) => this.load(tx, letterId));
+    const { letter } = await this.db.tx((tx) => this.load(tx, letterId));
     await this.assertOnPerson(letter.personId, 'update');
+    await this.db.tx((tx) => this.sendIn(tx, letterId));
+    return this.view(letterId);
+  }
+
+  /**
+   * Sends inside the caller's transaction, after the caller has authorised it (an offer's final
+   * approver, decision #54). The provider is called last, so a failure rolls everything back.
+   */
+  async sendIn(tx: Tx, letterId: string): Promise<void> {
+    const actor = requireContext().actor;
+    const { letter, template } = await this.load(tx, letterId);
     if (letter.status !== 'ready')
       throw new ConflictException({ message: 'Only a released letter can be sent' });
     if (template.signature !== 'employee')
       throw new BadRequestException({ message: 'This letter is not signed' });
 
-    const signer = await this.db.tx(async (tx) => {
-      const [row] = await tx
-        .select({
-          legalName: persons.legalName,
-          personalEmail: persons.personalEmail,
-          workEmail: engagements.workEmail,
-        })
-        .from(engagements)
-        .innerJoin(persons, eq(persons.id, engagements.personId))
-        .where(eq(engagements.id, letter.engagementId));
-      return row;
-    });
+    const [signer] = await tx
+      .select({
+        legalName: persons.legalName,
+        personalEmail: persons.personalEmail,
+        workEmail: engagements.workEmail,
+      })
+      .from(engagements)
+      .innerJoin(persons, eq(persons.id, engagements.personId))
+      .where(eq(engagements.id, letter.engagementId));
     const email = signer?.workEmail ?? signer?.personalEmail;
     if (!signer || !email)
       throw new BadRequestException({ message: 'The person has no email to sign with' });
-    const [doc] = await this.db.tx((tx) =>
-      tx.select().from(documents).where(eq(documents.id, letter.documentId)),
-    );
+    const [doc] = await tx.select().from(documents).where(eq(documents.id, letter.documentId));
     const pdf = await this.storage.get(doc!.storageKey);
+    await this.audit.record(tx, {
+      action: 'update',
+      table: 'letter',
+      recordId: letterId,
+      subjectPersonId: letter.personId,
+      fieldChanges: [{ field: 'status', from: 'ready', to: 'sent' }],
+    });
     const { requestId } = await this.esign.send({
       pdf,
       fileName: doc!.fileName,
@@ -304,27 +348,17 @@ export class LettersService implements OnModuleInit {
       signer: { name: signer.legalName, email },
       reference: letter.id,
     });
-    await this.db.tx(async (tx) => {
-      await tx
-        .update(letters)
-        .set({
-          status: 'sent',
-          esignProvider: this.esign.name,
-          esignRequestId: requestId,
-          sentAt: new Date(),
-          updatedAt: new Date(),
-          updatedBy: actor.userId,
-        })
-        .where(eq(letters.id, letterId));
-      await this.audit.record(tx, {
-        action: 'update',
-        table: 'letter',
-        recordId: letterId,
-        subjectPersonId: letter.personId,
-        fieldChanges: [{ field: 'status', from: 'ready', to: 'sent' }],
-      });
-    });
-    return this.view(letterId);
+    await tx
+      .update(letters)
+      .set({
+        status: 'sent',
+        esignProvider: this.esign.name,
+        esignRequestId: requestId,
+        sentAt: new Date(),
+        updatedAt: new Date(),
+        updatedBy: actor?.userId ?? null,
+      })
+      .where(eq(letters.id, letterId));
   }
 
   async cancel(letterId: string): Promise<LetterView> {
@@ -333,19 +367,29 @@ export class LettersService implements OnModuleInit {
     if (!['ready', 'sent', 'returned'].includes(letter.status)) {
       throw new ConflictException({ message: 'This letter can’t be cancelled now' });
     }
+    await this.db.tx((tx) => this.cancelIn(tx, letterId));
+    return this.view(letterId);
+  }
+
+  /** Cancels inside the caller's transaction (also withdrawing it from the signing provider). */
+  async cancelIn(tx: Tx, letterId: string): Promise<void> {
+    const { letter } = await this.load(tx, letterId);
+    if (!['ready', 'sent', 'returned', 'pending_approval'].includes(letter.status)) return;
+    await this.setStatus(tx, letterId, 'cancelled');
+    await this.audit.record(tx, {
+      action: 'update',
+      table: 'letter',
+      recordId: letterId,
+      subjectPersonId: letter.personId,
+      fieldChanges: [{ field: 'status', from: letter.status, to: 'cancelled' }],
+    });
     if (letter.status === 'sent' && letter.esignRequestId)
       await this.esign.cancel(letter.esignRequestId);
-    await this.db.tx(async (tx) => {
-      await this.setStatus(tx, letterId, 'cancelled');
-      await this.audit.record(tx, {
-        action: 'update',
-        table: 'letter',
-        recordId: letterId,
-        subjectPersonId: letter.personId,
-        fieldChanges: [{ field: 'status', from: letter.status, to: 'cancelled' }],
-      });
-    });
-    return this.view(letterId);
+  }
+
+  /** Lets another module act when a letter is signed or declined (an offer, decision #54). */
+  onSettled(listener: SettledListener): void {
+    this.settledListeners.push(listener);
   }
 
   async lettersFor(personId: string): Promise<LetterView[]> {
@@ -429,6 +473,14 @@ export class LettersService implements OnModuleInit {
         subjectPersonId: letter.personId,
         fieldChanges: [{ field: 'status', from: 'sent', to: status.state }],
       });
+      for (const listener of this.settledListeners) {
+        await listener(tx, {
+          letterId,
+          personId: letter.personId,
+          engagementId: letter.engagementId,
+          state: status.state,
+        });
+      }
       const [engagement] = await tx
         .select({ legalEntityId: engagements.legalEntityId })
         .from(engagements)
@@ -461,6 +513,8 @@ export class LettersService implements OnModuleInit {
       .innerJoin(legalEntities, eq(legalEntities.id, engagements.legalEntityId))
       .where(eq(engagements.id, engagementId));
     if (!row) throw new NotFoundException();
+    // An offer letter describes the role and pay from the joining date.
+    const on = row.engagement.joiningDate > today ? row.engagement.joiningDate : today;
     const summary = await this.people.summary(row.person.id);
     const [assignment] = await tx
       .select({ gradeName: grades.name })
@@ -469,7 +523,7 @@ export class LettersService implements OnModuleInit {
       .where(
         and(
           eq(assignments.engagementId, engagementId),
-          inForce(assignments.effectiveFrom, assignments.effectiveTo, today),
+          inForce(assignments.effectiveFrom, assignments.effectiveTo, on),
         ),
       );
 
@@ -498,7 +552,7 @@ export class LettersService implements OnModuleInit {
         .where(
           and(
             eq(compensations.engagementId, engagementId),
-            inForce(compensations.effectiveFrom, compensations.effectiveTo, today),
+            inForce(compensations.effectiveFrom, compensations.effectiveTo, on),
           ),
         );
       if (pay) {

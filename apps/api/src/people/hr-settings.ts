@@ -13,6 +13,8 @@ export const settingSchemas = {
   /** Working days (of the approver) before an approval escalates, and before a reminder. */
   approval_escalation_days: z.number().int().min(1).max(30),
   approval_reminder_days: z.number().int().min(1).max(30),
+  /** Days an offer stays open for signature before it counts as declined (decision #54). */
+  offer_expiry_days: z.number().int().min(1).max(90),
   notice_days: z.object({
     on_probation: z.number().int().min(0),
     confirmed: z.number().int().min(0),
@@ -30,6 +32,7 @@ export const settingDefaults: { [K in SettingKey]: SettingValue<K> } = {
   notice_days: { on_probation: 30, confirmed: 60, manager_plus: 90 },
   approval_escalation_days: 3,
   approval_reminder_days: 2,
+  offer_expiry_days: 7,
 };
 
 export function formatEmployeeCode(value: number, format: SettingValue<'employee_code'>): string {

@@ -232,6 +232,17 @@ export class WorkflowService {
     return this.get(instanceId);
   }
 
+  /**
+   * Withdraws an item in the caller's transaction, for the module that owns it (an offer withdrawn
+   * by any HR user, decision #54). The caller has authorised it.
+   */
+  async cancelIn(tx: Tx, instanceId: string): Promise<void> {
+    const instance = await this.loadInstance(tx, instanceId);
+    if (instance.status !== 'pending' && instance.status !== 'returned') return;
+    await this.closeOpenApprovals(tx, instanceId);
+    await this.setStatus(tx, instance, 'withdrawn');
+  }
+
   /** After a return: send it again, optionally with changes; approval starts from the first step. */
   async resubmit(instanceId: string, payload?: Record<string, unknown>): Promise<WorkflowView> {
     const { actor } = requireContext();

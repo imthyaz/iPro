@@ -8,7 +8,8 @@ const MAX_DEPTH = 20;
 
 /**
  * Team scope from assignments in force on a date: walks the subject's solid-line manager chain upward
- * (decision #18; dotted-line managers grant nothing).
+ * (decision #18; dotted-line managers grant nothing). Someone not yet joined counts from their planned
+ * first assignment, so the hiring manager sees them (decision #54).
  */
 @Injectable()
 export class PeopleScopeResolver implements ScopeResolver {
@@ -21,9 +22,13 @@ export class PeopleScopeResolver implements ScopeResolver {
           select a.manager_engagement_id, 1
           from assignment a
           join engagement e on e.id = a.engagement_id
+          cross join lateral (
+            select case when e.status in ('offered', 'pre_joining')
+              then greatest(${day}::date, e.joining_date) else ${day}::date end as on_day
+          ) d
           where e.person_id = ${subjectPersonId}
             and a.manager_engagement_id is not null
-            and a.effective_from <= ${day} and (a.effective_to is null or a.effective_to >= ${day})
+            and a.effective_from <= d.on_day and (a.effective_to is null or a.effective_to >= d.on_day)
           union
           select a.manager_engagement_id, c.depth + 1
           from chain c

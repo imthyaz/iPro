@@ -52,3 +52,14 @@ configurable setting.
       responses only.
 - [ ] Confirm the webhook signature header and secret Zoho Sign uses for this account (configurable:
       `ZOHO_SIGN_WEBHOOK_HEADER`, `ZOHO_SIGN_WEBHOOK_SECRET`). Status is always re-fetched from Zoho either way.
+
+## Offers and interns (slice 4, decisions #54–#56 — please confirm)
+- [ ] Offer expiry: proposed default 7 days after sending, then the offer is marked declined (setting `offer_expiry_days`).
+- [ ] Employee code is issued when the offer is created, so declined offers leave gaps in the sequence. Alternative:
+      issue it on acceptance.
+- [ ] Day-1 tasks: proposed as mandatory onboarding tasks due on or before the joining date; HR can waive any.
+- [ ] Intern assessment: what the form asks (proposed: rating 1–5 on a few competencies, comments, recommendation),
+      and when it is due (proposed: 14 days before the end date, reminder at 7).
+- [ ] Intern "break": proposed as ending the internship with rehire eligible, and a return as a new linked engagement.
+      Is a break ever paid, or time-limited?
+- [ ] Usual internship lengths and whether interns get any leave or probation (proposed: no probation).
