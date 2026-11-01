@@ -40,6 +40,8 @@ body {
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto auto 1fr;
+  /* One column no wider than the screen: wide forms wrap instead of widening the page. */
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .shell-header {
@@ -689,4 +691,16 @@ fieldset.check-group {
 
 a.onboarding-link:hover {
   background: var(--color-surface);
+}
+
+/* Offers (H4). */
+.summary-chips {
+  margin: 0 0 12px;
+}
+
+.offer-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  justify-items: start;
 }

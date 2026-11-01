@@ -373,10 +373,85 @@ describe('acceptance and joining', () => {
     ).body as OfferView;
     expect(noShow).toMatchObject({ status: 'no_show', closeReason: 'Took another offer' });
     expect(await engagementStatus(accepted)).toBe('withdrawn');
-    const [run] = (
+    const runs = (
       await agents.hr!.get(`/api/people/${accepted.person.personId}/checklists`).expect(200)
     ).body as ChecklistRunView[];
-    expect(run!.status).toBe('cancelled');
+    expect(runs.find((r) => r.stage === 'onboarding')!.status).toBe('cancelled');
+    // IT removes the guest account the joiner was invited with (decision #58).
+    expect(runs.find((r) => r.stage === 'access')).toMatchObject({
+      templateName: 'Guest account removal',
+      status: 'open',
+    });
+  });
+});
+
+describe('changing the joining date (decision #59)', () => {
+  it('a draft moves its date, planned role and pay; the letter is made from the new date', async () => {
+    const offer = await draft();
+    const moved = (
+      await agents
+        .hr!.post(`/api/offers/${offer.id}/joining-date`, {
+          joiningDate: addDays(joining, 10),
+          reason: 'Notice period at current employer',
+        })
+        .expect(201)
+    ).body as OfferView;
+    expect(moved.joiningDate).toBe(addDays(joining, 10));
+    expect(moved.designation).toBe('Software Engineer');
+    const { rows } = await pool.query(
+      `select a.effective_from::text as a, c.effective_from::text as c
+         from assignment a join compensation c on c.engagement_id = a.engagement_id
+        where a.engagement_id = $1`,
+      [offer.engagementId],
+    );
+    expect(rows).toEqual([{ a: addDays(joining, 10), c: addDays(joining, 10) }]);
+    expect((await submit(offer.id)).status).toBe('pending_approval');
+  });
+
+  it('an offer out for signature cannot move: its letter states the date', async () => {
+    const offer = await submit((await draft()).id);
+    await approve('mgr', offer);
+    await agents
+      .hr!.post(`/api/offers/${offer.id}/joining-date`, {
+        joiningDate: addDays(joining, 3),
+        reason: 'x',
+      })
+      .expect(409);
+  });
+
+  it('after acceptance, onboarding due dates move with it and the journey records it', async () => {
+    const offer = await acceptedOffer();
+    await agents
+      .hr!.post(`/api/offers/${offer.id}/joining-date`, {
+        joiningDate: addDays(today, -1),
+        reason: 'x',
+      })
+      .expect(400);
+    await agents
+      .hr!.post(`/api/offers/${offer.id}/joining-date`, {
+        joiningDate: addDays(joining, 5),
+        reason: 'Relocation',
+      })
+      .expect(201);
+    const [run] = (
+      await agents.hr!.get(`/api/people/${offer.person.personId}/checklists`).expect(200)
+    ).body as ChecklistRunView[];
+    expect(run!.anchorDate).toBe(addDays(joining, 5));
+    expect(run!.tasks.map((t) => t.dueOn)).toEqual([
+      addDays(joining, 2),
+      addDays(joining, 5),
+      addDays(joining, 12),
+    ]);
+    const events = await journey(offer.person.personId);
+    expect(events.at(-1)).toMatchObject({
+      event_type: 'joining_date_changed',
+      detail_json: { from: joining, to: addDays(joining, 5), reason: 'Relocation' },
+    });
+    const { rows } = await pool.query(
+      `select probation_end_date::text as p from engagement where id = $1`,
+      [offer.engagementId],
+    );
+    expect(rows[0].p > addDays(joining, 150)).toBe(true);
   });
 });
 

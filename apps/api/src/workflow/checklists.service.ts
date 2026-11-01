@@ -115,6 +115,31 @@ export class ChecklistsService {
     });
   }
 
+  /**
+   * A checklist the system starts itself gets a default template the first time it's needed, saved as
+   * version 1; admins may then change it like any other (cf. built-in workflow definitions).
+   */
+  async ensureBuiltIn(tx: Tx, key: string, input: ChecklistTemplateInput): Promise<void> {
+    const [existing] = await tx
+      .select({ id: checklistTemplates.id })
+      .from(checklistTemplates)
+      .where(eq(checklistTemplates.key, key))
+      .limit(1);
+    if (existing) return;
+    const actor = requireContext().actor;
+    await tx.insert(checklistTemplates).values({
+      tenantId: requireContext().tenantId,
+      key,
+      version: 1,
+      name: input.name,
+      stage: input.stage,
+      appliesTo: input.appliesTo,
+      tasks: input.tasks,
+      createdBy: actor?.userId ?? null,
+      updatedBy: actor?.userId ?? null,
+    });
+  }
+
   async listTemplates() {
     await this.authz.assert(requireContext().actor!, 'read', { area: 'org_config' });
     const rows = await this.db.tx((tx) =>
@@ -345,7 +370,7 @@ export class ChecklistsService {
   async startApplicable(
     tx: Tx,
     engagementId: string,
-    stage: 'onboarding' | 'exit' | 'transfer',
+    stage: 'onboarding' | 'exit' | 'transfer' | 'access',
     anchorDate: string,
   ): Promise<string[]> {
     const templates = await tx
@@ -363,6 +388,38 @@ export class ChecklistsService {
       }
     }
     return runIds;
+  }
+
+  /**
+   * Moves open checklists anchored on a date by some days, with their open tasks (a joining date moved,
+   * decision #59). Done and waived tasks keep their dates.
+   */
+  async moveAnchorIn(
+    tx: Tx,
+    engagementId: string,
+    anchorDate: string,
+    days: number,
+  ): Promise<void> {
+    const runs = await tx
+      .select({ id: checklistRuns.id })
+      .from(checklistRuns)
+      .where(
+        and(
+          eq(checklistRuns.engagementId, engagementId),
+          eq(checklistRuns.status, 'open'),
+          eq(checklistRuns.anchorDate, anchorDate),
+        ),
+      );
+    if (runs.length === 0) return;
+    const ids = runs.map((r) => r.id);
+    await tx
+      .update(checklistRuns)
+      .set({ anchorDate: sql`${checklistRuns.anchorDate} + ${days}::int`, updatedAt: new Date() })
+      .where(inArray(checklistRuns.id, ids));
+    await tx
+      .update(checklistTasks)
+      .set({ dueOn: sql`${checklistTasks.dueOn} + ${days}::int` })
+      .where(and(inArray(checklistTasks.runId, ids), eq(checklistTasks.status, 'open')));
   }
 
   /** Cancels an engagement's open checklists in the caller's transaction (offer withdrawn, no-show). */

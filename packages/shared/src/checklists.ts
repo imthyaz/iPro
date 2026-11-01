@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { isoDateSchema, roleSchema } from './identity.js';
 import { engagementTypeSchema } from './people.js';
 
-export const checklistStageSchema = z.enum(['onboarding', 'exit', 'transfer']);
+/** `access` is IT housekeeping, e.g. removing a pre-joiner's guest account (decision #58). */
+export const checklistStageSchema = z.enum(['onboarding', 'exit', 'transfer', 'access']);
 
 /**
  * Who does a task: the person it's about, their manager, anyone holding a role (e.g. HR), or a named

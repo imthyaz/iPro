@@ -70,6 +70,33 @@ export function RequestStatusChip({ status }: { status: RequestStatus }) {
   return <span className={`chip chip-${requestTone[status]}`}>{requestWords[status]}</span>;
 }
 
+type OfferStatus =
+  | 'draft'
+  | 'pending_approval'
+  | 'offered'
+  | 'accepted'
+  | 'joined'
+  | 'declined'
+  | 'withdrawn'
+  | 'no_show';
+
+const offerWords: Record<OfferStatus, [string, 'ok' | 'info' | 'warn' | 'muted']> = {
+  draft: ['Draft', 'muted'],
+  pending_approval: ['Waiting for approval', 'info'],
+  offered: ['Out for signature', 'info'],
+  accepted: ['Accepted', 'ok'],
+  joined: ['Joined', 'ok'],
+  declined: ['Declined', 'warn'],
+  withdrawn: ['Withdrawn', 'muted'],
+  no_show: ['Did not join', 'warn'],
+};
+
+/** The same words and colours for offer status everywhere (H4, person record). */
+export function OfferStatusChip({ status }: { status: OfferStatus }) {
+  const [word, tone] = offerWords[status];
+  return <span className={`chip chip-${tone}`}>{word}</span>;
+}
+
 /** Due date with an overdue warning, the same on approvals and tasks. */
 export function DueChip({ dueOn, overdue }: { dueOn: string; overdue: boolean }) {
   return (

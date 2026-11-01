@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import {
+  changeJoiningDateSchema,
   createOfferSchema,
   joinOfferSchema,
   offerQuerySchema,
@@ -60,6 +61,15 @@ export class OffersController {
   @Post(':id/no-show')
   noShow(@Param('id', uuid) id: string, @Body(new ZodPipe(offerReasonSchema)) body: Reason) {
     return this.offers.noShow(id, body.reason);
+  }
+
+  @Authorize('assignment_history', 'update')
+  @Post(':id/joining-date')
+  changeJoiningDate(
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(changeJoiningDateSchema)) body: z.infer<typeof changeJoiningDateSchema>,
+  ) {
+    return this.offers.changeJoiningDate(id, body.joiningDate, body.reason);
   }
 
   /** Sends the pre-joiner's sign-in invitation again (decision #55). */

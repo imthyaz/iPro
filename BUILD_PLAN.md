@@ -62,7 +62,7 @@ tests; in-app policy acknowledgement (PolicyAcknowledgement with document versio
       completes the document.
 - [x] Publishing a new policy version re-opens acknowledgement for everyone it applies to.
 
-## [ ] Slice 4 — Pre-boarding and onboarding
+## [x] Slice 4 — Pre-boarding and onboarding
 
 **Spec:** Workflow 1 (Offer to joining), Workflow 2 (Onboarding checklist); Screens H3, H4, H5, E11.
 

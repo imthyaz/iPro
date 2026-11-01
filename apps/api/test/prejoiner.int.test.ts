@@ -331,4 +331,15 @@ describe('pre-joiner access (decision #55)', () => {
     const closed = (await agents.hr!.get(`/api/offers/${offer.id}`).expect(200)).body;
     expect(closed.guest.status).toBe('retired');
   });
+
+  it('IT (admins until a named IT user is set) gets a task to remove the guest account (decision #58)', async () => {
+    const tasks = (await agents.admin!.get('/api/checklist-tasks/mine').expect(200))
+      .body as MyTaskView[];
+    const task = tasks.find(
+      (t) =>
+        t.title === 'Remove the Entra guest account' && t.person.personId === offer.person.personId,
+    );
+    expect(task).toMatchObject({ checklist: 'Guest account removal', owner: 'Admins' });
+    await agents.admin!.post(`/api/checklist-tasks/${task!.id}/done`, {}).expect(201);
+  });
 });

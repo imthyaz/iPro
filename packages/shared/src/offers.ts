@@ -65,6 +65,12 @@ export type CreateOfferInput = z.infer<typeof createOfferSchema>;
 
 export const offerReasonSchema = z.object({ reason: z.string().trim().min(1).max(500) });
 
+/** POST /api/offers/:id/joining-date — before approval, or after acceptance (decision #59). */
+export const changeJoiningDateSchema = z.object({
+  joiningDate: isoDateSchema,
+  reason: z.string().trim().min(1).max(500),
+});
+
 /** POST /api/offers/:id/join — the work account the joiner signs in with from Day 1. */
 export const joinOfferSchema = z.object({ workEmail: z.email() });
 
