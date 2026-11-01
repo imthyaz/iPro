@@ -78,7 +78,7 @@ export class PeopleController {
     return this.people.compensationHistory(id);
   }
 
-  @Authorize('compensation', 'create')
+  @Authorize('compensation', 'approve')
   @Post(':id/compensation')
   changeCompensation(
     @Param('id', uuid) id: string,
@@ -88,7 +88,7 @@ export class PeopleController {
   }
 
   /** Retainer or consultant to payroll (done-when: one person, one continuous journey). */
-  @Authorize('assignment_history', 'update')
+  @Authorize('assignment_history', 'approve')
   @Post(':id/convert')
   convert(
     @Param('id', uuid) id: string,

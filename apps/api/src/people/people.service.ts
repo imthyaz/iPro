@@ -93,7 +93,7 @@ export class PeopleService {
     const { actor, tenantId } = requireContext();
     const legalEntityId = input.engagement.legalEntityId;
     const today = businessDate(now);
-    const by = { createdBy: actor!.userId, updatedBy: actor!.userId };
+    const by = { createdBy: actor?.userId ?? null, updatedBy: actor?.userId ?? null };
     const { designation, departmentName } = await this.checkAssignmentRefs(
       tx,
       input.assignment,
@@ -323,7 +323,11 @@ export class PeopleService {
       if (plan.close) {
         await tx
           .update(assignments)
-          .set({ effectiveTo: plan.close.effectiveTo, updatedAt: now, updatedBy: actor!.userId })
+          .set({
+            effectiveTo: plan.close.effectiveTo,
+            updatedAt: now,
+            updatedBy: actor?.userId ?? null,
+          })
           .where(eq(assignments.id, plan.close.id));
       }
       const [row] = await tx
@@ -335,8 +339,8 @@ export class PeopleService {
           ...next,
           gradeId: designation.gradeId,
           changeReason,
-          createdBy: actor!.userId,
-          updatedBy: actor!.userId,
+          createdBy: actor?.userId ?? null,
+          updatedBy: actor?.userId ?? null,
         })
         .returning({ id: assignments.id });
       const changed = Object.keys(stripUndefined(changes));
@@ -402,10 +406,27 @@ export class PeopleService {
   }
 
   /** New pay effective from a date. Approval above band comes with the offer and change workflows. */
+  /** A direct pay change is HR head's; HR asks through a pay change request (decision #64). */
   async changeCompensation(personId: string, input: ChangeCompensationInput, now = new Date()) {
     const summary = await this.summary(personId);
-    await this.assertOn(summary, 'compensation', 'create');
-    await this.db.tx(async (tx) => {
+    await this.assertOn(summary, 'compensation', 'approve');
+    await this.db.tx((tx) => this.changeCompensationIn(tx, summary, input, now));
+    return this.compensationHistory(personId);
+  }
+
+  /**
+   * A new pay row from the date (the current one closes the day before), with a journey event. The
+   * caller has authorised it. `title` names the event, e.g. "Became paid" for an unpaid intern.
+   */
+  async changeCompensationIn(
+    tx: Tx,
+    summary: PersonSummary,
+    input: ChangeCompensationInput,
+    now: Date,
+    title = 'Compensation revised',
+  ): Promise<string> {
+    const personId = summary.personId;
+    {
       const engagement = await this.engagementOf(
         tx,
         personId,
@@ -419,13 +440,13 @@ export class PeopleService {
         category: 'pay',
         occurredOn: input.effectiveFrom,
         isPlanned: input.effectiveFrom > businessDate(now),
-        title: 'Compensation revised',
+        title,
         sensitivity: 'hr',
         sourceTable: 'compensation',
         sourceId: id,
       });
-    });
-    return this.compensationHistory(personId);
+      return id;
+    }
   }
 
   async addEmergencyContact(
@@ -442,8 +463,8 @@ export class PeopleService {
           tenantId,
           personId,
           ...input,
-          createdBy: actor!.userId,
-          updatedBy: actor!.userId,
+          createdBy: actor?.userId ?? null,
+          updatedBy: actor?.userId ?? null,
         })
         .returning({ id: emergencyContacts.id });
       await this.audit.record(tx, {
@@ -464,7 +485,12 @@ export class PeopleService {
       const now = new Date();
       const updated = await tx
         .update(emergencyContacts)
-        .set({ deletedAt: now, deletedBy: actor!.userId, updatedAt: now, updatedBy: actor!.userId })
+        .set({
+          deletedAt: now,
+          deletedBy: actor?.userId ?? null,
+          updatedAt: now,
+          updatedBy: actor?.userId ?? null,
+        })
         .where(
           and(
             eq(emergencyContacts.id, contactId),
@@ -491,9 +517,21 @@ export class PeopleService {
    */
   async convert(personId: string, input: ConvertEngagementInput, now = new Date()) {
     const summary = await this.summary(personId);
-    await this.assertOn(summary, 'assignment_history', 'create');
-    await this.assertOn(summary, 'assignment_history', 'update');
+    // A direct conversion is HR head's; HR asks through a conversion request (decision #64).
+    await this.assertOn(summary, 'assignment_history', 'approve');
     if (input.compensation) await this.assertOn(summary, 'compensation', 'create');
+    await this.db.tx((tx) => this.convertIn(tx, summary, input, now));
+    return this.get(personId);
+  }
+
+  /** The conversion in the caller's transaction; the caller has authorised it. */
+  async convertIn(
+    tx: Tx,
+    summary: PersonSummary,
+    input: ConvertEngagementInput,
+    now: Date,
+  ): Promise<void> {
+    const personId = summary.personId;
     const today = businessDate(now);
     if (input.effectiveFrom > today) {
       throw new BadRequestException({
@@ -501,18 +539,22 @@ export class PeopleService {
       });
     }
     const { actor, tenantId } = requireContext();
-    const by = { createdBy: actor!.userId, updatedBy: actor!.userId };
+    const by = { createdBy: actor?.userId ?? null, updatedBy: actor?.userId ?? null };
 
-    await this.db.tx(async (tx) => {
+    {
       const old = await this.engagementOf(tx, personId, summary.engagementId);
+      // Retainers and consultants move to payroll; interns and trainees become employees (decision #64).
       if (
-        !['retainer', 'consultant'].includes(old.type) ||
+        !['retainer', 'consultant', 'intern', 'trainee'].includes(old.type) ||
         !['active', 'on_notice'].includes(old.status)
       ) {
         throw new BadRequestException({
-          message: 'Only a current retainer or consultant engagement converts',
+          message: 'Only a current retainer, consultant, intern or trainee engagement converts',
         });
       }
+      const exitReason = ['retainer', 'consultant'].includes(old.type)
+        ? 'converted_to_payroll'
+        : 'converted_to_employee';
       if (input.effectiveFrom <= old.joiningDate) {
         throw new BadRequestException({ message: 'Conversion must be after the joining date' });
       }
@@ -544,7 +586,7 @@ export class PeopleService {
         }
         await tx
           .update(table)
-          .set({ effectiveTo: dayBefore, updatedAt: now, updatedBy: actor!.userId })
+          .set({ effectiveTo: dayBefore, updatedAt: now, updatedBy: actor?.userId ?? null })
           .where(
             and(
               eq(table.engagementId, old.id),
@@ -557,9 +599,9 @@ export class PeopleService {
         .set({
           status: 'exited',
           lastWorkingDate: dayBefore,
-          exitReason: 'converted_to_payroll',
+          exitReason,
           updatedAt: now,
-          updatedBy: actor!.userId,
+          updatedBy: actor?.userId ?? null,
         })
         .where(eq(engagements.id, old.id));
 
@@ -600,7 +642,10 @@ export class PeopleService {
           effectiveFrom: input.effectiveFrom,
           ...next,
           gradeId: designation.gradeId,
-          changeReason: 'Converted to payroll',
+          changeReason:
+            exitReason === 'converted_to_payroll'
+              ? 'Converted to payroll'
+              : 'Converted to employee',
           ...by,
         })
         .returning({ id: assignments.id });
@@ -636,7 +681,7 @@ export class PeopleService {
         subjectPersonId: personId,
         fieldChanges: [
           { field: 'status', from: old.status, to: 'exited' },
-          { field: 'exit_reason', from: old.exitReason, to: 'converted_to_payroll' },
+          { field: 'exit_reason', from: old.exitReason, to: exitReason },
         ],
       });
       for (const [table, recordId] of [
@@ -650,8 +695,7 @@ export class PeopleService {
           subjectPersonId: personId,
         });
       }
-    });
-    return this.get(personId);
+    }
   }
 
   /**
@@ -677,24 +721,30 @@ export class PeopleService {
         .where(eq(journalEvents.personId, personId))
         .orderBy(asc(journalEvents.occurredOn), asc(journalEvents.createdAt)),
     );
-    return rows
-      .filter(
-        ({ event }) =>
-          sensitive || event.sensitivity === 'public' || event.sensitivity === 'manager',
-      )
-      .map(({ event, employeeCode }) => ({
-        id: event.id,
-        engagementId: event.engagementId,
-        employeeCode,
-        eventType: event.eventType,
-        category: event.category,
-        occurredOn: event.occurredOn,
-        isPlanned: event.isPlanned,
-        upcoming: event.occurredOn > today,
-        title: event.title,
-        sensitivity: event.sensitivity,
-        migrated: event.migrated,
-      }));
+    return (
+      rows
+        .filter(
+          ({ event }) =>
+            sensitive || event.sensitivity === 'public' || event.sensitivity === 'manager',
+        )
+        // A scheduled conversion shows while it is ahead; on the day the conversion writes its own event.
+        .filter(
+          ({ event }) => event.eventType !== 'conversion_scheduled' || event.occurredOn > today,
+        )
+        .map(({ event, employeeCode }) => ({
+          id: event.id,
+          engagementId: event.engagementId,
+          employeeCode,
+          eventType: event.eventType,
+          category: event.category,
+          occurredOn: event.occurredOn,
+          isPlanned: event.isPlanned,
+          upcoming: event.occurredOn > today,
+          title: event.title,
+          sensitivity: event.sensitivity,
+          migrated: event.migrated,
+        }))
+    );
   }
 
   /** Options for the new-person form (H2 "new person"), current as of today. */
@@ -813,7 +863,7 @@ export class PeopleService {
         .set({
           effectiveTo: plan.close.effectiveTo,
           updatedAt: new Date(),
-          updatedBy: actor!.userId,
+          updatedBy: actor?.userId ?? null,
         })
         .where(eq(compensations.id, plan.close.id));
     }
@@ -826,8 +876,8 @@ export class PeopleService {
       amountEncrypted: await this.cipher.encrypt(tenantId, input.amount, compensationField(id)),
       rateUnit: input.rateUnit,
       currency: input.currency ?? 'INR',
-      createdBy: actor!.userId,
-      updatedBy: actor!.userId,
+      createdBy: actor?.userId ?? null,
+      updatedBy: actor?.userId ?? null,
     });
     await this.audit.record(tx, {
       action: 'create',

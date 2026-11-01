@@ -86,7 +86,7 @@ H4, H5, joining-date changes, and the IT task to remove guest accounts (decision
 - [ ] Managers record a check-in each month of probation; HR sees them when deciding (decision #63).
 - [ ] An intern nearing the end date gets a manager assessment; HR converts to employee (one person, one
       journey), extends, ends the internship or records a break (decision #56).
-- [ ] An unpaid intern can become paid from a date, with approval and a journey event.
+- [x] An unpaid intern can become paid from a date, with approval and a journey event.
 
 ## [ ] Slice 6 — Attendance
 

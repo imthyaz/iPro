@@ -12,3 +12,4 @@ export * from '../letters/letters.schema.js';
 export * from '../policies/policies.schema.js';
 export * from '../offers/offers.schema.js';
 export * from '../reviews/reviews.schema.js';
+export * from '../changes/changes.schema.js';
