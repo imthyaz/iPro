@@ -162,7 +162,10 @@ export interface JourneyEntry {
   eventType: string;
   category: string;
   occurredOn: string;
+  /** Recorded ahead of its date. */
   isPlanned: boolean;
+  /** Still in the future today (a planned change shows as upcoming until its date). */
+  upcoming: boolean;
   title: string;
   sensitivity: 'public' | 'manager' | 'hr' | 'restricted';
   migrated: boolean;

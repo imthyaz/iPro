@@ -63,7 +63,7 @@ export class PeopleController {
     return this.people.assignmentHistory(id);
   }
 
-  @Authorize('assignment_history', 'update')
+  @Authorize('assignment_history', 'approve')
   @Post(':id/assignments')
   changeAssignment(
     @Param('id', uuid) id: string,

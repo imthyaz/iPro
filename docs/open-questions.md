@@ -73,9 +73,8 @@ configurable setting.
 - [ ] Which IT user owns the guest-removal tasks (an admin sets it in iPro; until then admins get them).
 
 ## Probation (slice 5a, decision #60 — please confirm)
-- [ ] The review form: which areas are rated 1–5 (proposed: Quality of work, Ownership, Collaboration, Learning),
+- [x] The review form: which areas are rated 1–5 (proposed: Quality of work, Ownership, Collaboration, Learning),
       plus strengths, things to improve and comments.
-- [ ] The spec mentions "30- and 90-day check-ins" on the probation card: are these separate manager check-ins
-      during probation? Not built yet.
-- [ ] Probation letter templates (confirmation, extension, termination) to be supplied; until then HR is told to make
-      the letter by hand.
+- [x] Check-ins during probation: monthly, recorded by the manager (decision #63); built in slice 5c.
+- [ ] Probation letter templates (confirmation, extension, termination): to be added later (decision #63); until then
+      HR is told to make the letter by hand.

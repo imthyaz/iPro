@@ -82,7 +82,8 @@ H4, H5, joining-date changes, and the IT task to remove guest accounts (decision
 **Done when**
 - [x] Reminders arrive at 30, 14 and 7 days; an overdue review escalates.
 - [x] Confirm, extend and terminate each produce the right letter and journey event.
-- [ ] A designation change effective next month shows as upcoming on the journey and applies automatically that day.
+- [x] A designation change effective next month shows as upcoming on the journey and applies automatically that day.
+- [ ] Managers record a check-in each month of probation; HR sees them when deciding (decision #63).
 - [ ] An intern nearing the end date gets a manager assessment; HR converts to employee (one person, one
       journey), extends, ends the internship or records a break (decision #56).
 - [ ] An unpaid intern can become paid from a date, with approval and a journey event.

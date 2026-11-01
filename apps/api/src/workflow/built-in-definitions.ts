@@ -5,6 +5,19 @@ import type { WorkflowDefinition } from '@ipro/shared';
  * version 1 on first use). Like HR settings, they are configuration with a sensible starting point.
  */
 export const builtInDefinitions: Record<string, WorkflowDefinition> = {
+  /** An in-life change of role from a date (spec workflow 8, decision #62): HR head approves. */
+  inlife_change: {
+    name: 'In-life change',
+    steps: [
+      {
+        id: 'hr_head',
+        label: 'HR head approval',
+        approver: { kind: 'role', role: 'hr_head' },
+        authorize: { area: 'assignment_history', action: 'approve' },
+      },
+    ],
+    onApproved: 'change.apply',
+  },
   /**
    * The decision on a probation review (spec workflow 3, decision #60): HR confirms or extends; a
    * termination needs HR head. The manager who wrote the review submits it.
