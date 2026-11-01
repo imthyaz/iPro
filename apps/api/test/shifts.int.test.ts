@@ -74,6 +74,13 @@ describe('shifts and working weeks', () => {
       ['GEN', [6, 7], true],
       ['ME', [5, 6], false],
     ]);
+    // Managers see the shifts to request changes for their team; other employees don't.
+    await as(app, await signIn(app, LEAD))
+      .get('/api/shifts')
+      .expect(200);
+    await as(app, await signIn(app, MEMBER))
+      .get('/api/shifts')
+      .expect(403);
     // 2026-11-02 is a Monday. Nobody has an allocation yet, so everyone works Mon–Fri.
     expect(workingOn(await days(hr, people.member!.personId, '2026-11-01', '2026-11-07'))).toEqual([
       '2026-11-02',

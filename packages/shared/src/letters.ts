@@ -66,3 +66,25 @@ export interface LetterTemplateView extends LetterTemplateInput {
   version: number;
   fields: string[];
 }
+
+/** Fields a letter template may use (decision #51), with what each prints; `{{extra.*}}` is given when generating. */
+export const letterMergeFields = {
+  'letter.date': 'Date of the letter',
+  'company.name': 'Legal entity name',
+  'company.address': 'Registered address',
+  'person.legalName': 'Legal name',
+  'person.preferredName': 'Preferred name (falls back to legal name)',
+  'engagement.employeeCode': 'Employee code',
+  'engagement.type': 'Engagement type',
+  'engagement.joiningDate': 'Joining date',
+  'engagement.probationEndDate': 'Probation end date',
+  'engagement.noticePeriodDays': 'Notice period (days)',
+  'engagement.lastWorkingDate': 'Last working date',
+  'assignment.designation': 'Designation',
+  'assignment.department': 'Department',
+  'assignment.location': 'Location',
+  'assignment.grade': 'Grade',
+  'manager.name': 'Reporting manager',
+  /** Reading pay for a letter is an audited compensation read. */
+  'compensation.amount': 'Pay (formatted, e.g. ₹12,00,000 a year)',
+} as const;

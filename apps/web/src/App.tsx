@@ -5,6 +5,9 @@ import { queryClient } from './api.js';
 import { apiStatusLabel, fetchApiStatus, type ApiStatus } from './api-status.js';
 import { hasRole, SignIn, useMe, useSignOut } from './auth.js';
 import { Note } from './design-system/index.js';
+import { PolicyAdmin } from './features/admin/PolicyAdmin.js';
+import { Templates } from './features/admin/Templates.js';
+import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
 import { Inbox } from './features/inbox/Inbox.js';
 import { OrgSetup } from './features/org/OrgSetup.js';
 import { OrgTree } from './features/org/OrgTree.js';
@@ -13,6 +16,7 @@ import { NewPerson } from './features/people/NewPerson.js';
 import { PersonRecord } from './features/people/PersonRecord.js';
 import { MyPolicies } from './features/policies/MyPolicies.js';
 import { Requests } from './features/requests/Requests.js';
+import { Shifts } from './features/shifts/Shifts.js';
 
 export function App() {
   return (
@@ -35,6 +39,8 @@ function Shell() {
   const user = me.data;
   const seesPeople = hasRole(user, 'manager', 'hr', 'hr_head', 'cxo');
   const seesOrgSetup = hasRole(user, 'hr', 'hr_head', 'admin');
+  const seesChecklists = hasRole(user, 'hr', 'hr_head');
+  const seesShifts = hasRole(user, 'hr', 'hr_head', 'admin', 'manager');
 
   return (
     <div className="shell">
@@ -82,9 +88,29 @@ function Shell() {
               Org tree
             </NavLink>
           )}
+          {seesChecklists && (
+            <NavLink to="/checklists" className="nav-item">
+              Checklists
+            </NavLink>
+          )}
+          {seesShifts && (
+            <NavLink to="/shifts" className="nav-item">
+              Shifts
+            </NavLink>
+          )}
           {seesOrgSetup && (
             <NavLink to="/org-setup" className="nav-item">
               Organisation setup
+            </NavLink>
+          )}
+          {seesOrgSetup && (
+            <NavLink to="/templates" className="nav-item">
+              Templates
+            </NavLink>
+          )}
+          {seesOrgSetup && (
+            <NavLink to="/policy-admin" className="nav-item">
+              Policy documents
             </NavLink>
           )}
         </nav>
@@ -120,6 +146,15 @@ function Shell() {
             <Route path="/people/:personId" element={<Directory />} />
             <Route path="/org-tree" element={<OrgTree />} />
             <Route path="/org-setup" element={<OrgSetup />} />
+            <Route path="/templates" element={<Templates />} />
+            <Route path="/templates/:kind" element={<Templates />} />
+            <Route path="/templates/:kind/:templateKey" element={<Templates />} />
+            <Route path="/policy-admin" element={<PolicyAdmin />} />
+            <Route path="/policy-admin/:policyId" element={<PolicyAdmin />} />
+            <Route path="/shifts" element={<Shifts />} />
+            <Route path="/shifts/:shiftId" element={<Shifts />} />
+            <Route path="/checklists" element={<ChecklistRuns />} />
+            <Route path="/checklists/:runId" element={<ChecklistRuns />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         )}

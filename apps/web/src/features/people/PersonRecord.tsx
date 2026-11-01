@@ -21,9 +21,10 @@ import {
   Tabs,
 } from '../../design-system/index.js';
 import { formatPaise, rateLabel } from '../../money.js';
+import { Letters, ShiftHistory } from './PersonExtras.js';
 import type { AssignmentRow, CompensationRow, PersonDetail } from './types.js';
 
-type TabId = 'profile' | 'roles' | 'pay' | 'kyc' | 'documents' | 'journey';
+type TabId = 'profile' | 'roles' | 'shifts' | 'pay' | 'kyc' | 'documents' | 'letters' | 'journey';
 
 /** Person record (H2; E7 when it's the signed-in person). */
 export function PersonRecord({ personId }: { personId: string }) {
@@ -44,11 +45,13 @@ export function PersonRecord({ personId }: { personId: string }) {
   const tabs: { id: TabId; label: string }[] = [
     { id: 'profile', label: 'Profile' },
     { id: 'roles', label: 'Role history' },
+    { id: 'shifts', label: 'Shifts' },
     ...(isSelf || hasRole(me, 'hr', 'hr_head', 'cxo')
       ? [{ id: 'pay' as const, label: 'Pay' }]
       : []),
     ...(isSelf || isHr ? [{ id: 'kyc' as const, label: 'KYC' }] : []),
     { id: 'documents', label: 'Documents' },
+    ...(isHr ? [{ id: 'letters' as const, label: 'Letters' }] : []),
     { id: 'journey', label: 'Journey' },
   ];
 
@@ -68,9 +71,11 @@ export function PersonRecord({ personId }: { personId: string }) {
       <div role="tabpanel" aria-labelledby={`tab-${tab}`} className="tab-panel">
         {tab === 'profile' && <Profile person={p} canChange={isSelf || isHr} isHr={isHr} />}
         {tab === 'roles' && <RoleHistory personId={personId} />}
+        {tab === 'shifts' && <ShiftHistory personId={personId} />}
         {tab === 'pay' && <Pay personId={personId} />}
         {tab === 'kyc' && <Kyc personId={personId} canUnmask={isHr} canSubmit={isSelf || isHr} />}
         {tab === 'documents' && <Documents personId={personId} isSelf={isSelf} isHr={isHr} />}
+        {tab === 'letters' && <Letters personId={personId} />}
         {tab === 'journey' && <Journey personId={personId} />}
       </div>
     </article>
