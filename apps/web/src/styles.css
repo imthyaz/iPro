@@ -670,3 +670,23 @@ fieldset.check-group {
 .task-editor > * {
   min-width: 0;
 }
+
+/* Onboarding portal (E11): Day 1 first, then the to-do sections. */
+.onboarding > section {
+  margin-bottom: 24px;
+}
+
+.day-one-date {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.onboarding-link {
+  margin-bottom: 16px;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.onboarding-link:hover {
+  background: var(--color-surface);
+}

@@ -43,6 +43,14 @@ const envSchema = z
     ZOHO_SIGN_URL: z.url().default('https://sign.zoho.in'),
     ZOHO_SIGN_WEBHOOK_SECRET: optionalText,
     ZOHO_SIGN_WEBHOOK_HEADER: z.string().default('X-ZS-WEBHOOK-SIGNATURE'),
+    /** Pre-joiner guest invitations (decision #55): "fake" locally and in tests; Microsoft Graph in AWS. */
+    INVITES_PROVIDER: z.enum(['fake', 'graph']).default('fake'),
+    GRAPH_CLIENT_ID: optionalText,
+    GRAPH_CLIENT_SECRET: optionalText,
+    /** The Entra group for pre-joiners, mapped to the employee role. */
+    PREJOINER_GROUP_ID: optionalText,
+    /** Where an invited guest lands after accepting the invitation. */
+    APP_URL: z.url().default('http://localhost:5173'),
   })
   .transform((env) => ({
     ...env,
@@ -66,6 +74,16 @@ const envSchema = z
     if (env.FIELD_KEY_PROVIDER === 'kms' && !env.KMS_KEY_ID) {
       fail('KMS_KEY_ID', 'required for the kms field key provider');
     }
+    if (env.INVITES_PROVIDER === 'graph') {
+      for (const key of [
+        'ENTRA_TENANT_ID',
+        'GRAPH_CLIENT_ID',
+        'GRAPH_CLIENT_SECRET',
+        'PREJOINER_GROUP_ID',
+      ] as const) {
+        if (!env[key]) fail(key, 'required for Graph guest invitations');
+      }
+    }
     if (env.ESIGN_PROVIDER === 'zoho') {
       for (const key of [
         'ZOHO_SIGN_CLIENT_ID',
@@ -86,6 +104,9 @@ const envSchema = z
       }
       if (env.ESIGN_PROVIDER === 'fake') {
         fail('ESIGN_PROVIDER', 'production letters must be signed through Zoho Sign');
+      }
+      if (env.INVITES_PROVIDER === 'fake') {
+        fail('INVITES_PROVIDER', 'production pre-joiners must be invited through Microsoft Graph');
       }
     }
   });

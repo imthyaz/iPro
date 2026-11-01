@@ -8,6 +8,7 @@ import { Note } from './design-system/index.js';
 import { PolicyAdmin } from './features/admin/PolicyAdmin.js';
 import { Templates } from './features/admin/Templates.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
+import { Onboarding, useOnboarding } from './features/onboarding/Onboarding.js';
 import { Inbox } from './features/inbox/Inbox.js';
 import { OrgSetup } from './features/org/OrgSetup.js';
 import { OrgTree } from './features/org/OrgTree.js';
@@ -37,6 +38,7 @@ function Shell() {
   }, []);
 
   const user = me.data;
+  const onboarding = useOnboarding(Boolean(user?.personId));
   const seesPeople = hasRole(user, 'manager', 'hr', 'hr_head', 'cxo');
   const seesOrgSetup = hasRole(user, 'hr', 'hr_head', 'admin');
   const seesChecklists = hasRole(user, 'hr', 'hr_head');
@@ -65,6 +67,11 @@ function Shell() {
           <NavLink to="/" end className="nav-item">
             Action inbox
           </NavLink>
+          {onboarding.data && (
+            <NavLink to="/onboarding" className="nav-item">
+              Onboarding
+            </NavLink>
+          )}
           {user.personId && (
             <NavLink to="/me" className="nav-item">
               My profile
@@ -129,6 +136,7 @@ function Shell() {
             <Route path="/requests" element={<Requests />} />
             <Route path="/requests/:requestId" element={<Requests />} />
             <Route path="/policies" element={<MyPolicies />} />
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route
               path="/me"
               element={

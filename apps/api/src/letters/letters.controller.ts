@@ -17,6 +17,7 @@ import { ZodPipe } from '../common/zod.pipe.js';
 import { LettersService } from './letters.service.js';
 
 const uuid = new ParseUUIDPipe();
+const fakeSignerSchema = z.object({ action: z.enum(['sign', 'decline']) });
 const keySchema = z
   .string()
   .regex(/^[a-z][a-z0-9_.]*$/)
@@ -67,6 +68,20 @@ export class LettersController {
   @Post('letters/:id/cancel')
   cancel(@Param('id', uuid) id: string) {
     return this.letters.cancel(id);
+  }
+
+  /**
+   * Development only: plays the signer for the fake e-sign provider, so offers can be accepted locally
+   * and in end-to-end tests. Not found with Zoho Sign (always the case in production).
+   */
+  @Authorize('documents', 'update')
+  @Post('letters/:id/fake-signer')
+  @HttpCode(204)
+  async fakeSigner(
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(fakeSignerSchema)) body: z.infer<typeof fakeSignerSchema>,
+  ) {
+    await this.letters.playFakeSigner(id, body.action);
   }
 
   /**

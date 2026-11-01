@@ -45,7 +45,7 @@ export function MyPolicies() {
   );
 }
 
-function Policy({ policy }: { policy: MyPolicyView }) {
+export function Policy({ policy }: { policy: MyPolicyView }) {
   const client = useQueryClient();
   const [opened, setOpened] = useState(false);
   const [agreed, setAgreed] = useState(false);

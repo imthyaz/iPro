@@ -22,7 +22,7 @@ import { businessDate } from '../common/effective-dating.js';
 import { requireContext } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
-import { ESIGN_PROVIDER, type EsignProvider } from '../esign/esign.js';
+import { ESIGN_PROVIDER, FakeEsign, type EsignProvider } from '../esign/esign.js';
 import { grades, legalEntities } from '../org/org.schema.js';
 import { documents } from '../people/documents.schema.js';
 import { inForce } from '../people/people.queries.js';
@@ -417,6 +417,19 @@ export class LettersService implements OnModuleInit {
     if (!letter) return false;
     await this.refresh(letter.id);
     return true;
+  }
+
+  /** Development only: the fake provider's signer signs or declines, then the letter is re-checked. */
+  async playFakeSigner(letterId: string, action: 'sign' | 'decline'): Promise<void> {
+    if (!(this.esign instanceof FakeEsign)) throw new NotFoundException();
+    const { letter } = await this.db.tx((tx) => this.load(tx, letterId));
+    await this.assertOnPerson(letter.personId, 'update');
+    if (letter.status !== 'sent' || !letter.esignRequestId) {
+      throw new ConflictException({ message: 'This letter is not out for signature' });
+    }
+    if (action === 'sign') this.esign.sign(letter.esignRequestId);
+    else this.esign.decline(letter.esignRequestId);
+    await this.refresh(letterId);
   }
 
   /** Every 15 minutes: checks letters out for signature (catches webhooks that never arrive). */

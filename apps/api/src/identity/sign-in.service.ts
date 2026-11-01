@@ -15,6 +15,7 @@ import {
 import { OIDC_PROVIDER, type OidcProvider } from './entra/oidc-provider.js';
 import { appUsers, authRequests, entraGroupRoles, roleAssignments } from './identity.schema.js';
 import { engagements } from '../people/people.schema.js';
+import { offers } from '../offers/offers.schema.js';
 import { safeReturnTo } from './session-token.js';
 
 const SIGN_IN_WINDOW_MS = 10 * 60_000;
@@ -179,16 +180,22 @@ export class SignInService {
           add.map((grant) => ({ ...grant, tenantId, userId, source: 'entra_group' as const })),
         );
     }
-    await refreshPersonLink(tx, userId, identity.email);
+    await refreshPersonLink(tx, userId, identity.email, identity.objectId);
     return userId;
   }
 }
 
 /**
- * Points the user at the person whose current engagement has this work email (decision #34). Left
- * unchanged when no current engagement matches, so an exited person keeps their history link.
+ * Points the user at the person whose current engagement has this work email (decision #34). A
+ * pre-joiner signs in as an Entra guest, matched by the object id their invitation created (decision
+ * #55). Left unchanged when nothing matches, so an exited person keeps their history link.
  */
-async function refreshPersonLink(tx: Tx, userId: string, email: string): Promise<void> {
+async function refreshPersonLink(
+  tx: Tx,
+  userId: string,
+  email: string,
+  objectId?: string,
+): Promise<void> {
   const [match] = await tx
     .select({ personId: engagements.personId })
     .from(engagements)
@@ -200,5 +207,22 @@ async function refreshPersonLink(tx: Tx, userId: string, email: string): Promise
     );
   if (match) {
     await tx.update(appUsers).set({ personId: match.personId }).where(eq(appUsers.id, userId));
+    return;
+  }
+  if (!objectId) return;
+  const [guest] = await tx
+    .select({ offerId: offers.id, personId: offers.personId })
+    .from(offers)
+    .innerJoin(engagements, eq(engagements.id, offers.engagementId))
+    .where(
+      and(
+        eq(offers.guestObjectId, objectId),
+        eq(offers.guestStatus, 'invited'),
+        inArray(engagements.status, ['offered', 'pre_joining']),
+      ),
+    );
+  if (guest) {
+    await tx.update(appUsers).set({ personId: guest.personId }).where(eq(appUsers.id, userId));
+    await tx.update(offers).set({ guestUserId: userId }).where(eq(offers.id, guest.offerId));
   }
 }

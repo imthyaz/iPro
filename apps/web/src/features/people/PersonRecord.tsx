@@ -268,7 +268,7 @@ function ChangeDetails({ person, isHr }: { person: PersonDetail; isHr: boolean }
   );
 }
 
-function Kyc(props: { personId: string; canUnmask: boolean; canSubmit: boolean }) {
+export function Kyc(props: { personId: string; canUnmask: boolean; canSubmit: boolean }) {
   const client = useQueryClient();
   const records = useQuery({
     queryKey: ['kyc', props.personId],
@@ -381,7 +381,7 @@ function Kyc(props: { personId: string; canUnmask: boolean; canSubmit: boolean }
   );
 }
 
-function Documents(props: { personId: string; isSelf: boolean; isHr: boolean }) {
+export function Documents(props: { personId: string; isSelf: boolean; isHr: boolean }) {
   const client = useQueryClient();
   const documents = useQuery({
     queryKey: ['documents', props.personId],

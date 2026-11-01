@@ -7,9 +7,10 @@ import {
   type CreateOfferInput,
 } from '@ipro/shared';
 import type { z } from 'zod';
-import { Authorize } from '../authz/decorators.js';
+import { Authorize, SignedIn } from '../authz/decorators.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { OffersService } from './offers.service.js';
+import { OnboardingService } from './onboarding.service.js';
 
 const uuid = new ParseUUIDPipe();
 type Reason = z.infer<typeof offerReasonSchema>;
@@ -61,6 +62,13 @@ export class OffersController {
     return this.offers.noShow(id, body.reason);
   }
 
+  /** Sends the pre-joiner's sign-in invitation again (decision #55). */
+  @Authorize('assignment_history', 'update')
+  @Post(':id/invite')
+  invite(@Param('id', uuid) id: string) {
+    return this.offers.invite(id);
+  }
+
   @Authorize('assignment_history', 'update')
   @Post(':id/join')
   join(
@@ -68,5 +76,17 @@ export class OffersController {
     @Body(new ZodPipe(joinOfferSchema)) body: z.infer<typeof joinOfferSchema>,
   ) {
     return this.offers.join(id, body.workEmail);
+  }
+}
+
+/** The joiner's own onboarding portal (E11); own-scope permissions apply to everything it shows. */
+@Controller('onboarding')
+export class OnboardingController {
+  constructor(@Inject(OnboardingService) private readonly onboarding: OnboardingService) {}
+
+  @SignedIn()
+  @Get('me')
+  async mine() {
+    return { onboarding: await this.onboarding.mine() };
   }
 }
