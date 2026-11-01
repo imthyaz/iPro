@@ -9,3 +9,4 @@ export * from '../attendance/attendance.schema.js';
 export * from '../workflow/workflow.schema.js';
 export * from '../workflow/checklists.schema.js';
 export * from '../letters/letters.schema.js';
+export * from '../policies/policies.schema.js';

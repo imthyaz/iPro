@@ -57,6 +57,7 @@ export class SessionsService {
         .where(eq(sessions.tokenHash, hashSessionToken(token)));
       if (!session) return null;
       if (!isSessionValid(session, { idleHours: this.config.SESSION_IDLE_HOURS }, now)) return null;
+      requireContext().sessionId = session.id;
       if (shouldTouch(session, now)) {
         await tx.update(sessions).set({ lastSeenAt: now }).where(eq(sessions.id, session.id));
       }
