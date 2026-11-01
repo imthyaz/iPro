@@ -33,6 +33,16 @@ const envSchema = z
     S3_ENDPOINT: z.preprocess(blankToUndefined, z.url().optional()),
     S3_ACCESS_KEY_ID: optionalText,
     S3_SECRET_ACCESS_KEY: optionalText,
+
+    /** E-signature (decision #51): "fake" locally and in tests; Zoho Sign (India data centre) in AWS. */
+    ESIGN_PROVIDER: z.enum(['fake', 'zoho']).default('fake'),
+    ZOHO_SIGN_CLIENT_ID: optionalText,
+    ZOHO_SIGN_CLIENT_SECRET: optionalText,
+    ZOHO_SIGN_REFRESH_TOKEN: optionalText,
+    ZOHO_ACCOUNTS_URL: z.url().default('https://accounts.zoho.in'),
+    ZOHO_SIGN_URL: z.url().default('https://sign.zoho.in'),
+    ZOHO_SIGN_WEBHOOK_SECRET: optionalText,
+    ZOHO_SIGN_WEBHOOK_HEADER: z.string().default('X-ZS-WEBHOOK-SIGNATURE'),
   })
   .transform((env) => ({
     ...env,
@@ -56,6 +66,15 @@ const envSchema = z
     if (env.FIELD_KEY_PROVIDER === 'kms' && !env.KMS_KEY_ID) {
       fail('KMS_KEY_ID', 'required for the kms field key provider');
     }
+    if (env.ESIGN_PROVIDER === 'zoho') {
+      for (const key of [
+        'ZOHO_SIGN_CLIENT_ID',
+        'ZOHO_SIGN_CLIENT_SECRET',
+        'ZOHO_SIGN_REFRESH_TOKEN',
+      ] as const) {
+        if (!env[key]) fail(key, 'required for Zoho Sign');
+      }
+    }
     if (env.NODE_ENV === 'production') {
       if (env.AUTH_MODE === 'dev')
         fail('ENTRA_TENANT_ID', 'dev sign-in is not allowed in production');
@@ -64,6 +83,9 @@ const envSchema = z
       }
       if (env.STORAGE_PROVIDER === 'memory' || env.S3_ENDPOINT) {
         fail('STORAGE_PROVIDER', 'production documents must be in AWS S3');
+      }
+      if (env.ESIGN_PROVIDER === 'fake') {
+        fail('ESIGN_PROVIDER', 'production letters must be signed through Zoho Sign');
       }
     }
   });

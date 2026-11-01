@@ -13,6 +13,8 @@ export const DOWNLOAD_LINK_SECONDS = 300;
 /** Object storage for documents. Keys never contain names or other personal data. */
 export interface ObjectStorage {
   put(key: string, body: Buffer, contentType: string): Promise<void>;
+  /** Reads an object back (e.g. a letter to send for signature). */
+  get(key: string): Promise<Buffer>;
   /** A link that downloads the object as `fileName`, valid for DOWNLOAD_LINK_SECONDS. */
   downloadUrl(key: string, fileName: string, contentType: string): Promise<string>;
 }
@@ -64,6 +66,13 @@ export class S3Storage implements ObjectStorage {
     );
   }
 
+  async get(key: string): Promise<Buffer> {
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: this.options.bucket, Key: key }),
+    );
+    return Buffer.from(await result.Body!.transformToByteArray());
+  }
+
   downloadUrl(key: string, fileName: string, contentType: string): Promise<string> {
     return getSignedUrl(
       this.client,
@@ -84,6 +93,12 @@ export class MemoryStorage implements ObjectStorage {
 
   async put(key: string, body: Buffer, contentType: string): Promise<void> {
     this.objects.set(key, { body, contentType });
+  }
+
+  async get(key: string): Promise<Buffer> {
+    const object = this.objects.get(key);
+    if (!object) throw new Error('No such object');
+    return object.body;
   }
 
   async downloadUrl(key: string, fileName: string): Promise<string> {

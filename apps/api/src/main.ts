@@ -3,7 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { APP_CONFIG, type AppConfig } from './config.js';
 
-const app = await NestFactory.create(AppModule);
+// Raw bodies are kept for webhook signature checks (e-sign).
+const app = await NestFactory.create(AppModule, { rawBody: true });
 app.setGlobalPrefix('api');
 app.enableShutdownHooks();
 

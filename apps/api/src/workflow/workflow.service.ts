@@ -263,6 +263,7 @@ export class WorkflowService {
         subjectPersonId: instance.subjectPersonId,
         fieldChanges: [{ field: 'status', from: 'returned', to: 'pending' }],
       });
+      await this.actions.get(definition.onApproved).onStatus?.(tx, updated!, 'pending');
       await this.startStep(tx, updated!, definition, 0);
     });
     return this.get(instanceId);
@@ -796,6 +797,8 @@ export class WorkflowService {
       subjectPersonId: instance.subjectPersonId,
       fieldChanges: [{ field: 'status', from: instance.status, to: status }],
     });
+    const definition = await this.definitionOf(tx, instance);
+    await this.actions.get(definition.onApproved).onStatus?.(tx, instance, status);
   }
 
   private async closeOpenApprovals(tx: Tx, instanceId: string) {
