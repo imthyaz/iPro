@@ -49,6 +49,61 @@ export function StatusChip({ status }: { status: PersonSummary['status'] }) {
   return <span className={`chip chip-${statusTone[status]}`}>{statusWords[status]}</span>;
 }
 
+type RequestStatus = 'pending' | 'returned' | 'approved' | 'withdrawn';
+
+const requestWords: Record<RequestStatus, string> = {
+  pending: 'Waiting for approval',
+  returned: 'Returned to you',
+  approved: 'Approved',
+  withdrawn: 'Withdrawn',
+};
+
+const requestTone: Record<RequestStatus, 'ok' | 'info' | 'warn' | 'muted'> = {
+  pending: 'info',
+  returned: 'warn',
+  approved: 'ok',
+  withdrawn: 'muted',
+};
+
+/** The same words and colours for request (workflow) status everywhere. */
+export function RequestStatusChip({ status }: { status: RequestStatus }) {
+  return <span className={`chip chip-${requestTone[status]}`}>{requestWords[status]}</span>;
+}
+
+/** Due date with an overdue warning, the same on approvals and tasks. */
+export function DueChip({ dueOn, overdue }: { dueOn: string; overdue: boolean }) {
+  return (
+    <span className={`chip chip-${overdue ? 'warn' : 'muted'}`}>
+      {overdue ? 'Overdue · ' : 'Due '}
+      {formatDate(dueOn)}
+    </span>
+  );
+}
+
+/** "From → to" lines, so an approver decides on the card itself. */
+export function ChangeList({
+  changes,
+}: {
+  changes: { label: string; from: string | null; to: string | null }[];
+}) {
+  if (changes.length === 0) return null;
+  return (
+    <dl className="changes">
+      {changes.map((c) => (
+        <div key={c.label}>
+          <dt>{c.label}</dt>
+          <dd>
+            <span className="change-from">{c.from ?? '—'}</span>
+            <span aria-hidden="true"> → </span>
+            <span className="visually-hidden"> to </span>
+            <strong>{c.to ?? '—'}</strong>
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function Chip({
   tone,
   children,

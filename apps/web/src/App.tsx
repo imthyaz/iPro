@@ -5,11 +5,14 @@ import { queryClient } from './api.js';
 import { apiStatusLabel, fetchApiStatus, type ApiStatus } from './api-status.js';
 import { hasRole, SignIn, useMe, useSignOut } from './auth.js';
 import { Note } from './design-system/index.js';
+import { Inbox } from './features/inbox/Inbox.js';
 import { OrgSetup } from './features/org/OrgSetup.js';
 import { OrgTree } from './features/org/OrgTree.js';
 import { Directory } from './features/people/Directory.js';
 import { NewPerson } from './features/people/NewPerson.js';
 import { PersonRecord } from './features/people/PersonRecord.js';
+import { MyPolicies } from './features/policies/MyPolicies.js';
+import { Requests } from './features/requests/Requests.js';
 
 export function App() {
   return (
@@ -61,6 +64,14 @@ function Shell() {
               My profile
             </NavLink>
           )}
+          <NavLink to="/requests" className="nav-item">
+            My requests
+          </NavLink>
+          {user.personId && (
+            <NavLink to="/policies" className="nav-item">
+              Policies
+            </NavLink>
+          )}
           {seesPeople && (
             <NavLink to="/people" className="nav-item">
               People
@@ -87,6 +98,11 @@ function Shell() {
         {user && (
           <Routes>
             <Route path="/" element={<Inbox />} />
+            <Route path="/approvals" element={<Inbox />} />
+            <Route path="/tasks" element={<Inbox />} />
+            <Route path="/requests" element={<Requests />} />
+            <Route path="/requests/:requestId" element={<Requests />} />
+            <Route path="/policies" element={<MyPolicies />} />
             <Route
               path="/me"
               element={
@@ -109,17 +125,5 @@ function Shell() {
         )}
       </div>
     </div>
-  );
-}
-
-/** Home is the Action inbox (slice 11). */
-function Inbox() {
-  return (
-    <main className="page">
-      <h1>Action inbox</h1>
-      <p className="muted">
-        Nothing here yet. Approvals, tasks and reminders will appear here as modules are built.
-      </p>
-    </main>
   );
 }
