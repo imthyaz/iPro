@@ -60,7 +60,7 @@ tests; in-app policy acknowledgement (PolicyAcknowledgement with document versio
 - [x] A workflow defined in config runs end to end with approve, reject (comment required) and escalation.
 - [x] A letter generated from a template is versioned and stored as a Document; signing via the fake adapter
       completes the document.
-- [ ] Publishing a new policy version re-opens acknowledgement for everyone it applies to.
+- [x] Publishing a new policy version re-opens acknowledgement for everyone it applies to.
 
 ## [ ] Slice 4 — Pre-boarding and onboarding
 

@@ -20,6 +20,8 @@ export interface RequestContext {
   userAgent: string | null;
   /** Set by the auth guard once the session is verified. */
   actor: Actor | null;
+  /** The verified session (recorded with policy acceptances). */
+  sessionId: string | null;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -40,7 +42,14 @@ export function runWithContext<T>(
   fn: () => T,
 ): T {
   return storage.run(
-    { requestId: randomUUID(), ip: null, userAgent: null, actor: null, ...context },
+    {
+      requestId: randomUUID(),
+      ip: null,
+      userAgent: null,
+      actor: null,
+      sessionId: null,
+      ...context,
+    },
     fn,
   );
 }
@@ -63,6 +72,7 @@ export class RequestContextMiddleware implements NestMiddleware {
         ip: req.ip ?? null,
         userAgent: typeof userAgent === 'string' ? userAgent.slice(0, 500) : null,
         actor: null,
+        sessionId: null,
       },
       next,
     );
