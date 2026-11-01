@@ -18,6 +18,30 @@ export const builtInDefinitions: Record<string, WorkflowDefinition> = {
     ],
     onApproved: 'profile.apply',
   },
+  /**
+   * A generated letter waits for the template's approver role before it is released or sent for
+   * signature (decision #51). One conditional step per allowed role.
+   */
+  letter_approval: {
+    name: 'Letter approval',
+    steps: [
+      {
+        id: 'hr',
+        label: 'HR approval',
+        approver: { kind: 'role', role: 'hr' },
+        authorize: { area: 'documents', action: 'update' },
+        when: { field: 'approverRole', equals: 'hr' },
+      },
+      {
+        id: 'hr_head',
+        label: 'HR head approval',
+        approver: { kind: 'role', role: 'hr_head' },
+        authorize: { area: 'documents', action: 'update' },
+        when: { field: 'approverRole', equals: 'hr_head' },
+      },
+    ],
+    onApproved: 'letter.release',
+  },
   /** A manager asks for a team member's shift to change (decision #47). One item per person. */
   shift_change: {
     name: 'Shift change request',

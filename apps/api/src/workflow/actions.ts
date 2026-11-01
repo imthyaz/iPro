@@ -23,6 +23,12 @@ export interface WorkflowAction {
   apply(tx: Tx, instance: ActionInstance, approver: Actor): Promise<void>;
   /** May anyone who can read the subject's profile start it through POST /api/workflows? */
   genericSubmit?: boolean;
+  /** Keeps the subject in step when the item is returned, withdrawn or sent again. */
+  onStatus?(
+    tx: Tx,
+    instance: ActionInstance,
+    status: 'pending' | 'returned' | 'withdrawn' | 'approved',
+  ): Promise<void>;
 }
 
 @Injectable()

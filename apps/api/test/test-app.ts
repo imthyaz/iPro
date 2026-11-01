@@ -11,7 +11,7 @@ export async function createTestApp(env: Record<string, string> = {}): Promise<I
     .overrideProvider(APP_CONFIG)
     .useValue(loadConfig({ ...testEnv, ...env }))
     .compile();
-  const app = moduleRef.createNestApplication();
+  const app = moduleRef.createNestApplication({ rawBody: true });
   app.setGlobalPrefix('api');
   await app.init();
   return app;

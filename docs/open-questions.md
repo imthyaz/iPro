@@ -45,3 +45,10 @@ configurable setting.
 - [x] Holiday calendar for customer-week teams: customer’s or company’s, HR assigns, default customer’s (decision #48).
 - [x] Shift definitions and times are configurable by admins (decision #47); Ideassion to enter its own.
 - [x] Managers request shift changes for their team; HR approves (decision #47).
+
+## Zoho Sign (slice 3c — needs the account owner)
+- [ ] Zoho Sign OAuth client and refresh token (India data centre), stored in Secrets Manager; then a live test of
+      sending, signing and the webhook. The client is built against Zoho Sign's v1 API and tested with simulated
+      responses only.
+- [ ] Confirm the webhook signature header and secret Zoho Sign uses for this account (configurable:
+      `ZOHO_SIGN_WEBHOOK_HEADER`, `ZOHO_SIGN_WEBHOOK_SECRET`). Status is always re-fetched from Zoho either way.

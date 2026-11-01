@@ -49,7 +49,7 @@ describe('loadConfig', () => {
 
   it('refuses dev sign-in and the local key provider in production', () => {
     expect(() => loadConfig({ ...base, NODE_ENV: 'production' })).toThrow(
-      'Invalid configuration: ENTRA_TENANT_ID, FIELD_KEY_PROVIDER',
+      'Invalid configuration: ENTRA_TENANT_ID, FIELD_KEY_PROVIDER, ESIGN_PROVIDER',
     );
   });
 

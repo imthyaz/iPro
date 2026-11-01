@@ -25,6 +25,7 @@
     "@nestjs/platform-express": "12.3.2",
     "drizzle-orm": "0.45.4",
     "openid-client": "6.8.8",
+    "pdfmake": "0.3.13",
     "pg": "8.23.1",
     "pg-boss": "12.38.0",
     "reflect-metadata": "0.2.2",
