@@ -1,28 +1,11 @@
+import { letterMergeFields } from '@ipro/shared';
+
 /**
  * Letter merge fields (decision #51): a fixed list, plus `extra.*` values supplied with the letter
  * (e.g. an extension's new end date). Templates can't run code; unknown or missing fields refuse to
  * generate rather than printing a blank.
  */
-export const mergeFields = {
-  'letter.date': 'Date of the letter',
-  'company.name': 'Legal entity name',
-  'company.address': 'Registered address',
-  'person.legalName': 'Legal name',
-  'person.preferredName': 'Preferred name (falls back to legal name)',
-  'engagement.employeeCode': 'Employee code',
-  'engagement.type': 'Engagement type',
-  'engagement.joiningDate': 'Joining date',
-  'engagement.probationEndDate': 'Probation end date',
-  'engagement.noticePeriodDays': 'Notice period (days)',
-  'engagement.lastWorkingDate': 'Last working date',
-  'assignment.designation': 'Designation',
-  'assignment.department': 'Department',
-  'assignment.location': 'Location',
-  'assignment.grade': 'Grade',
-  'manager.name': 'Reporting manager',
-  /** Reading pay for a letter is an audited compensation read. */
-  'compensation.amount': 'Pay (formatted, e.g. ₹12,00,000 a year)',
-} as const;
+export const mergeFields = letterMergeFields;
 
 export type MergeField = keyof typeof mergeFields;
 

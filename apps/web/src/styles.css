@@ -592,3 +592,81 @@ a.tree-node:hover {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Configuration editors (templates, policies, shifts). */
+/* Block, not grid: a grid fieldset sizes to its content and overflows the side panel. */
+.plain-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-inline-size: 0;
+}
+
+.plain-fieldset > * + * {
+  margin-top: 12px;
+}
+
+fieldset.applies-to,
+fieldset.check-group {
+  min-inline-size: 0;
+}
+
+.applies-to,
+.check-group {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  margin: 0;
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  min-width: 0;
+}
+
+.applies-to {
+  flex-direction: column;
+}
+
+.applies-to legend,
+.check-group legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.people-picker {
+  flex-direction: column;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.task-editor {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.field-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.field-chips .button {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.8125rem;
+}
+
+.letter-body {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Grid children may shrink below their content, so cards fit a phone. */
+.cards > *,
+.task-editor > * {
+  min-width: 0;
+}

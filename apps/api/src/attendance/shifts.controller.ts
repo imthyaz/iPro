@@ -18,7 +18,7 @@ import {
   type ShiftInput,
 } from '@ipro/shared';
 import { z } from 'zod';
-import { Authorize } from '../authz/decorators.js';
+import { Authorize, AuthorizeAny } from '../authz/decorators.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { ShiftsService } from './shifts.service.js';
 
@@ -30,7 +30,7 @@ const rangeSchema = z.object({ from: isoDateSchema, to: isoDateSchema });
 export class ShiftsController {
   constructor(@Inject(ShiftsService) private readonly shifts: ShiftsService) {}
 
-  @Authorize('org_config', 'read')
+  @AuthorizeAny(['org_config', 'read'], ['attendance', 'approve'])
   @Get('shifts')
   list() {
     return this.shifts.list();

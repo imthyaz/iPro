@@ -47,7 +47,7 @@ storage on S3 (local: SeaweedFS, decision #37). Org tree as of a date. People di
 - [x] A retainer converted to payroll keeps one person record and one continuous journey.
 - [x] KYC values are masked for everyone except HR; each unmask writes an audit row.
 
-## [~] Slice 3 — Workflow engine, letters, signatures
+## [x] Slice 3 — Workflow engine, letters, signatures
 
 **Spec:** Workflows (shared rules); Data model (ChecklistTemplate/Run, LetterTemplate, Approval); Integrations
 (Zoho Sign, policy acknowledgements); Screens A3.

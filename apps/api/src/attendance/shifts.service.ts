@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   BadRequestException,
   ConflictException,
   Inject,
@@ -89,8 +90,15 @@ export class ShiftsService {
     @Inject(PeopleService) private readonly people: PeopleService,
   ) {}
 
+  /** Shift definitions aren't personal data: managers see them to request changes (decision #47). */
   async list(): Promise<ShiftView[]> {
-    await this.assertConfig('read');
+    const actor = requireContext().actor!;
+    if (
+      !this.authz.can(actor, 'org_config', 'read') &&
+      !this.authz.can(actor, 'attendance', 'approve')
+    ) {
+      throw new ForbiddenException();
+    }
     const rows = await this.db.tx((tx) =>
       tx.select().from(shifts).where(isNull(shifts.deletedAt)).orderBy(asc(shifts.code)),
     );
