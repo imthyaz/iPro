@@ -22,6 +22,7 @@ import {
 } from '../../design-system/index.js';
 import { formatPaise, rateLabel } from '../../money.js';
 import { ChangeWizard } from './ChangeWizard.js';
+import { ConversionRequest, PayChange } from './PayAndConversion.js';
 import { Letters, ShiftHistory } from './PersonExtras.js';
 import type { AssignmentRow, CompensationRow, PersonDetail } from './types.js';
 
@@ -74,11 +75,19 @@ export function PersonRecord({ personId }: { personId: string }) {
         {tab === 'roles' && (
           <>
             {isHr && <ChangeWizard person={p} isHrHead={hasRole(me, 'hr_head')} />}
+            {isHr && ['retainer', 'consultant', 'intern', 'trainee'].includes(p.engagementType) && (
+              <ConversionRequest person={p} />
+            )}
             <RoleHistory personId={personId} />
           </>
         )}
         {tab === 'shifts' && <ShiftHistory personId={personId} />}
-        {tab === 'pay' && <Pay personId={personId} />}
+        {tab === 'pay' && (
+          <>
+            {isHr && <PayChange person={p} isHrHead={hasRole(me, 'hr_head')} />}
+            <Pay personId={personId} />
+          </>
+        )}
         {tab === 'kyc' && <Kyc personId={personId} canUnmask={isHr} canSubmit={isSelf || isHr} />}
         {tab === 'documents' && <Documents personId={personId} isSelf={isSelf} isHr={isHr} />}
         {tab === 'letters' && <Letters personId={personId} />}

@@ -186,20 +186,20 @@ describe('retainer converted to payroll (done-when #3)', () => {
   });
 
   it('refuses future dates, non-retainer engagements and a missing probation choice', async () => {
-    await hr
+    await hrHead
       .post(`/api/people/${retainer.personId}/convert`, {
         effectiveFrom: '2025-07-01',
         type: 'permanent',
       })
       .expect(400);
-    await hr
+    await hrHead
       .post(`/api/people/${retainer.personId}/convert`, {
         effectiveFrom: '2999-01-01',
         type: 'permanent',
         probation: 'none',
       })
       .expect(400);
-    await hr
+    await hrHead
       .post(`/api/people/${ids.ana!.personId}/convert`, {
         effectiveFrom: '2025-07-01',
         type: 'permanent',
@@ -209,7 +209,7 @@ describe('retainer converted to payroll (done-when #3)', () => {
   });
 
   it('keeps one person, one employee code and one continuous history', async () => {
-    const converted = await hr
+    const converted = await hrHead
       .post(`/api/people/${retainer.personId}/convert`, {
         effectiveFrom: '2025-07-01',
         type: 'permanent',
@@ -299,7 +299,7 @@ describe('retainer converted to payroll (done-when #3)', () => {
   });
 
   it('a manager never sees compensation events in the journey; HR does', async () => {
-    await hr
+    await hrHead
       .post(`/api/people/${retainer.personId}/compensation`, {
         effectiveFrom: '2026-04-01',
         amount: '270000000',

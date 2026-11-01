@@ -5,6 +5,38 @@ import type { WorkflowDefinition } from '@ipro/shared';
  * version 1 on first use). Like HR settings, they are configuration with a sensible starting point.
  */
 export const builtInDefinitions: Record<string, WorkflowDefinition> = {
+  /** New pay from a date, e.g. an unpaid intern becoming paid (decision #64): HR head approves. */
+  pay_change: {
+    name: 'Pay change',
+    steps: [
+      {
+        id: 'hr_head',
+        label: 'HR head approval',
+        approver: { kind: 'role', role: 'hr_head' },
+        authorize: { area: 'compensation', action: 'approve' },
+      },
+    ],
+    onApproved: 'pay.apply',
+  },
+  /** Retainer to payroll, or intern to employee (decisions #42, #64): HR head, then CXO. */
+  conversion: {
+    name: 'Conversion',
+    steps: [
+      {
+        id: 'hr_head',
+        label: 'HR head approval',
+        approver: { kind: 'role', role: 'hr_head' },
+        authorize: { area: 'assignment_history', action: 'approve' },
+      },
+      {
+        id: 'cxo',
+        label: 'CXO approval',
+        approver: { kind: 'role', role: 'cxo' },
+        authorize: { area: 'assignment_history', action: 'read' },
+      },
+    ],
+    onApproved: 'conversion.apply',
+  },
   /** An in-life change of role from a date (spec workflow 8, decision #62): HR head approves. */
   inlife_change: {
     name: 'In-life change',
