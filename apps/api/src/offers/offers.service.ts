@@ -3,10 +3,11 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   type OnModuleInit,
 } from '@nestjs/common';
-import { and, desc, eq, inArray, lt, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type {
   BandCheck,
@@ -22,11 +23,13 @@ import { addDays, businessDate } from '../common/effective-dating.js';
 import { requireContext } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
+import { appUsers, roleAssignments } from '../identity/identity.schema.js';
+import { GUEST_INVITES, type GuestInvites } from '../invites/guest-invites.js';
 import { JourneyService } from '../journey/journey.service.js';
 import { letters, letterTemplates } from '../letters/letters.schema.js';
 import { LettersService } from '../letters/letters.service.js';
 import { designations, grades } from '../org/org.schema.js';
-import { compensations, engagements } from '../people/people.schema.js';
+import { compensations, engagements, persons } from '../people/people.schema.js';
 import { linkUsersToPerson, PeopleService } from '../people/people.service.js';
 import { SettingsService } from '../people/settings.service.js';
 import { ChecklistsService } from '../workflow/checklists.service.js';
@@ -72,6 +75,8 @@ export function checkBand(
  */
 @Injectable()
 export class OffersService implements OnModuleInit {
+  private readonly logger = new Logger('Offers');
+
   constructor(
     @Inject(TenantDb) private readonly db: TenantDb,
     @Inject(AuthzService) private readonly authz: AuthzService,
@@ -83,6 +88,7 @@ export class OffersService implements OnModuleInit {
     @Inject(ChecklistsService) private readonly checklists: ChecklistsService,
     @Inject(WorkflowService) private readonly workflows: WorkflowService,
     @Inject(WorkflowActions) private readonly actions: WorkflowActions,
+    @Inject(GUEST_INVITES) private readonly invites: GuestInvites,
   ) {}
 
   onModuleInit(): void {
@@ -315,9 +321,32 @@ export class OffersService implements OnModuleInit {
         sourceId: offer.engagementId,
       });
       await linkUsersToPerson(tx, workEmail, offer.personId);
+      await this.retireGuestIn(tx, offer);
       await this.setStatus(tx, offer, 'joined');
     });
     return this.get(offerId);
+  }
+
+  /** HR sends the sign-in invitation again (e.g. the joiner lost the email, or it failed). */
+  async invite(offerId: string): Promise<OfferView> {
+    const offer = await this.loadFor(offerId, 'update');
+    if (offer.status !== 'accepted') {
+      throw new ConflictException({ message: 'Only an accepted offer’s joiner can be invited' });
+    }
+    await this.db.tx((tx) => this.inviteIn(tx, offer));
+    return this.get(offerId);
+  }
+
+  /** Every 30 minutes: retries invitations that failed. */
+  async retryInvites(): Promise<{ retried: number }> {
+    return this.db.tx(async (tx) => {
+      const failed = await tx
+        .select()
+        .from(offers)
+        .where(and(eq(offers.status, 'accepted'), eq(offers.guestStatus, 'failed')));
+      for (const offer of failed) await this.inviteIn(tx, offer);
+      return { retried: failed.length };
+    });
   }
 
   /** Daily: offers out for signature past their expiry date count as declined. */
@@ -347,6 +376,8 @@ export class OffersService implements OnModuleInit {
     );
     const views: OfferView[] = [];
     for (const row of rows) {
+      // An offer is HR's record (band check, approvals): never shown to the candidate themselves.
+      if (row.personId === actor.personId) continue;
       const summary = await this.people.summary(row.personId);
       const decision = await this.authz.check(actor, 'read', {
         area: 'assignment_history',
@@ -479,6 +510,113 @@ export class OffersService implements OnModuleInit {
         : `Offer accepted: ${name}; no onboarding checklist applies`,
       `/people/${offer.personId}`,
     );
+    await this.inviteIn(tx, offer);
+  }
+
+  /**
+   * Invites the pre-joiner to sign in (decision #55). A failure is recorded and retried, never undoing
+   * the acceptance: HR is told and the job tries again.
+   */
+  private async inviteIn(tx: Tx, offer: OfferRow): Promise<void> {
+    const [person] = await tx
+      .select({
+        legalName: persons.legalName,
+        preferredName: persons.preferredName,
+        personalEmail: persons.personalEmail,
+      })
+      .from(persons)
+      .where(eq(persons.id, offer.personId));
+    const name = person!.preferredName ?? person!.legalName;
+    const [engagement] = await tx
+      .select({ legalEntityId: engagements.legalEntityId })
+      .from(engagements)
+      .where(eq(engagements.id, offer.engagementId));
+    try {
+      if (!person!.personalEmail) throw new Error('No personal email');
+      const { objectId } = await this.invites.invite({
+        email: person!.personalEmail,
+        displayName: name,
+      });
+      const guestUserId =
+        this.invites.name === 'fake'
+          ? await this.devGuestUser(
+              tx,
+              offer,
+              person!.personalEmail,
+              name,
+              engagement!.legalEntityId,
+            )
+          : null;
+      await tx
+        .update(offers)
+        .set({
+          guestStatus: 'invited',
+          guestObjectId: objectId,
+          guestUserId,
+          guestInvitedAt: new Date(),
+        })
+        .where(eq(offers.id, offer.id));
+      offer.guestStatus = 'invited';
+      offer.guestObjectId = objectId;
+      offer.guestUserId = guestUserId;
+    } catch (error) {
+      this.logger.warn(
+        `Pre-joiner invitation failed for offer ${offer.id}: ${(error as Error).message}`,
+      );
+      await tx.update(offers).set({ guestStatus: 'failed' }).where(eq(offers.id, offer.id));
+      offer.guestStatus = 'failed';
+      await notify(
+        tx,
+        await roleHolders(tx, 'hr', engagement!.legalEntityId),
+        'prejoiner_invite_failed',
+        `Couldn’t invite ${name} to sign in; iPro will retry, or send it again from the offer`,
+        `/people/${offer.personId}`,
+      );
+    }
+  }
+
+  /**
+   * Locally there is no Entra: a dev sign-in user stands in for the guest, linked to the person, so the
+   * onboarding portal can be tried end to end. Production refuses the fake provider (config).
+   */
+  private async devGuestUser(
+    tx: Tx,
+    offer: OfferRow,
+    email: string,
+    displayName: string,
+    legalEntityId: string,
+  ): Promise<string> {
+    if (offer.guestUserId) return offer.guestUserId;
+    const tenantId = requireContext().tenantId;
+    const [user] = await tx
+      .insert(appUsers)
+      .values({ tenantId, email, displayName, personId: offer.personId })
+      .returning({ id: appUsers.id });
+    await tx.insert(roleAssignments).values({
+      tenantId,
+      userId: user!.id,
+      role: 'employee',
+      legalEntityId,
+      source: 'manual',
+    });
+    return user!.id;
+  }
+
+  /** On joining or closing, the pre-joiner's guest sign-in stops working in iPro. */
+  private async retireGuestIn(tx: Tx, offer: OfferRow): Promise<void> {
+    if (!offer.guestStatus || offer.guestStatus === 'retired') return;
+    const users = [
+      ...(offer.guestUserId ? [eq(appUsers.id, offer.guestUserId)] : []),
+      ...(offer.guestObjectId ? [eq(appUsers.entraObjectId, offer.guestObjectId)] : []),
+    ];
+    if (users.length > 0) {
+      await tx
+        .update(appUsers)
+        .set({ status: 'disabled', updatedAt: new Date() })
+        .where(or(...users));
+    }
+    await tx.update(offers).set({ guestStatus: 'retired' }).where(eq(offers.id, offer.id));
+    offer.guestStatus = 'retired';
   }
 
   /** Declined, withdrawn or no-show: the engagement closes as withdrawn, with one journey event. */
@@ -490,6 +628,7 @@ export class OffersService implements OnModuleInit {
   ): Promise<void> {
     // Close first, so the approval request's own withdrawal (below) finds nothing left to do.
     await this.setStatus(tx, offer, status, { closedAt: new Date(), closeReason: reason });
+    await this.retireGuestIn(tx, offer);
     if (offer.approvalRequestId) await this.workflows.cancelIn(tx, offer.approvalRequestId);
     await this.checklists.cancelOpenIn(tx, offer.engagementId, reason);
     await tx
@@ -570,9 +709,10 @@ export class OffersService implements OnModuleInit {
     const [offer] = await this.db.tx((tx) =>
       tx.select().from(offers).where(eq(offers.id, offerId)),
     );
-    if (!offer) throw new NotFoundException();
+    const actor = requireContext().actor!;
+    if (!offer || offer.personId === actor.personId) throw new NotFoundException();
     const summary = await this.people.summary(offer.personId);
-    const decision = await this.authz.check(requireContext().actor!, action, {
+    const decision = await this.authz.check(actor, action, {
       area: 'assignment_history',
       subjectPersonId: offer.personId,
       legalEntityId: summary.legalEntityId,
@@ -620,6 +760,9 @@ export class OffersService implements OnModuleInit {
         acceptedAt: offer.acceptedAt?.toISOString() ?? null,
         closedAt: offer.closedAt?.toISOString() ?? null,
         closeReason: offer.closeReason,
+        guest: offer.guestStatus
+          ? { status: offer.guestStatus, invitedAt: offer.guestInvitedAt?.toISOString() ?? null }
+          : null,
         createdAt: offer.createdAt.toISOString(),
       };
     });

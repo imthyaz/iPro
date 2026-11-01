@@ -169,6 +169,13 @@
       "when": 1793520816028,
       "tag": "0023_offers_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793522479007,
+      "tag": "0024_offer_guests",
+      "breakpoints": true
     }
   ]
 }

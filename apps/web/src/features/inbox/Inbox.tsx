@@ -10,6 +10,7 @@ import type {
 } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
 import { useMe } from '../../auth.js';
+import { useOnboarding } from '../onboarding/Onboarding.js';
 import {
   ChangeList,
   Chip,
@@ -39,6 +40,7 @@ export function Inbox() {
     queryFn: () => api<MyPolicyView[]>('/policies/mine'),
     enabled: Boolean(me?.personId),
   });
+  const onboarding = useOnboarding(Boolean(me?.personId));
   const pendingPolicies = policies.data?.filter((p) => p.pending) ?? [];
   const loaded = approvals.data && tasks.data && (!me?.personId || policies.data);
   const nothing =
@@ -50,6 +52,14 @@ export function Inbox() {
   return (
     <main className="page">
       <h1>Action inbox</h1>
+      {onboarding.data && (
+        <Link className="card onboarding-link" to="/onboarding">
+          <strong>Your onboarding</strong>
+          <span className="muted">
+            First day {formatDate(onboarding.data.joiningDate)}: see what to do before you join
+          </span>
+        </Link>
+      )}
       {nothing && <Empty>You’re all caught up.</Empty>}
 
       {approvals.error && <Note kind="error">{errorMessage(approvals.error)}</Note>}
@@ -191,7 +201,7 @@ function Approval({ card }: { card: ApprovalCard }) {
   );
 }
 
-function Task({ task }: { task: MyTaskView }) {
+export function Task({ task }: { task: MyTaskView }) {
   const client = useQueryClient();
   const [evidence, setEvidence] = useState('');
   const documents = useQuery({
@@ -204,7 +214,11 @@ function Task({ task }: { task: MyTaskView }) {
       api(`/checklist-tasks/${task.id}/done`, {
         body: evidence ? { evidenceDocumentId: evidence } : {},
       }),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['my-tasks'] }),
+    onSuccess: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: ['my-tasks'] }),
+        client.invalidateQueries({ queryKey: ['onboarding'] }),
+      ]),
   });
   return (
     <li className="card" aria-label={task.title}>

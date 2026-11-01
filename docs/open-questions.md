@@ -63,3 +63,11 @@ configurable setting.
 - [ ] Intern "break": proposed as ending the internship with rehire eligible, and a return as a new linked engagement.
       Is a break ever paid, or time-limited?
 - [ ] Usual internship lengths and whether interns get any leave or probation (proposed: no probation).
+
+## Pre-joiner sign-in (slice 4b, decisions #55 and #57 — needs the account owner)
+- [ ] An app registration for Microsoft Graph with application permissions User.Invite.All and
+      GroupMember.ReadWrite.All (admin consent), its secret in Secrets Manager (`GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`).
+- [ ] An Entra security group for pre-joiners (`PREJOINER_GROUP_ID`), assigned to the iPro app and mapped to the
+      employee role in iPro. External collaboration settings must allow guest invitations with email one-time codes.
+- [ ] Should iPro remove the guest account from Entra after joining or a no-show (needs User.ReadWrite.All), or does
+      IT do it? Proposed: IT, from an exit-style checklist task.

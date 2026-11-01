@@ -69,7 +69,7 @@ tests; in-app policy acknowledgement (PolicyAcknowledgement with document versio
 **Done when**
 - [ ] An offer above the grade band cannot be sent without HR head approval.
 - [ ] A signed offer creates the onboarding checklist with due dates computed from the joining date.
-- [ ] A new joiner can complete KYC uploads and policy sign-offs on a phone before Day 1.
+- [x] A new joiner can complete KYC uploads and policy sign-offs on a phone before Day 1.
 
 **Notes:** pre-joiners sign in as Entra guests (decision #55). Intern offers carry an end date and may be unpaid
 (decision #56). Sub-PRs: 4a offer workflow API; 4b pre-joiner access and onboarding portal (E11), joining-date

@@ -94,5 +94,24 @@ export interface OfferView {
   acceptedAt: string | null;
   closedAt: string | null;
   closeReason: string | null;
+  /** The pre-joiner's sign-in invitation (decision #55). */
+  guest: { status: 'invited' | 'failed' | 'retired'; invitedAt: string | null } | null;
   createdAt: string;
+}
+
+/** GET /api/onboarding/me (E11): what a joiner needs before and on Day 1, or null when not joining. */
+export interface OnboardingView {
+  name: string;
+  status: 'pre_joining' | 'active';
+  joiningDate: string;
+  /** Days until joining; 0 on the day, negative after. */
+  daysToGo: number;
+  endDate: string | null;
+  designation: string | null;
+  department: string | null;
+  location: string | null;
+  manager: string | null;
+  /** Day 1 times, from the shift they are on that day. */
+  dayOne: { startTime: string; endTime: string; shiftCode: string } | null;
+  checklists: { runId: string; name: string; done: number; total: number; overdue: number }[];
 }

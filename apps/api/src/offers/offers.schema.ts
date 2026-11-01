@@ -9,6 +9,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { tenantColumns } from '../db/columns.js';
+import { appUsers } from '../identity/identity.schema.js';
 import { letters } from '../letters/letters.schema.js';
 import { engagements, persons } from '../people/people.schema.js';
 import { workflowInstances } from '../workflow/workflow.schema.js';
@@ -25,6 +26,7 @@ export const offerStatuses = [
   'no_show',
 ] as const;
 export const bandChecks = ['within', 'above', 'no_band', 'not_comparable'] as const;
+export const guestStatuses = ['invited', 'failed', 'retired'] as const;
 
 /**
  * An offer and where it is between draft and joining (spec workflow 1; decision #54). The person,
@@ -52,6 +54,13 @@ export const offers = pgTable(
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
     closeReason: text('close_reason'),
+    /** Pre-joiner sign-in (decision #55): invited, failed (retried), or retired on joining or closing. */
+    guestStatus: text('guest_status', { enum: guestStatuses }),
+    /** The guest's Entra object id; their sign-in is linked to this person by it. */
+    guestObjectId: text('guest_object_id'),
+    /** The iPro user the guest signs in as, once known (locally, the dev user made for them). */
+    guestUserId: uuid('guest_user_id').references(() => appUsers.id),
+    guestInvitedAt: timestamp('guest_invited_at', { withTimezone: true }),
   },
   (t) => [
     uniqueIndex('offer_engagement_key').on(t.tenantId, t.engagementId),
