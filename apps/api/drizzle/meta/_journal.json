@@ -225,6 +225,20 @@
       "when": 1793558155152,
       "tag": "0031_interns_checkins_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793824698337,
+      "tag": "0032_holidays",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793824702291,
+      "tag": "0033_holidays_rls",
+      "breakpoints": true
     }
   ]
 }

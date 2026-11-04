@@ -22,9 +22,10 @@ import { requireContext } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
 import { appUsers } from '../identity/identity.schema.js';
-import { engagements } from '../people/people.schema.js';
+import { locationVersions } from '../org/org.schema.js';
+import { assignments, engagements } from '../people/people.schema.js';
 import { PeopleService } from '../people/people.service.js';
-import { shiftAssignments, shifts } from './attendance.schema.js';
+import { holidayCalendars, holidays, shiftAssignments, shifts } from './attendance.schema.js';
 import { workingDayRule, type WorkingDayRule } from './working-days.js';
 
 type ShiftRow = typeof shifts.$inferSelect;
@@ -53,6 +54,8 @@ export interface WorkDay {
   startTime: string;
   endTime: string;
   customTimes: boolean;
+  /** A holiday on the calendar the person follows that day (decision #48); optional ones still work. */
+  holiday: { name: string; optional: boolean } | null;
 }
 
 /** A person's working calendar: which shift and hours apply on a date, and whether it is a working day. */
@@ -67,6 +70,7 @@ const hhmm = (time: string | null | undefined) => (time ?? '').slice(0, 5);
 function workDay(
   shift: ShiftRow | null,
   allocation?: { startTime: string | null; endTime: string | null },
+  holiday: WorkDay['holiday'] = null,
 ): WorkDay {
   const custom = Boolean(allocation?.startTime && allocation.endTime);
   return {
@@ -74,6 +78,7 @@ function workDay(
     startTime: hhmm(custom ? allocation!.startTime : shift?.startTime),
     endTime: hhmm(custom ? allocation!.endTime : shift?.endTime),
     customTimes: custom,
+    holiday,
   };
 }
 
@@ -181,6 +186,15 @@ export class ShiftsService {
       .from(shifts)
       .where(and(eq(shifts.id, input.shiftId), isNull(shifts.deletedAt)));
     if (!shift) throw new BadRequestException({ message: 'Unknown shift' });
+    if (input.holidayCalendarId) {
+      const [calendar] = await tx
+        .select({ id: holidayCalendars.id })
+        .from(holidayCalendars)
+        .where(
+          and(eq(holidayCalendars.id, input.holidayCalendarId), isNull(holidayCalendars.deletedAt)),
+        );
+      if (!calendar) throw new BadRequestException({ message: 'Unknown holiday calendar' });
+    }
 
     for (const target of targets) {
       const history = await tx
@@ -228,6 +242,7 @@ export class ShiftsService {
           startTime: input.startTime ?? null,
           endTime: input.endTime ?? null,
           reason: input.reason,
+          holidayCalendarId: input.holidayCalendarId ?? null,
           ...by,
         })
         .returning({ id: shiftAssignments.id });
@@ -246,6 +261,7 @@ export class ShiftsService {
           startTime: covering.startTime,
           endTime: covering.endTime,
           reason: covering.reason,
+          holidayCalendarId: covering.holidayCalendarId,
           ...by,
         });
       }
@@ -275,14 +291,15 @@ export class ShiftsService {
     });
     const rows = await this.db.tx((tx) =>
       tx
-        .select({ allocation: shiftAssignments, shift: shifts })
+        .select({ allocation: shiftAssignments, shift: shifts, calendar: holidayCalendars })
         .from(shiftAssignments)
         .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+        .leftJoin(holidayCalendars, eq(holidayCalendars.id, shiftAssignments.holidayCalendarId))
         .innerJoin(engagements, eq(engagements.id, shiftAssignments.engagementId))
         .where(eq(engagements.personId, personId))
         .orderBy(asc(shiftAssignments.effectiveFrom)),
     );
-    return rows.map(({ allocation, shift }) => {
+    return rows.map(({ allocation, shift, calendar }) => {
       const day = workDay(shift, allocation);
       return {
         id: allocation.id,
@@ -295,6 +312,7 @@ export class ShiftsService {
         endTime: day.endTime,
         customTimes: day.customTimes,
         reason: allocation.reason,
+        holidayCalendar: calendar ? { id: calendar.id, name: calendar.name } : null,
       };
     });
   }
@@ -323,6 +341,7 @@ export class ShiftsService {
           shiftCode: day.shift?.code ?? '',
           startTime: day.startTime,
           endTime: day.endTime,
+          holiday: day.holiday,
         });
       }
       return days;
@@ -340,14 +359,96 @@ export class ShiftsService {
           .from(shiftAssignments)
           .where(eq(shiftAssignments.engagementId, engagementId))
       : [];
+    const holidayOn = await this.holidaysFor(tx, engagementId, allocations);
     const dayOn = (date: string): WorkDay => {
       const allocation = rowAt(allocations, date);
       const shift = (allocation ? byId.get(allocation.shiftId) : undefined) ?? fallback;
-      return workDay(shift, allocation);
+      return workDay(shift, allocation, holidayOn(date, allocation?.holidayCalendarId ?? null));
     };
     return {
       dayOn,
-      isWorking: workingDayRule((date) => dayOn(date).shift?.weeklyOffs ?? FALLBACK_WEEKLY_OFFS),
+      isWorking: workingDayRule(
+        (date) => dayOn(date).shift?.weeklyOffs ?? FALLBACK_WEEKLY_OFFS,
+        (date) => {
+          const holiday = dayOn(date).holiday;
+          return holiday !== null && !holiday.optional;
+        },
+      ),
+    };
+  }
+
+  /**
+   * Holidays a person follows: the calendar chosen on their shift allocation for that period (a
+   * customer's or the company's, decision #48), otherwise their location's calendar on that date.
+   */
+  private async holidaysFor(
+    tx: Tx,
+    engagementId: string | null,
+    allocations: { holidayCalendarId: string | null }[],
+  ): Promise<(date: string, chosen: string | null) => WorkDay['holiday']> {
+    if (!engagementId) return () => null;
+    const placed = await tx
+      .select({
+        id: assignments.id,
+        effectiveFrom: assignments.effectiveFrom,
+        effectiveTo: assignments.effectiveTo,
+        locationId: assignments.locationId,
+      })
+      .from(assignments)
+      .where(eq(assignments.engagementId, engagementId));
+    const locationIds = [...new Set(placed.map((a) => a.locationId))];
+    const versions = locationIds.length
+      ? await tx
+          .select({
+            id: locationVersions.id,
+            locationId: locationVersions.locationId,
+            effectiveFrom: locationVersions.effectiveFrom,
+            effectiveTo: locationVersions.effectiveTo,
+            holidayCalendarId: locationVersions.holidayCalendarId,
+          })
+          .from(locationVersions)
+          .where(inArray(locationVersions.locationId, locationIds))
+      : [];
+    const calendarIds = [
+      ...new Set(
+        [
+          ...allocations.map((a) => a.holidayCalendarId),
+          ...versions.map((v) => v.holidayCalendarId),
+        ].filter((id): id is string => id !== null),
+      ),
+    ];
+    if (calendarIds.length === 0) return () => null;
+    const rows = await tx
+      .select({
+        calendarId: holidays.calendarId,
+        date: holidays.date,
+        name: holidays.name,
+        optional: holidays.optional,
+      })
+      .from(holidays)
+      .innerJoin(holidayCalendars, eq(holidayCalendars.id, holidays.calendarId))
+      .where(
+        and(
+          inArray(holidays.calendarId, calendarIds),
+          isNull(holidays.deletedAt),
+          isNull(holidayCalendars.deletedAt),
+        ),
+      );
+    const byKey = new Map(rows.map((h) => [`${h.calendarId}:${h.date}`, h]));
+    return (date, chosen) => {
+      let calendarId = chosen;
+      if (!calendarId) {
+        const assignment = rowAt(placed, date);
+        const version = assignment
+          ? rowAt(
+              versions.filter((v) => v.locationId === assignment.locationId),
+              date,
+            )
+          : undefined;
+        calendarId = version?.holidayCalendarId ?? null;
+      }
+      const holiday = calendarId ? byKey.get(`${calendarId}:${date}`) : undefined;
+      return holiday ? { name: holiday.name, optional: holiday.optional } : null;
     };
   }
 

@@ -68,6 +68,44 @@ export const shiftAssignments = pgTable(
     endTime: time('end_time'),
     /** Why, e.g. the customer project. Projects themselves arrive in a later phase. */
     reason: text('reason').notNull(),
+    /** The customer's or the company's holidays for this period (decision #48); null = the location's. */
+    holidayCalendarId: uuid('holiday_calendar_id').references(() => holidayCalendars.id),
   },
   (t) => [index('shift_assignment_engagement_idx').on(t.engagementId)],
+);
+
+/** A holiday calendar: the company's (per location) or a customer's (decisions #48, #66). */
+export const holidayCalendars = pgTable(
+  'holiday_calendar',
+  {
+    ...tenantColumns(),
+    ...softDeleteColumns(),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    kind: text('kind', { enum: ['company', 'customer'] }).notNull(),
+  },
+  (t) => [uniqueIndex('holiday_calendar_code_key').on(t.tenantId, t.code)],
+);
+
+/**
+ * A holiday on a calendar. Optional ones are working days unless taken as leave (slice 7). Removing
+ * one is a soft delete, so a calendar's history stays.
+ */
+export const holidays = pgTable(
+  'holiday',
+  {
+    ...tenantColumns(),
+    ...softDeleteColumns(),
+    calendarId: uuid('calendar_id')
+      .notNull()
+      .references(() => holidayCalendars.id),
+    date: date('date').notNull(),
+    name: text('name').notNull(),
+    optional: boolean('optional').notNull().default(false),
+  },
+  (t) => [
+    uniqueIndex('holiday_calendar_date_key')
+      .on(t.tenantId, t.calendarId, t.date)
+      .where(sql`${t.deletedAt} is null`),
+  ],
 );
