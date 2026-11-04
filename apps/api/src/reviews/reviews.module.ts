@@ -2,7 +2,9 @@ import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import { APP_CONFIG, type AppConfig } from '../config.js';
 import { runWithContext } from '../context/request-context.js';
 import { ScheduledJobs } from '../jobs/jobs.module.js';
+import { ChangesModule } from '../changes/changes.module.js';
 import { LettersModule } from '../letters/letters.module.js';
+import { CheckInsService } from './check-ins.service.js';
 import { ReviewsController } from './reviews.controller.js';
 import { ReviewsService } from './reviews.service.js';
 
@@ -25,9 +27,9 @@ class ProbationSweepJob implements OnModuleInit {
 }
 
 @Module({
-  imports: [LettersModule],
+  imports: [LettersModule, ChangesModule],
   controllers: [ReviewsController],
-  providers: [ReviewsService, ProbationSweepJob],
+  providers: [ReviewsService, CheckInsService, ProbationSweepJob],
   exports: [ReviewsService],
 })
 export class ReviewsModule {}

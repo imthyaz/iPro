@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import type { ProbationOutcome, ReviewView, SubmitReviewInput } from '@ipro/shared';
+import type { CheckInView, ReviewOutcome, ReviewView, SubmitReviewInput } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
 import {
   Chip,
@@ -13,11 +13,22 @@ import {
   Note,
 } from '../../design-system/index.js';
 
-const outcomeWords: Record<ProbationOutcome, string> = {
+export const outcomeWords: Record<ReviewOutcome, string> = {
   confirm: 'Confirm',
-  extend: 'Extend probation',
+  extend: 'Extend',
   terminate: 'End employment',
+  convert: 'Convert to employee',
+  end: 'End the internship',
+  break: 'Break (internship ends; may return)',
 };
+
+export const progressWords: Record<NonNullable<CheckInView['progress']>, string> = {
+  on_track: 'On track',
+  needs_support: 'Needs support',
+  at_risk: 'At risk',
+};
+
+const endsWord = (r: ReviewView) => (r.kind === 'probation' ? 'Probation ends' : 'Internship ends');
 
 const statusChip = (r: ReviewView) =>
   r.status === 'due' ? (
@@ -47,7 +58,7 @@ export function Reviews() {
 
   const list = (
     <>
-      <h1>Probation reviews</h1>
+      <h1>Reviews</h1>
       {reviews.error && <Note kind="error">{errorMessage(reviews.error)}</Note>}
       {reviews.data?.length === 0 && <Empty>No reviews.</Empty>}
       <ul className="rows" aria-label="Reviews">
@@ -61,7 +72,8 @@ export function Reviews() {
               <span className="row-main">
                 <strong>{r.person.name}</strong>
                 <span className="muted">
-                  {r.designation ?? '—'} · probation ends {formatDate(r.dueOn)}
+                  {r.kind === 'probation' ? 'Probation' : 'Internship'} · {r.designation ?? '—'} ·
+                  ends {formatDate(r.dueOn)}
                 </span>
               </span>
               <span className="row-side">{statusChip(r)}</span>
@@ -101,20 +113,36 @@ function ReviewDetail({ reviewId }: { reviewId: string }) {
       </header>
       <dl className="facts">
         <div>
-          <dt>Probation ends</dt>
+          <dt>{endsWord(r)}</dt>
           <dd>{formatDate(r.dueOn)}</dd>
         </div>
         <div>
           <dt>Reviewer</dt>
           <dd>{r.reviewer}</dd>
         </div>
-        <div>
-          <dt>Extensions</dt>
-          <dd>
-            {r.extensions.used} of {r.extensions.max} used
-          </dd>
-        </div>
+        {r.kind === 'probation' && (
+          <div>
+            <dt>Extensions</dt>
+            <dd>
+              {r.extensions.used} of {r.extensions.max} used
+            </dd>
+          </div>
+        )}
       </dl>
+      {r.checkIns.length > 0 && (
+        <>
+          <h3>Monthly check-ins</h3>
+          <ol className="timeline" aria-label="Check-ins">
+            {r.checkIns.map((c) => (
+              <li key={c.id}>
+                <strong>Month {c.month}</strong> ·{' '}
+                {c.progress ? progressWords[c.progress] : 'Not recorded'}
+                {c.notes && <div className="muted">{c.notes}</div>}
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
       {r.canSubmit ? <ReviewForm review={r} /> : <ReviewAnswers review={r} />}
       {r.requestId && r.status === 'submitted' && (
         <p>
@@ -132,6 +160,13 @@ function ReviewAnswers({ review }: { review: ReviewView }) {
       <h3>Recommendation: {outcomeWords[review.recommendation]}</h3>
       {review.newEndDate && <p>New end date: {formatDate(review.newEndDate)}</p>}
       {review.lastWorkingDate && <p>Last working day: {formatDate(review.lastWorkingDate)}</p>}
+      {review.convertTo && (
+        <p>
+          Becomes {review.convertTo.replace('_', '-')},{' '}
+          {review.convertProbation === 'policy' ? 'serving probation' : 'without probation'}
+        </p>
+      )}
+      {review.returnBy && <p>Expected back by {formatDate(review.returnBy)}</p>}
       <dl className="facts">
         {review.competencies.map((c) => (
           <div key={c}>
@@ -162,15 +197,21 @@ function ReviewAnswers({ review }: { review: ReviewView }) {
 function ReviewForm({ review }: { review: ReviewView }) {
   const client = useQueryClient();
   const [ratings, setRatings] = useState<Record<string, number>>(review.ratings);
-  const [recommendation, setRecommendation] = useState<ProbationOutcome>(
-    review.recommendation ?? 'confirm',
+  const [recommendation, setRecommendation] = useState<ReviewOutcome>(
+    review.recommendation ?? review.outcomes[0]!,
   );
+  const [convertTo, setConvertTo] = useState(review.convertTo ?? 'permanent');
+  const [convertProbation, setConvertProbation] = useState(review.convertProbation ?? '');
+  const [returnBy, setReturnBy] = useState(review.returnBy ?? '');
+  const endsWork = ['terminate', 'end', 'break'].includes(recommendation);
   const [strengths, setStrengths] = useState(review.strengths ?? '');
   const [improvements, setImprovements] = useState(review.improvements ?? '');
   const [comments, setComments] = useState(review.comments ?? '');
   const [newEndDate, setNewEndDate] = useState(review.newEndDate ?? '');
-  const [lastWorkingDate, setLastWorkingDate] = useState(review.lastWorkingDate ?? '');
-  const canExtend = review.extensions.used < review.extensions.max;
+  const [lastWorkingDate, setLastWorkingDate] = useState(
+    review.lastWorkingDate ?? (review.kind === 'internship' ? review.dueOn : ''),
+  );
+  const canExtend = review.kind === 'internship' || review.extensions.used < review.extensions.max;
   const submit = useMutation({
     mutationFn: () => {
       const body: SubmitReviewInput = {
@@ -180,7 +221,14 @@ function ReviewForm({ review }: { review: ReviewView }) {
         ...(strengths.trim() ? { strengths } : {}),
         ...(improvements.trim() ? { improvements } : {}),
         ...(recommendation === 'extend' ? { newEndDate } : {}),
-        ...(recommendation === 'terminate' ? { lastWorkingDate } : {}),
+        ...(endsWork ? { lastWorkingDate } : {}),
+        ...(recommendation === 'convert'
+          ? {
+              convertTo: convertTo as 'permanent' | 'fixed_term',
+              convertProbation: convertProbation as 'policy' | 'none',
+            }
+          : {}),
+        ...(recommendation === 'break' && returnBy ? { returnBy } : {}),
       };
       return api<ReviewView>(`/reviews/${review.id}/submit`, { body });
     },
@@ -253,7 +301,7 @@ function ReviewForm({ review }: { review: ReviewView }) {
       </Field>
       <fieldset className="check-group">
         <legend>Recommendation</legend>
-        {(['confirm', 'extend', 'terminate'] as const).map((o) => (
+        {review.outcomes.map((o) => (
           <label key={o} className="check">
             <input
               type="radio"
@@ -267,7 +315,7 @@ function ReviewForm({ review }: { review: ReviewView }) {
           </label>
         ))}
       </fieldset>
-      {!canExtend && (
+      {!canExtend && review.kind === 'probation' && (
         <span className="muted field-hint">
           Probation can’t be extended again ({review.extensions.used} of {review.extensions.max}{' '}
           used).
@@ -276,7 +324,11 @@ function ReviewForm({ review }: { review: ReviewView }) {
       {recommendation === 'extend' && (
         <Field
           label="New end date"
-          hint={`Up to ${review.extensions.maxMonths} months after ${formatDate(review.dueOn)}`}
+          hint={
+            review.kind === 'probation'
+              ? `Up to ${review.extensions.maxMonths} months after ${formatDate(review.dueOn)}`
+              : `After ${formatDate(review.dueOn)}`
+          }
         >
           {(id) => (
             <input
@@ -290,8 +342,55 @@ function ReviewForm({ review }: { review: ReviewView }) {
           )}
         </Field>
       )}
-      {recommendation === 'terminate' && (
-        <Field label="Last working day" hint="HR head decides on ending employment.">
+      {recommendation === 'convert' && (
+        <div className="form-grid">
+          <Field label="Becomes">
+            {(id) => (
+              <select
+                id={id}
+                value={convertTo}
+                onChange={(e) => setConvertTo(e.target.value as 'permanent')}
+              >
+                <option value="permanent">Permanent</option>
+                <option value="fixed_term">Fixed-term</option>
+              </select>
+            )}
+          </Field>
+          <Field label="Probation" hint="HR head and CXO approve the conversion">
+            {(id) => (
+              <select
+                id={id}
+                required
+                value={convertProbation}
+                onChange={(e) => setConvertProbation(e.target.value as 'policy')}
+              >
+                <option value="">Choose…</option>
+                <option value="policy">Serves probation (policy length)</option>
+                <option value="none">No probation</option>
+              </select>
+            )}
+          </Field>
+        </div>
+      )}
+      {recommendation === 'break' && (
+        <Field label="Expected back by" hint="Optional">
+          {(id) => (
+            <input
+              id={id}
+              type="date"
+              value={returnBy}
+              onChange={(e) => setReturnBy(e.target.value)}
+            />
+          )}
+        </Field>
+      )}
+      {endsWork && (
+        <Field
+          label="Last working day"
+          hint={
+            recommendation === 'terminate' ? 'HR head decides on ending employment.' : undefined
+          }
+        >
           {(id) => (
             <input
               id={id}

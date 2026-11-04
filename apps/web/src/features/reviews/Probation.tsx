@@ -20,7 +20,10 @@ export function Probation() {
           <Chip tone={b.overdue.length ? 'warn' : 'muted'}>{b.overdue.length} overdue</Chip>{' '}
           <Chip tone="info">{b.awaitingDecision.length} waiting for a decision</Chip>{' '}
           <Chip tone="muted">{b.dueSoon.length} ending within 30 days</Chip>{' '}
-          <Chip tone="muted">{b.extended.length} extended</Chip>
+          <Chip tone="muted">{b.extended.length} extended</Chip>{' '}
+          <Chip tone={b.checkInsOverdue.length ? 'warn' : 'muted'}>
+            {b.checkInsOverdue.length} check-ins late
+          </Chip>
         </p>
       )}
       <ReviewSection title="Overdue reviews" reviews={b?.overdue} empty="No overdue reviews." />
@@ -28,6 +31,28 @@ export function Probation() {
         title="Waiting for a decision"
         reviews={b?.awaitingDecision}
         empty="Nothing waiting."
+      />
+      <section aria-labelledby="late-check-ins">
+        <h2 id="late-check-ins">Check-ins not recorded</h2>
+        {b?.checkInsOverdue.length === 0 && <Empty>None.</Empty>}
+        <ul className="rows" aria-label="Check-ins not recorded">
+          {b?.checkInsOverdue.map((c) => (
+            <li key={c.id} className="row">
+              <span className="row-main">
+                <Link to={`/people/${c.person.personId}`}>{c.person.name}</Link>
+                <span className="muted">
+                  month {c.month}, from {formatDate(c.dueOn)}
+                </span>
+              </span>
+              <Chip tone="warn">Late</Chip>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <ReviewSection
+        title="Intern assessments"
+        reviews={b?.internships}
+        empty="No internships ending soon."
       />
       <section aria-labelledby="ending">
         <h2 id="ending">Ending within 30 days</h2>

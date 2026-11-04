@@ -5,6 +5,19 @@ import type { WorkflowDefinition } from '@ipro/shared';
  * version 1 on first use). Like HR settings, they are configuration with a sensible starting point.
  */
 export const builtInDefinitions: Record<string, WorkflowDefinition> = {
+  /** The decision on an intern's assessment (decision #65): HR decides; a conversion then goes to HR head and CXO. */
+  internship_decision: {
+    name: 'Internship decision',
+    steps: [
+      {
+        id: 'hr',
+        label: 'HR decision',
+        approver: { kind: 'role', role: 'hr' },
+        authorize: { area: 'probation_review', action: 'approve' },
+      },
+    ],
+    onApproved: 'review.decide',
+  },
   /** New pay from a date, e.g. an unpaid intern becoming paid (decision #64): HR head approves. */
   pay_change: {
     name: 'Pay change',

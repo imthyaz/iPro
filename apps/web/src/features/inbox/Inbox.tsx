@@ -11,6 +11,7 @@ import type {
 import { api, errorMessage } from '../../api.js';
 import { useMe } from '../../auth.js';
 import { useOnboarding } from '../onboarding/Onboarding.js';
+import { CheckInCard, useOpenCheckIns } from '../reviews/CheckIns.js';
 import { useReviews } from '../reviews/Reviews.js';
 import {
   ChangeList,
@@ -44,6 +45,8 @@ export function Inbox() {
   const onboarding = useOnboarding(Boolean(me?.personId));
   const reviews = useReviews();
   const toWrite = reviews.data?.filter((r) => r.canSubmit) ?? [];
+  const checkIns = useOpenCheckIns();
+  const toRecord = checkIns.data?.filter((c) => c.canRecord) ?? [];
   const pendingPolicies = policies.data?.filter((p) => p.pending) ?? [];
   const loaded = approvals.data && tasks.data && (!me?.personId || policies.data);
   const nothing =
@@ -51,6 +54,7 @@ export function Inbox() {
     approvals.data!.length === 0 &&
     tasks.data!.length === 0 &&
     toWrite.length === 0 &&
+    toRecord.length === 0 &&
     pendingPolicies.length === 0;
 
   return (
@@ -83,9 +87,16 @@ export function Inbox() {
           <h2 id="inbox-reviews">Reviews to write ({toWrite.length})</h2>
           <ul className="cards" aria-label="Reviews to write">
             {toWrite.map((r) => (
-              <li key={r.id} className="card" aria-label={`Probation review: ${r.person.name}`}>
+              <li
+                key={r.id}
+                className="card"
+                aria-label={`${r.kind === 'probation' ? 'Probation review' : 'Internship assessment'}: ${r.person.name}`}
+              >
                 <div className="card-head">
-                  <strong>Probation review: {r.person.name}</strong>
+                  <strong>
+                    {r.kind === 'probation' ? 'Probation review' : 'Internship assessment'}:{' '}
+                    {r.person.name}
+                  </strong>
                   <DueChip dueOn={r.dueOn} overdue={r.overdue} />
                 </div>
                 <span className="muted">
@@ -95,6 +106,17 @@ export function Inbox() {
                   Write the review
                 </Link>
               </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {toRecord.length > 0 && (
+        <section aria-labelledby="inbox-check-ins">
+          <h2 id="inbox-check-ins">Check-ins to record ({toRecord.length})</h2>
+          <ul className="cards" aria-label="Check-ins to record">
+            {toRecord.map((c) => (
+              <CheckInCard key={c.id} checkIn={c} />
             ))}
           </ul>
         </section>

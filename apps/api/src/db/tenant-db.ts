@@ -9,9 +9,10 @@ const ambient = new AsyncLocalStorage<{ tx: Tx; tenantId: string }>();
 
 /**
  * The way modules reach the database: one transaction, scoped to the current request's tenant.
- * A call made inside another's transaction joins it rather than taking a second connection: nested
- * connections could starve the pool under load, and the inner work should see (and commit or roll back
- * with) the outer transaction's changes.
+ * A call made inside another's transaction joins it, as a savepoint, rather than taking a second
+ * connection: nested connections could starve the pool under load, and the inner work should see the
+ * outer transaction's changes. The savepoint means an inner failure (or a deliberate trial-run rollback)
+ * undoes only the inner work.
  */
 @Injectable()
 export class TenantDb {
@@ -20,7 +21,11 @@ export class TenantDb {
   tx<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     const tenantId = requireContext().tenantId;
     const current = ambient.getStore();
-    if (current && current.tenantId === tenantId) return fn(current.tx);
+    if (current && current.tenantId === tenantId) {
+      return current.tx.transaction((savepoint) =>
+        ambient.run({ tx: savepoint, tenantId }, () => fn(savepoint)),
+      );
+    }
     return withTenant(this.db, tenantId, (tx) => ambient.run({ tx, tenantId }, () => fn(tx)));
   }
 }
