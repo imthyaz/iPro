@@ -47,6 +47,8 @@ export const locationFieldsSchema = z.object({
   address: optionalText,
   state: optionalText,
   timezone: z.string().min(1).optional(),
+  /** The company holiday calendar people here follow (decision #66). */
+  holidayCalendarId: z.uuid().nullish(),
   seatCount: z.number().int().min(0).nullish(),
 });
 

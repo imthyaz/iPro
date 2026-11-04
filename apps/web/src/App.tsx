@@ -7,6 +7,7 @@ import { hasRole, SignIn, useMe, useSignOut } from './auth.js';
 import { Note } from './design-system/index.js';
 import { PolicyAdmin } from './features/admin/PolicyAdmin.js';
 import { Templates } from './features/admin/Templates.js';
+import { Holidays } from './features/holidays/Holidays.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
 import { NewOffer } from './features/offers/NewOffer.js';
 import { Offers } from './features/offers/Offers.js';
@@ -132,6 +133,11 @@ function Shell() {
             </NavLink>
           )}
           {seesOrgSetup && (
+            <NavLink to="/holidays" className="nav-item">
+              Holidays
+            </NavLink>
+          )}
+          {seesOrgSetup && (
             <NavLink to="/templates" className="nav-item">
               Templates
             </NavLink>
@@ -180,6 +186,8 @@ function Shell() {
             <Route path="/templates/:kind/:templateKey" element={<Templates />} />
             <Route path="/policy-admin" element={<PolicyAdmin />} />
             <Route path="/policy-admin/:policyId" element={<PolicyAdmin />} />
+            <Route path="/holidays" element={<Holidays />} />
+            <Route path="/holidays/:calendarId" element={<Holidays />} />
             <Route path="/shifts" element={<Shifts />} />
             <Route path="/shifts/:shiftId" element={<Shifts />} />
             <Route path="/reviews" element={<Reviews />} />

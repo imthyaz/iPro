@@ -78,3 +78,11 @@ configurable setting.
 - [x] Check-ins during probation: monthly, recorded by the manager (decision #63); built in slice 5c.
 - [ ] Probation letter templates (confirmation, extension, termination): to be added later (decision #63); until then
       HR is told to make the letter by hand.
+
+## Holidays and attendance (slice 6, decisions #66–#67 — please confirm)
+- [ ] Ideassion's holiday list per location for the year (the spec suggests Chennai: 10 fixed + 2 optional). The dev
+      seed has national and Tamil Nadu holidays as a placeholder.
+- [ ] Optional holidays: proposed that each person may take up to 2 a year as leave (slice 7); until taken they are
+      working days.
+- [ ] Customer holiday calendars needed now (e.g. for Middle East customer teams), and who keeps them up to date.
+- [ ] Biometric device make, model and whether an on-site agent can push punches out over HTTPS (decision #67).

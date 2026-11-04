@@ -26,6 +26,7 @@ export function ShiftHistory({ personId }: { personId: string }) {
           <div className="muted">
             {formatDate(a.effectiveFrom)} – {a.effectiveTo ? formatDate(a.effectiveTo) : 'now'} ·{' '}
             {a.reason}
+            {a.holidayCalendar ? ` · holidays: ${a.holidayCalendar.name}` : ''}
           </div>
         </li>
       ))}

@@ -5,6 +5,7 @@ import pg from 'pg';
 import type { Role } from '@ipro/shared';
 import { loadConfig } from '../config.js';
 import * as schema from './schema.js';
+import { seedHolidays } from './seed-holidays.js';
 import { seedOrg } from './seed-org.js';
 import { seedPeople } from './seed-people.js';
 import { withTenant } from './tenant-context.js';
@@ -89,6 +90,7 @@ await withTenant(db, tenantId, async (tx) => {
       );
   }
   await seedPeople(tx, tenantId);
+  await seedHolidays(tx, tenantId, new Date().getFullYear());
 });
 
 await pool.end();

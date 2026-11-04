@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import {
   describeWorkingWeek,
   weekdayNames,
+  type HolidayCalendarView,
   type PersonSummary,
   type ShiftInput,
   type ShiftView,
@@ -263,6 +264,14 @@ function Allocate({ shifts, asRequest }: { shifts: ShiftView[]; asRequest: boole
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [reason, setReason] = useState('');
+  const [calendarId, setCalendarId] = useState('');
+  // Managers only ask; HR, who can read the calendars, chooses the holidays (decision #48).
+  const calendars = useQuery({
+    queryKey: ['holiday-calendars', 'all'],
+    queryFn: () => api<HolidayCalendarView[]>('/holiday-calendars'),
+    enabled: !asRequest,
+  });
+  const customerCalendars = calendars.data?.filter((c) => c.kind === 'customer') ?? [];
   const people = useQuery({
     queryKey: ['people', q, 'active'],
     queryFn: () => {
@@ -282,6 +291,7 @@ function Allocate({ shifts, asRequest }: { shifts: ShiftView[]; asRequest: boole
             effectiveFrom: from,
             ...(to ? { effectiveTo: to } : {}),
             ...(ownTimes ? { startTime, endTime } : {}),
+            ...(calendarId ? { holidayCalendarId: calendarId } : {}),
             reason,
           },
         },
@@ -355,7 +365,17 @@ function Allocate({ shifts, asRequest }: { shifts: ShiftView[]; asRequest: boole
       <div className="form-grid">
         <Field label="Shift">
           {(id) => (
-            <select id={id} required value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+            <select
+              id={id}
+              required
+              value={shiftId}
+              onChange={(e) => {
+                setShiftId(e.target.value);
+                // A customer's week usually follows the customer's holidays (decision #48).
+                const shift = shifts.find((s) => s.id === e.target.value);
+                setCalendarId(shift && !shift.isDefault ? (customerCalendars[0]?.id ?? '') : '');
+              }}
+            >
               <option value="">Choose a shift</option>
               {shifts.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -417,6 +437,20 @@ function Allocate({ shifts, asRequest }: { shifts: ShiftView[]; asRequest: boole
             )}
           </Field>
         </div>
+      )}
+      {!asRequest && (
+        <Field label="Holidays" hint="Whose holidays they follow while on this shift">
+          {(id) => (
+            <select id={id} value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
+              <option value="">Their location’s calendar</option>
+              {calendars.data?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.kind === 'customer' ? 'customer' : 'company'})
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
       )}
       <Field label="Reason" hint="E.g. the customer project.">
         {(id) => (

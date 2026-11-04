@@ -59,6 +59,11 @@ export const allocateShiftSchema = z
     startTime: timeSchema.optional(),
     endTime: timeSchema.optional(),
     reason: z.string().trim().min(1).max(200),
+    /**
+     * The holidays they follow while on this shift (decision #48): a customer's calendar or the
+     * company's. Left out, their location's calendar applies.
+     */
+    holidayCalendarId: z.uuid().optional(),
   })
   .refine((a) => !a.effectiveTo || a.effectiveTo >= a.effectiveFrom, {
     path: ['effectiveTo'],
@@ -84,6 +89,8 @@ export interface ShiftAllocationView {
   /** True when the times are this person’s own rather than the shift’s. */
   customTimes: boolean;
   reason: string;
+  /** The holiday calendar chosen for this allocation; null = the location's. */
+  holidayCalendar: { id: string; name: string } | null;
 }
 
 /** GET /api/people/:id/working-days?from=&to=: which dates are working days and on which shift. */
@@ -94,6 +101,8 @@ export interface WorkingDayView {
   /** Start and end of the working day (person’s own times if allocated, else the shift’s). */
   startTime: string;
   endTime: string;
+  /** The holiday on this date, if any (optional holidays are working days unless taken). */
+  holiday: { name: string; optional: boolean } | null;
 }
 
 /**
