@@ -10,12 +10,13 @@ import {
 } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import type {
-  ChangeLine,
-  ProbationDashboard,
-  ProbationOutcome,
-  ReviewView,
-  SubmitReviewInput,
+import {
+  outcomesByKind,
+  type ChangeLine,
+  type ProbationDashboard,
+  type ReviewOutcome,
+  type ReviewView,
+  type SubmitReviewInput,
 } from '@ipro/shared';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthzService } from '../authz/authz.service.js';
@@ -41,24 +42,33 @@ import {
   userName,
   userOfPerson,
 } from '../workflow/lookups.js';
+import { PayConversionsService } from '../changes/pay-conversions.service.js';
 import { WorkflowService } from '../workflow/workflow.service.js';
+import { CheckInsService, checkInWords } from './check-ins.service.js';
 import { reviews } from './reviews.schema.js';
 
 type ReviewRow = typeof reviews.$inferSelect;
 
 const decidePayload = z.object({ reviewId: z.uuid(), needsHrHead: z.boolean() });
 
-/** Days before the end date the review opens, and when the manager is reminded (spec). */
-const OPENS_DAYS_BEFORE = 30;
-const REMINDERS = [14, 7];
+/**
+ * Days before the end date a review opens, and when the manager is reminded: probation per the spec;
+ * internships 14 days ahead with a reminder at 7 (decision #65, open question).
+ */
+const OPENS_DAYS_BEFORE = { probation: 30, internship: 14 } as const;
+const REMINDERS = { probation: [14, 7], internship: [7] } as const;
+const kindWords = { probation: 'probation review', internship: 'internship assessment' } as const;
 const DAY_MS = 86_400_000;
 const daysBetween = (from: string, to: string) =>
   Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
 
-const outcomeWords: Record<ProbationOutcome, string> = {
+const outcomeWords: Record<ReviewOutcome, string> = {
   confirm: 'Confirm',
   extend: 'Extend',
   terminate: 'End employment',
+  convert: 'Convert to employee',
+  end: 'End the internship',
+  break: 'Break',
 };
 
 /** The letter each outcome produces, by template type (decision #60). */
@@ -87,6 +97,8 @@ export class ReviewsService implements OnModuleInit {
     @Inject(LettersService) private readonly letters: LettersService,
     @Inject(WorkflowService) private readonly workflows: WorkflowService,
     @Inject(WorkflowActions) private readonly actions: WorkflowActions,
+    @Inject(CheckInsService) private readonly checkIns: CheckInsService,
+    @Inject(PayConversionsService) private readonly payConversions: PayConversionsService,
   ) {}
 
   onModuleInit(): void {
@@ -116,7 +128,12 @@ export class ReviewsService implements OnModuleInit {
   // ---- The daily sweep ----
 
   /** Daily at 06:00 IST: opens due reviews, sends reminders, escalates overdue ones. */
-  async sweep(now = new Date()): Promise<{ opened: number; reminded: number; escalated: number }> {
+  async sweep(now = new Date()): Promise<{
+    opened: number;
+    reminded: number;
+    escalated: number;
+    checkIns: { opened: number; reminded: number };
+  }> {
     const today = businessDate(now);
     return this.db.tx(async (tx) => {
       let opened = 0;
@@ -124,25 +141,48 @@ export class ReviewsService implements OnModuleInit {
       let escalated = 0;
 
       // Open: confirmed people have a confirmation date; extended ones get a new end date to review.
-      const due = await tx
+      const probation = await tx
         .select()
         .from(engagements)
         .where(
           and(
             eq(engagements.status, 'active'),
             isNull(engagements.confirmationDate),
-            lte(engagements.probationEndDate, addDays(today, OPENS_DAYS_BEFORE)),
+            lte(engagements.probationEndDate, addDays(today, OPENS_DAYS_BEFORE.probation)),
           ),
         );
-      for (const engagement of due) {
+      // Interns: assessed before the internship ends (an extension moves the end date).
+      const internships = await tx
+        .select()
+        .from(engagements)
+        .where(
+          and(
+            eq(engagements.status, 'active'),
+            eq(engagements.type, 'intern'),
+            lte(engagements.contractEndDate, addDays(today, OPENS_DAYS_BEFORE.internship)),
+          ),
+        );
+      const due = [
+        ...probation.map((e) => ({
+          engagement: e,
+          kind: 'probation' as const,
+          dueOn: e.probationEndDate!,
+        })),
+        ...internships.map((e) => ({
+          engagement: e,
+          kind: 'internship' as const,
+          dueOn: e.contractEndDate!,
+        })),
+      ];
+      for (const { engagement, kind, dueOn } of due) {
         const [existing] = await tx
           .select({ id: reviews.id })
           .from(reviews)
           .where(
             and(
               eq(reviews.engagementId, engagement.id),
-              eq(reviews.kind, 'probation'),
-              eq(reviews.dueOn, engagement.probationEndDate!),
+              eq(reviews.kind, kind),
+              eq(reviews.dueOn, dueOn),
             ),
           );
         if (existing) continue;
@@ -153,13 +193,11 @@ export class ReviewsService implements OnModuleInit {
             tenantId: requireContext().tenantId,
             engagementId: engagement.id,
             personId: engagement.personId,
-            kind: 'probation',
+            kind,
             status: 'due',
-            dueOn: engagement.probationEndDate!,
+            dueOn,
             reviewerUserId: reviewer,
-            remindedFor: REMINDERS.filter(
-              (d) => daysBetween(today, engagement.probationEndDate!) <= d,
-            ),
+            remindedFor: REMINDERS[kind].filter((d) => daysBetween(today, dueOn) <= d),
           })
           .returning();
         await this.audit.record(tx, {
@@ -171,8 +209,8 @@ export class ReviewsService implements OnModuleInit {
         await notify(
           tx,
           await this.reviewerUsers(tx, review!, engagement.legalEntityId),
-          'probation_review_due',
-          `Probation review due by ${review!.dueOn}: ${await this.nameOf(engagement.personId)}`,
+          `${kind}_review_due`,
+          `${kind === 'probation' ? 'Probation review' : 'Internship assessment'} due by ${review!.dueOn}: ${await this.nameOf(engagement.personId)}`,
           `/reviews/${review!.id}`,
         );
         opened++;
@@ -183,11 +221,13 @@ export class ReviewsService implements OnModuleInit {
         .select({ review: reviews, legalEntityId: engagements.legalEntityId })
         .from(reviews)
         .innerJoin(engagements, eq(engagements.id, reviews.engagementId))
-        .where(and(eq(reviews.kind, 'probation'), eq(reviews.status, 'due')));
+        .where(eq(reviews.status, 'due'));
       for (const { review, legalEntityId } of open) {
         const left = daysBetween(today, review.dueOn);
         const name = await this.nameOf(review.personId);
-        const pending = REMINDERS.filter((d) => left <= d && !review.remindedFor.includes(d));
+        const pending = REMINDERS[review.kind].filter(
+          (d) => left <= d && !review.remindedFor.includes(d),
+        );
         if (left >= 0 && pending.length > 0) {
           await tx
             .update(reviews)
@@ -196,8 +236,8 @@ export class ReviewsService implements OnModuleInit {
           await notify(
             tx,
             await this.reviewerUsers(tx, review, legalEntityId),
-            'probation_review_reminder',
-            `Reminder: probation review for ${name} is due in ${left} days`,
+            `${review.kind}_review_reminder`,
+            `Reminder: ${kindWords[review.kind]} for ${name} is due in ${left} days`,
             `/reviews/${review.id}`,
           );
           reminded++;
@@ -214,8 +254,8 @@ export class ReviewsService implements OnModuleInit {
           await notify(
             tx,
             [...new Set(to)],
-            'probation_review_overdue',
-            `Overdue: probation review for ${name} was due ${review.dueOn}`,
+            `${review.kind}_review_overdue`,
+            `Overdue: ${kindWords[review.kind]} for ${name} was due ${review.dueOn}`,
             `/reviews/${review.id}`,
           );
           await tx
@@ -225,7 +265,8 @@ export class ReviewsService implements OnModuleInit {
           escalated++;
         }
       }
-      return { opened, reminded, escalated };
+      const checkIns = await this.checkIns.sweepIn(tx, today);
+      return { opened, reminded, escalated, checkIns };
     });
   }
 
@@ -245,10 +286,15 @@ export class ReviewsService implements OnModuleInit {
     if (missing.length > 0) {
       throw new BadRequestException({ message: 'Rate every area', problems: missing });
     }
+    if (!outcomesByKind[review.kind].includes(input.recommendation)) {
+      throw new BadRequestException({
+        message: `An ${kindWords[review.kind]} can recommend: ${outcomesByKind[review.kind].join(', ')}`,
+      });
+    }
     await this.db.tx(async (tx) => {
       if (input.recommendation === 'extend')
         await this.checkExtension(tx, review, input.newEndDate!);
-      if (input.recommendation === 'terminate' && input.lastWorkingDate! < today) {
+      if (input.lastWorkingDate && input.lastWorkingDate < today) {
         throw new BadRequestException({ message: 'The last working day has passed' });
       }
       if (review.requestId) {
@@ -258,9 +304,9 @@ export class ReviewsService implements OnModuleInit {
         await this.workflows.cancelIn(tx, previous);
       }
       const requestId = await this.workflows.submit(tx, {
-        key: 'probation_decision',
+        key: review.kind === 'probation' ? 'probation_decision' : 'internship_decision',
         subjectPersonId: review.personId,
-        title: `Probation: ${summary.preferredName ?? summary.legalName}, ${outcomeWords[input.recommendation].toLowerCase()}`,
+        title: `${review.kind === 'probation' ? 'Probation' : 'Internship'}: ${summary.preferredName ?? summary.legalName}, ${outcomeWords[input.recommendation].toLowerCase()}`,
         payload: { reviewId, needsHrHead: input.recommendation === 'terminate' },
       });
       await tx
@@ -273,7 +319,12 @@ export class ReviewsService implements OnModuleInit {
           improvements: input.improvements ?? null,
           comments: input.comments,
           newEndDate: input.recommendation === 'extend' ? input.newEndDate! : null,
-          lastWorkingDate: input.recommendation === 'terminate' ? input.lastWorkingDate! : null,
+          lastWorkingDate: ['terminate', 'end', 'break'].includes(input.recommendation)
+            ? input.lastWorkingDate!
+            : null,
+          convertTo: input.recommendation === 'convert' ? input.convertTo! : null,
+          convertProbation: input.recommendation === 'convert' ? input.convertProbation! : null,
+          returnBy: input.recommendation === 'break' ? (input.returnBy ?? null) : null,
           submittedAt: new Date(),
           submittedBy: actor.userId,
           requestId,
@@ -337,7 +388,7 @@ export class ReviewsService implements OnModuleInit {
             eq(engagements.status, 'active'),
             isNull(engagements.confirmationDate),
             gte(engagements.probationEndDate, today),
-            lte(engagements.probationEndDate, addDays(today, OPENS_DAYS_BEFORE)),
+            lte(engagements.probationEndDate, addDays(today, OPENS_DAYS_BEFORE.probation)),
           ),
         )
         .orderBy(asc(engagements.probationEndDate)),
@@ -373,6 +424,8 @@ export class ReviewsService implements OnModuleInit {
     };
     const open = reviewsSeen.filter((r) => r.kind === 'probation');
     return {
+      checkInsOverdue: (await this.checkIns.list({ open: true })).filter((c) => c.overdue),
+      internships: reviewsSeen.filter((r) => r.kind === 'internship' && r.status !== 'decided'),
       overdue: open.filter((r) => r.status === 'due' && r.overdue),
       awaitingDecision: open.filter((r) => r.status === 'submitted'),
       dueSoon: await Promise.all(
@@ -402,7 +455,10 @@ export class ReviewsService implements OnModuleInit {
     const [review] = await tx.select().from(reviews).where(eq(reviews.id, reviewId));
     if (!review?.recommendation) return [];
     const [engagement] = await tx
-      .select({ probationEndDate: engagements.probationEndDate })
+      .select({
+        probationEndDate: engagements.probationEndDate,
+        contractEndDate: engagements.contractEndDate,
+      })
       .from(engagements)
       .where(eq(engagements.id, review.engagementId));
     const lines: ChangeLine[] = [
@@ -418,11 +474,42 @@ export class ReviewsService implements OnModuleInit {
       },
     ];
     if (review.newEndDate) {
+      lines.push(
+        review.kind === 'probation'
+          ? {
+              label: 'Probation ends',
+              from: engagement?.probationEndDate ?? null,
+              to: review.newEndDate,
+            }
+          : {
+              label: 'Internship ends',
+              from: engagement?.contractEndDate ?? null,
+              to: review.newEndDate,
+            },
+      );
+    }
+    if (review.convertTo) {
       lines.push({
-        label: 'Probation ends',
-        from: engagement?.probationEndDate ?? null,
-        to: review.newEndDate,
+        label: 'Becomes',
+        from: 'intern',
+        to: `${review.convertTo.replace('_', '-')}, ${review.convertProbation === 'policy' ? 'serves probation' : 'no probation'}`,
       });
+    }
+    if (review.returnBy) lines.push({ label: 'Expected back by', from: null, to: review.returnBy });
+    if (review.kind === 'probation') {
+      // Monthly check-ins, so HR decides with the whole probation in view (decision #63).
+      const checkIns = await this.checkIns.forEngagementIn(tx, review.engagementId);
+      if (checkIns.length > 0) {
+        lines.push({
+          label: 'Check-ins',
+          from: null,
+          to: checkIns
+            .map(
+              (c) => `Month ${c.month}: ${c.progress ? checkInWords[c.progress] : 'not recorded'}`,
+            )
+            .join('; '),
+        });
+      }
     }
     if (review.lastWorkingDate) {
       lines.push({ label: 'Last working day', from: null, to: review.lastWorkingDate });
@@ -442,6 +529,10 @@ export class ReviewsService implements OnModuleInit {
       .select()
       .from(engagements)
       .where(eq(engagements.id, review.engagementId));
+    if (review.kind === 'internship') {
+      await this.decideInternship(tx, review, engagement!);
+      return;
+    }
     const today = businessDate(new Date());
     const by = { updatedAt: new Date(), updatedBy: requireContext().actor?.userId ?? null };
     let journey: {
@@ -521,7 +612,13 @@ export class ReviewsService implements OnModuleInit {
       sourceId: review.id,
       ...journey,
     });
-    await this.outcomeLetter(tx, review, outcome, engagement!.legalEntityId);
+    // Probation outcomes only reach here (internships return above).
+    await this.outcomeLetter(
+      tx,
+      review,
+      outcome as keyof typeof letterTypes,
+      engagement!.legalEntityId,
+    );
     const employee = await userOfPerson(tx, review.personId);
     if (employee && outcome !== 'terminate') {
       await notify(
@@ -543,7 +640,7 @@ export class ReviewsService implements OnModuleInit {
   private async outcomeLetter(
     tx: Tx,
     review: ReviewRow,
-    outcome: ProbationOutcome,
+    outcome: keyof typeof letterTypes,
     legalEntityId: string,
   ): Promise<void> {
     const [template] = await tx
@@ -588,8 +685,96 @@ export class ReviewsService implements OnModuleInit {
 
   // ---- Internals ----
 
+  /**
+   * An intern's assessment, decided (decision #65): convert starts a conversion request (HR head, then
+   * CXO); extend moves the end date; end and break finish the internship on the agreed day, rehire
+   * eligible (the exit itself comes with slice 9). One journey event says what was decided.
+   */
+  private async decideInternship(
+    tx: Tx,
+    review: ReviewRow,
+    engagement: typeof engagements.$inferSelect,
+  ): Promise<void> {
+    const outcome = review.recommendation!;
+    const today = businessDate(new Date());
+    const by = { updatedAt: new Date(), updatedBy: requireContext().actor?.userId ?? null };
+    let detail: Record<string, unknown>;
+    if (outcome === 'convert') {
+      const from =
+        engagement.contractEndDate && engagement.contractEndDate >= today
+          ? addDays(engagement.contractEndDate, 1)
+          : today;
+      const result = await this.payConversions.requestConversion(review.personId, {
+        effectiveFrom: from,
+        type: review.convertTo!,
+        probation: review.convertProbation!,
+        reason: 'Internship assessment',
+      });
+      detail = { convertTo: review.convertTo, from, ...result };
+    } else if (outcome === 'extend') {
+      await tx
+        .update(engagements)
+        .set({ contractEndDate: review.newEndDate, ...by })
+        .where(eq(engagements.id, engagement.id));
+      detail = { from: engagement.contractEndDate, to: review.newEndDate };
+    } else {
+      await tx
+        .update(engagements)
+        .set({
+          status: 'on_notice',
+          lastWorkingDate: review.lastWorkingDate,
+          exitReason: outcome === 'break' ? 'internship_break' : 'internship_completed',
+          rehireEligible: true,
+          ...by,
+        })
+        .where(eq(engagements.id, engagement.id));
+      detail = { lastWorkingDate: review.lastWorkingDate, returnBy: review.returnBy };
+    }
+    await this.audit.record(tx, {
+      action: 'update',
+      table: 'engagement',
+      recordId: engagement.id,
+      subjectPersonId: review.personId,
+      fieldChanges: [{ field: 'internship_outcome', to: outcome }],
+    });
+    await tx
+      .update(reviews)
+      .set({ status: 'decided', decision: outcome, decidedAt: new Date(), ...by })
+      .where(eq(reviews.id, review.id));
+    const titles = {
+      convert: 'Internship: converting to employee',
+      extend: 'Internship extended',
+      end: 'Internship completed',
+      break: 'Internship paused for a break',
+    } as Record<string, string>;
+    await this.journey.record(tx, {
+      engagementId: engagement.id,
+      personId: review.personId,
+      eventType: `internship_${outcome}`,
+      category: 'lifecycle',
+      occurredOn: today,
+      title: titles[outcome]!,
+      detail,
+      sensitivity: 'manager',
+      sourceTable: 'review',
+      sourceId: review.id,
+    });
+    const employee = await userOfPerson(tx, review.personId);
+    if (employee) {
+      await notify(tx, [employee], `internship_${outcome}`, titles[outcome]!, '/me');
+    }
+  }
+
   /** Policy: at most N extensions, each up to M months past the current end date. */
   private async checkExtension(tx: Tx, review: ReviewRow, newEndDate: string): Promise<void> {
+    if (review.kind === 'internship') {
+      if (newEndDate <= review.dueOn) {
+        throw new BadRequestException({
+          message: `The new end date must be after ${review.dueOn}`,
+        });
+      }
+      return;
+    }
     const policy = await this.settings.get(tx, 'probation_extension');
     const [{ used }] = (await tx
       .select({ used: sql<number>`count(*)::int` })
@@ -712,6 +897,7 @@ export class ReviewsService implements OnModuleInit {
         overdue: review.status === 'due' && review.dueOn < today,
         reviewer: review.reviewerUserId ? await userName(tx, review.reviewerUserId) : 'HR',
         competencies: await this.settings.get(tx, 'review_competencies'),
+        outcomes: [...outcomesByKind[review.kind]],
         recommendation: review.recommendation,
         ratings: review.ratings,
         strengths: review.strengths,
@@ -719,11 +905,22 @@ export class ReviewsService implements OnModuleInit {
         comments: review.comments,
         newEndDate: review.newEndDate,
         lastWorkingDate: review.lastWorkingDate,
+        convertTo: review.convertTo,
+        convertProbation: review.convertProbation,
+        returnBy: review.returnBy,
         submittedAt: review.submittedAt?.toISOString() ?? null,
         decision: review.decision,
         decidedAt: review.decidedAt?.toISOString() ?? null,
         requestId: review.requestId,
         extensions: { used, max: policy.max_count, maxMonths: policy.max_months },
+        checkIns:
+          review.kind === 'probation'
+            ? await Promise.all(
+                (await this.checkIns.forEngagementIn(tx, review.engagementId)).map((c) =>
+                  this.checkIns.view(c),
+                ),
+              )
+            : [],
         canSubmit: review.status === 'due' && (await this.canSubmit(actor, review)),
       };
     });

@@ -89,5 +89,6 @@ class ScheduledChangesJob implements OnModuleInit {
   imports: [LettersModule],
   controllers: [ChangesController],
   providers: [ChangesService, PayConversionsService, ScheduledChangesJob],
+  exports: [PayConversionsService],
 })
 export class ChangesModule {}

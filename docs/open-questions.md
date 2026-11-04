@@ -58,8 +58,8 @@ configurable setting.
 - [ ] Employee code is issued when the offer is created, so declined offers leave gaps in the sequence. Alternative:
       issue it on acceptance.
 - [ ] Day-1 tasks: proposed as mandatory onboarding tasks due on or before the joining date; HR can waive any.
-- [ ] Intern assessment: what the form asks (proposed: rating 1–5 on a few competencies, comments, recommendation),
-      and when it is due (proposed: 14 days before the end date, reminder at 7).
+- [ ] Intern assessment: built with the same areas as probation and due 14 days before the end date, reminder at 7
+      (decision #65). Confirm, or say if interns should be rated on different areas.
 - [ ] Intern "break": proposed as ending the internship with rehire eligible, and a return as a new linked engagement.
       Is a break ever paid, or time-limited?
 - [ ] Usual internship lengths and whether interns get any leave or probation (proposed: no probation).
