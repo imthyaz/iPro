@@ -252,14 +252,14 @@ input[type='checkbox'] {
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 16px;
   max-width: 800px;
 }
@@ -272,7 +272,7 @@ input[type='checkbox'] {
 
 .inline-form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   align-items: end;
   gap: 12px;
   margin-top: 16px;
@@ -853,4 +853,19 @@ a.onboarding-link:hover {
 
 .row-stack {
   flex-wrap: wrap;
+}
+
+/* H9: a row's selection box, with a 44px touch target. */
+.row-check {
+  width: 20px;
+  height: 20px;
+  margin: 12px;
+  flex-shrink: 0;
+}
+
+/* A field grid, note or text inside an inline form takes the whole row, so nothing is squeezed
+   into one narrow column (and off the screen) on a phone. */
+.inline-form > .form-grid,
+.inline-form > p {
+  grid-column: 1 / -1;
 }

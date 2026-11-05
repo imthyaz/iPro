@@ -253,6 +253,20 @@
       "when": 1793826332748,
       "tag": "0035_attendance_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793856683146,
+      "tag": "0036_regularisation",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793856687629,
+      "tag": "0037_regularisation_rls",
+      "breakpoints": true
     }
   ]
 }

@@ -24,6 +24,9 @@ export const settingSchemas = {
   review_competencies: z.array(z.string().trim().min(1).max(100)).min(1).max(12),
   /** How far from a site a check-in still counts as on site, where the site sets none (decision #68). */
   geofence_radius_metres: z.number().int().min(25).max(5000),
+  /** Spec workflow 5 (decision #69): how many days back a day can be regularised, and how many a month. */
+  regularisation_window_days: z.number().int().min(0).max(60),
+  regularisation_max_per_month: z.number().int().min(0).max(31),
   notice_days: z.object({
     on_probation: z.number().int().min(0),
     confirmed: z.number().int().min(0),
@@ -45,6 +48,8 @@ export const settingDefaults: { [K in SettingKey]: SettingValue<K> } = {
   probation_extension: { max_count: 1, max_months: 3 },
   review_competencies: ['Quality of work', 'Ownership', 'Collaboration', 'Learning'],
   geofence_radius_metres: 200,
+  regularisation_window_days: 5,
+  regularisation_max_per_month: 3,
 };
 
 export function formatEmployeeCode(value: number, format: SettingValue<'employee_code'>): string {

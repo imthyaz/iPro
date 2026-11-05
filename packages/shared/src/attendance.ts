@@ -122,3 +122,91 @@ export type AttendanceFlag = z.infer<typeof attendanceFlagSchema>;
 export const attendanceMonthQuerySchema = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
 });
+
+/** Spec workflow 5: why a day is being corrected. */
+export const regularisationReasonSchema = z.enum([
+  'forgot_to_punch',
+  'on_duty',
+  'client_site',
+  'system_issue',
+]);
+export type RegularisationReason = z.infer<typeof regularisationReasonSchema>;
+
+/** What a corrected day becomes. */
+export const regularisedStatusSchema = z.enum(['present', 'wfh', 'client_site', 'half_day']);
+
+const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+/** POST /api/attendance/regularisations (E3): the employee asks to correct one day. */
+export const regularisationInputSchema = z
+  .object({
+    date: z.iso.date(),
+    reason: regularisationReasonSchema,
+    status: regularisedStatusSchema,
+    /** Times in India, e.g. 09:30. */
+    firstIn: timeOfDay.optional(),
+    lastOut: timeOfDay.optional(),
+    note: z.string().trim().max(500).optional(),
+  })
+  .refine((v) => !v.firstIn || !v.lastOut || v.firstIn < v.lastOut, {
+    message: 'Check-out must be after check-in',
+    path: ['lastOut'],
+  });
+export type RegularisationInput = z.infer<typeof regularisationInputSchema>;
+
+/** POST /api/attendance/corrections (H9): HR corrects one or more days directly, with a reason. */
+export const attendanceCorrectionSchema = z
+  .object({
+    days: z
+      .array(z.object({ personId: z.uuid(), date: z.iso.date() }))
+      .min(1)
+      .max(200),
+    status: regularisedStatusSchema,
+    firstIn: timeOfDay.optional(),
+    lastOut: timeOfDay.optional(),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .refine((v) => !v.firstIn || !v.lastOut || v.firstIn < v.lastOut, {
+    message: 'Check-out must be after check-in',
+    path: ['lastOut'],
+  });
+export type AttendanceCorrectionInput = z.infer<typeof attendanceCorrectionSchema>;
+
+export interface RegularisationView {
+  id: string;
+  date: string;
+  reason: RegularisationReason | null;
+  status: z.infer<typeof regularisedStatusSchema>;
+  firstIn: string | null;
+  lastOut: string | null;
+  note: string | null;
+  source: 'employee' | 'hr';
+  state: 'pending' | 'returned' | 'approved' | 'withdrawn';
+  requestId: string | null;
+}
+
+/** Regularisations left this month, shown before asking (E3). */
+export interface RegularisationAllowance {
+  month: string;
+  used: number;
+  max: number;
+  windowDays: number;
+}
+
+/** H9: a day that needs a look, with what is already in hand. */
+export interface AttendanceExceptionView {
+  personId: string;
+  name: string;
+  employeeCode: string;
+  date: string;
+  status: AttendanceStatus;
+  flags: AttendanceFlag[];
+  firstIn: string | null;
+  lastOut: string | null;
+  pendingRegularisation: boolean;
+}
+
+export const attendanceExceptionsQuerySchema = z.object({
+  from: z.iso.date(),
+  to: z.iso.date(),
+});

@@ -33,6 +33,8 @@ import { PeopleService } from '../people/people.service.js';
 import { SettingsService } from '../people/settings.service.js';
 import { attendanceDays, biometricDevices, punches } from './attendance.schema.js';
 import { ShiftsService } from './shifts.service.js';
+import { notify, userOfPerson } from '../workflow/lookups.js';
+import { notifications } from '../workflow/workflow.schema.js';
 
 type PunchRow = typeof punches.$inferSelect;
 type EngagementRow = typeof engagements.$inferSelect;
@@ -423,11 +425,13 @@ export class AttendanceService {
   /** E3 / H9: a month of days, built ones with their status and the rest with calendar facts. */
   async month(personId: string, month: string): Promise<AttendanceDayView[]> {
     const summary = await this.people.summary(personId);
-    await this.authz.assert(requireContext().actor!, 'read', {
+    const obligations = await this.authz.assert(requireContext().actor!, 'read', {
       area: 'attendance',
       subjectPersonId: personId,
       legalEntityId: summary.legalEntityId,
     });
+    // CXO reads attendance as totals only (permissions table): no one person's days.
+    if (obligations.has('aggregates_only')) throw new ForbiddenException();
     const from = `${month}-01`;
     const to = lastDayOf(month);
     return this.db.tx(async (tx) => {
@@ -463,6 +467,68 @@ export class AttendanceService {
         });
       }
       return days;
+    });
+  }
+
+  /**
+   * Spec notifications: "Missing check-in" to the employee at shift start plus grace on a working day
+   * with no punch, once a day. Leave (slice 7) and office bookings (slice 8) will also excuse a day.
+   */
+  async remindMissingCheckIns(now = new Date()): Promise<{ reminded: number }> {
+    const day = businessDate(now);
+    const minute = minutesInIndia(now);
+    const startOfDay = new Date(`${day}T00:00:00+05:30`);
+    return this.db.tx(async (tx) => {
+      const rows = await tx
+        .select()
+        .from(engagements)
+        .where(
+          and(
+            inArray(engagements.status, [...WORKING_STATUSES]),
+            lte(engagements.joiningDate, day),
+            or(isNull(engagements.lastWorkingDate), gte(engagements.lastWorkingDate, day)),
+          ),
+        );
+      const punched = new Set(
+        (
+          await tx
+            .selectDistinct({ engagementId: punches.engagementId })
+            .from(punches)
+            .where(eq(punches.day, day))
+        ).map((p) => p.engagementId),
+      );
+      let reminded = 0;
+      for (const engagement of rows) {
+        if (punched.has(engagement.id)) continue;
+        const calendar = await this.shifts.calendarForEngagement(tx, engagement.id);
+        if (!calendar.isWorking(day)) continue;
+        const work = calendar.dayOn(day);
+        const due = toMinutes(work.startTime) + (work.shift?.graceMinutes ?? 0);
+        if (minute < due || minute >= toMinutes(work.endTime)) continue;
+        const userId = await userOfPerson(tx, engagement.personId);
+        if (!userId) continue;
+        const [sent] = await tx
+          .select({ id: notifications.id })
+          .from(notifications)
+          .where(
+            and(
+              eq(notifications.recipientUserId, userId),
+              eq(notifications.kind, 'missing_check_in'),
+              gte(notifications.createdAt, startOfDay),
+            ),
+          )
+          .limit(1);
+        if (sent) continue;
+        await notify(
+          tx,
+          [userId],
+          'missing_check_in',
+          "You haven't checked in today",
+          '/attendance',
+        );
+        reminded++;
+      }
+      return { reminded };
     });
   }
 
