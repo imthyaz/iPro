@@ -105,6 +105,13 @@ export class LeaveRequestsService implements OnModuleInit {
         this.describe(tx, payloadSchema.parse(instance.payload).leaveRequestId),
       apply: (tx, instance) =>
         this.approve(tx, payloadSchema.parse(instance.payload).leaveRequestId),
+      // Decision #75: leave that needs a medical certificate waits for it at every step.
+      readyToApprove: async (tx, instance) => {
+        const row = await this.load(tx, payloadSchema.parse(instance.payload).leaveRequestId);
+        return row?.needsCertificate && !row.certificateDocumentId
+          ? 'Waiting for the medical certificate'
+          : null;
+      },
       onStatus: async (tx, instance, status) => {
         if (status === 'approved') return;
         const id = payloadSchema.parse(instance.payload).leaveRequestId;
@@ -654,7 +661,7 @@ export class LeaveRequestsService implements OnModuleInit {
       fit.push(
         row.certificateDocumentId
           ? 'Medical certificate attached'
-          : 'Medical certificate needed: not yet attached',
+          : 'Medical certificate needed: approval waits for it',
       );
     }
     if (row.reason) fit.push(`Reason: ${row.reason}`);

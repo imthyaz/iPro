@@ -212,7 +212,11 @@ export function ApplyLeave({ onDone }: { onDone?: () => void }) {
           {p.lop > 0 && form.lopForShortfall && <span>{plural(p.lop)} as loss of pay</span>}
           {p.needsSecondApproval && <span>Needs a second approval (over 5 days)</span>}
           {p.unplanned && <span>Counts as unplanned</span>}
-          {p.needsCertificate && <span>A medical certificate is needed; add it after sending</span>}
+          {p.needsCertificate && (
+            <span>
+              A medical certificate is needed: add it after sending; approval waits for it
+            </span>
+          )}
         </div>
       )}
       {p && p.shortfall > 0 && (

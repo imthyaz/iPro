@@ -352,6 +352,8 @@ export class WorkflowService {
           escalated: approval.escalatedAt !== null,
           onBehalfOf: capacity.as === 'delegate' ? await userName(tx, capacity.onBehalfOf) : null,
           changes: await this.actions.get(definition.onApproved).describe(tx, instance),
+          waitingFor:
+            (await this.actions.get(definition.onApproved).readyToApprove?.(tx, instance)) ?? null,
         });
       }
       return cards;
@@ -551,6 +553,12 @@ export class WorkflowService {
         subjectPersonId: instance.subjectPersonId,
         legalEntityId: instance.legalEntityId,
       });
+      if (decision === 'approved') {
+        const waiting = await this.actions
+          .get(definition.onApproved)
+          .readyToApprove?.(tx, instance);
+        if (waiting) throw new ConflictException({ message: waiting });
+      }
 
       await tx
         .update(approvals)
