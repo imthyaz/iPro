@@ -869,3 +869,42 @@ a.onboarding-link:hover {
 .inline-form > p {
   grid-column: 1 / -1;
 }
+
+/* E5 leave balances: one card per type, the number large, tappable on a phone. */
+.balance-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr));
+  gap: 12px;
+  padding: 0;
+  margin: 0 0 16px;
+  list-style: none;
+}
+
+.balance-card {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.balance-card-selected {
+  border-color: var(--color-brand);
+}
+
+.balance-name {
+  font-weight: 600;
+}
+
+.balance-days {
+  font-size: 1.8rem;
+  font-weight: 600;
+  line-height: 1.1;
+}

@@ -11,6 +11,8 @@ import { MyAttendance } from './features/attendance/Attendance.js';
 import { BiometricDevices } from './features/attendance/Devices.js';
 import { AttendanceExceptions } from './features/attendance/Exceptions.js';
 import { Holidays } from './features/holidays/Holidays.js';
+import { MyLeave } from './features/leave/Leave.js';
+import { LeaveImport, LeaveTypes } from './features/leave/LeaveAdmin.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
 import { NewOffer } from './features/offers/NewOffer.js';
 import { Offers } from './features/offers/Offers.js';
@@ -92,6 +94,11 @@ function Shell() {
               My attendance
             </NavLink>
           )}
+          {user.personId && (
+            <NavLink to="/leave" className="nav-item">
+              My leave
+            </NavLink>
+          )}
           <NavLink to="/requests" className="nav-item">
             My requests
           </NavLink>
@@ -156,6 +163,16 @@ function Shell() {
             </NavLink>
           )}
           {seesOrgSetup && (
+            <NavLink to="/leave-types" className="nav-item">
+              Leave types
+            </NavLink>
+          )}
+          {hasRole(user, 'hr', 'hr_head') && (
+            <NavLink to="/leave-import" className="nav-item">
+              Import leave
+            </NavLink>
+          )}
+          {seesOrgSetup && (
             <NavLink to="/templates" className="nav-item">
               Templates
             </NavLink>
@@ -181,6 +198,10 @@ function Shell() {
             <Route path="/attendance" element={<MyAttendance />} />
             <Route path="/devices" element={<BiometricDevices />} />
             <Route path="/attendance-exceptions" element={<AttendanceExceptions />} />
+            <Route path="/leave" element={<MyLeave />} />
+            <Route path="/leave-types" element={<LeaveTypes />} />
+            <Route path="/leave-types/:typeId" element={<LeaveTypes />} />
+            <Route path="/leave-import" element={<LeaveImport />} />
             <Route path="/requests" element={<Requests />} />
             <Route path="/requests/:requestId" element={<Requests />} />
             <Route path="/policies" element={<MyPolicies />} />
