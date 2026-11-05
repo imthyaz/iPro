@@ -49,6 +49,10 @@ export const locationFieldsSchema = z.object({
   timezone: z.string().min(1).optional(),
   /** The company holiday calendar people here follow (decision #66). */
   holidayCalendarId: z.uuid().nullish(),
+  /** Where check-ins are expected (decision #68): the site's centre and how far from it counts as on site. */
+  latitude: z.number().min(-90).max(90).nullish(),
+  longitude: z.number().min(-180).max(180).nullish(),
+  geofenceRadiusMetres: z.number().int().min(25).max(5000).nullish(),
   seatCount: z.number().int().min(0).nullish(),
 });
 

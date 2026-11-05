@@ -98,13 +98,14 @@ holiday calendar on each shift allocation: the customer's (default) or the compa
 the working-day calculator.
 
 **Done when**
-- [ ] Biometric punches (via the device adapter; fake in tests) appear within 15 minutes.
-- [ ] Check-in from a phone records location and mode; outside the geofence it is flagged.
+- [x] Biometric punches (via the device adapter; fake in tests) appear within 15 minutes.
+- [x] Check-in from a phone records location and mode; outside the geofence it is flagged.
 - [ ] Approved leave, holidays and weekly offs show correctly on the attendance calendar.
 
 **Notes:** sub-PRs: 6a holiday calendars and the working-day calculator; 6b punches (web/phone check-in with geofence,
 generic biometric push, decision #67), the attendance build and My attendance (E2, E3); 6c regularisation, H9 and
-the missing check-in reminder. Approved leave on the calendar is confirmed with slice 7.
+the missing check-in reminder. Approved leave on the calendar is confirmed with slice 7. 6b done (decision #68):
+pushed punches show at once and the build also runs every 15 minutes; holidays and weekly offs show on E3.
 
 ## [ ] Slice 7 — Leave
 

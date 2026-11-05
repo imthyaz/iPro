@@ -715,3 +715,142 @@ a.onboarding-link:hover {
   min-height: 44px;
   align-items: center;
 }
+
+/* Check-in (E1/E2): one big tap target; the mode is a segmented choice. */
+.today-card {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.today-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.today-head h2 {
+  margin: 0;
+}
+
+.segmented {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.segment {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--color-muted);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.segment-active {
+  border-color: var(--color-brand);
+  background: var(--color-info-bg);
+  color: var(--color-brand);
+  font-weight: 600;
+}
+
+.button-large {
+  min-height: 52px;
+  font-size: 1.1rem;
+}
+
+/* My attendance (E3): a month calendar in the shared status colours. */
+.month-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.month-weekday {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.month-day {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  min-height: 56px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.month-day-number {
+  font-weight: 600;
+}
+
+.month-day-status {
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-ok {
+  background: var(--color-ok-bg);
+  color: var(--color-ok);
+}
+
+.day-warn {
+  background: var(--color-warn-bg);
+  color: var(--color-warn);
+}
+
+.day-info {
+  background: var(--color-info-bg);
+  color: var(--color-brand);
+}
+
+.day-muted {
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+
+.month-day-selected {
+  border-color: var(--color-brand);
+}
+
+.month-day-flag {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-warn);
+}
+
+.flag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.row-stack {
+  flex-wrap: wrap;
+}

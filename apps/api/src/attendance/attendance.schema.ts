@@ -2,12 +2,14 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   date,
+  doublePrecision,
   index,
   integer,
   pgTable,
   smallint,
   text,
   time,
+  timestamp,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -108,4 +110,100 @@ export const holidays = pgTable(
       .on(t.tenantId, t.calendarId, t.date)
       .where(sql`${t.deletedAt} is null`),
   ],
+);
+
+/**
+ * A biometric device (decision #67). It pushes punches with its key; only the key's SHA-256 is kept.
+ * People are matched by employee code, as enrolled on the device.
+ */
+export const biometricDevices = pgTable(
+  'biometric_device',
+  {
+    ...tenantColumns(),
+    ...softDeleteColumns(),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    locationId: uuid('location_id').notNull(),
+    keyHash: text('key_hash').notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('biometric_device_code_key').on(t.tenantId, t.code),
+    uniqueIndex('biometric_device_key_hash_key').on(t.keyHash),
+  ],
+);
+
+/**
+ * A raw punch: the input to attendance days. Add-only. Web and phone check-ins carry the mode and the
+ * device's location, with how far it was from the expected site (decision #68).
+ */
+export const punches = pgTable(
+  'punch',
+  {
+    ...tenantColumns(),
+    engagementId: uuid('engagement_id')
+      .notNull()
+      .references(() => engagements.id),
+    personId: uuid('person_id').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull(),
+    /** The business date in India the punch counts for. */
+    day: date('day').notNull(),
+    direction: text('direction', { enum: ['in', 'out'] }),
+    source: text('source', { enum: ['web', 'mobile', 'biometric'] }).notNull(),
+    mode: text('mode', { enum: ['office', 'wfh', 'client_site'] }),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    accuracyMetres: doublePrecision('accuracy_metres'),
+    /** The site it was checked against, and how far away it was. */
+    siteLocationId: uuid('site_location_id'),
+    distanceMetres: integer('distance_metres'),
+    outsideGeofence: boolean('outside_geofence'),
+    deviceId: uuid('device_id').references(() => biometricDevices.id),
+    externalId: text('external_id'),
+  },
+  (t) => [
+    index('punch_engagement_day_idx').on(t.engagementId, t.day),
+    uniqueIndex('punch_device_external_key')
+      .on(t.tenantId, t.deviceId, t.externalId)
+      .where(sql`${t.deviceId} is not null`),
+  ],
+);
+
+/**
+ * One person's day, built from punches, the shift, holidays and leave (the attendance build). Rebuilt
+ * as punches arrive; a regularised day (slice 6c) keeps its corrected status.
+ */
+export const attendanceDays = pgTable(
+  'attendance_day',
+  {
+    ...tenantColumns(),
+    engagementId: uuid('engagement_id')
+      .notNull()
+      .references(() => engagements.id),
+    personId: uuid('person_id').notNull(),
+    day: date('day').notNull(),
+    status: text('status', {
+      enum: [
+        'present',
+        'absent',
+        'half_day',
+        'leave',
+        'holiday',
+        'weekly_off',
+        'wfh',
+        'client_site',
+      ],
+    }).notNull(),
+    firstIn: timestamp('first_in', { withTimezone: true }),
+    lastOut: timestamp('last_out', { withTimezone: true }),
+    workedMinutes: integer('worked_minutes'),
+    mode: text('mode', { enum: ['office', 'wfh', 'client_site'] }),
+    flags: text('flags')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    regularised: boolean('regularised').notNull().default(false),
+    builtAt: timestamp('built_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('attendance_day_key').on(t.tenantId, t.engagementId, t.day)],
 );

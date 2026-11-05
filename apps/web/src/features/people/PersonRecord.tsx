@@ -23,10 +23,20 @@ import {
 import { formatPaise, rateLabel } from '../../money.js';
 import { ChangeWizard } from './ChangeWizard.js';
 import { ConversionRequest, PayChange } from './PayAndConversion.js';
+import { AttendanceMonth } from '../attendance/Attendance.js';
 import { Letters, ShiftHistory } from './PersonExtras.js';
 import type { AssignmentRow, CompensationRow, PersonDetail } from './types.js';
 
-type TabId = 'profile' | 'roles' | 'shifts' | 'pay' | 'kyc' | 'documents' | 'letters' | 'journey';
+type TabId =
+  | 'profile'
+  | 'roles'
+  | 'shifts'
+  | 'attendance'
+  | 'pay'
+  | 'kyc'
+  | 'documents'
+  | 'letters'
+  | 'journey';
 
 /** Person record (H2; E7 when it's the signed-in person). */
 export function PersonRecord({ personId }: { personId: string }) {
@@ -48,6 +58,7 @@ export function PersonRecord({ personId }: { personId: string }) {
     { id: 'profile', label: 'Profile' },
     { id: 'roles', label: 'Role history' },
     { id: 'shifts', label: 'Shifts' },
+    { id: 'attendance', label: 'Attendance' },
     ...(isSelf || hasRole(me, 'hr', 'hr_head', 'cxo')
       ? [{ id: 'pay' as const, label: 'Pay' }]
       : []),
@@ -82,6 +93,7 @@ export function PersonRecord({ personId }: { personId: string }) {
           </>
         )}
         {tab === 'shifts' && <ShiftHistory personId={personId} />}
+        {tab === 'attendance' && <AttendanceMonth personId={personId} />}
         {tab === 'pay' && (
           <>
             {isHr && <PayChange person={p} isHrHead={hasRole(me, 'hr_head')} />}

@@ -1,4 +1,5 @@
 import {
+  doublePrecision,
   bigint,
   char,
   date,
@@ -109,6 +110,11 @@ export const locationVersions = pgTable(
     timezone: text('timezone').notNull().default('Asia/Kolkata'),
     /** Holiday calendars arrive in slice 6. */
     holidayCalendarId: uuid('holiday_calendar_id'),
+    /** Where check-ins are expected (decision #68); no coordinates means no geofence check. */
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    /** Null = the tenant setting (default 200 m). */
+    geofenceRadiusMetres: integer('geofence_radius_metres'),
     seatCount: integer('seat_count'),
   },
   (t) => [index('location_version_unit_idx').on(t.locationId)],

@@ -86,3 +86,8 @@ configurable setting.
       working days.
 - [ ] Customer holiday calendars needed now (e.g. for Middle East customer teams), and who keeps them up to date.
 - [ ] Biometric device make, model and whether an on-site agent can push punches out over HTTPS (decision #67).
+- [ ] Geofence (decision #68): the office coordinates and radius for each location (default 200 m). Should a check-in
+      outside the radius only be flagged (as built) or need a reason from the person?
+- [ ] Late and half-day: as built, late is after the shift start plus its grace minutes, and a half day is worked time
+      under the shift's half-day threshold. Does late count towards anything (e.g. three lates = half day)?
+- [ ] Are WFH and client-site days reported separately from present days in the monthly attendance export?

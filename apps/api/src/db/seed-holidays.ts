@@ -52,4 +52,17 @@ export async function seedHolidays(tx: Tx, tenantId: string, year: number): Prom
         isNull(schema.locationVersions.holidayCalendarId),
       ),
     );
+  // A made-up point for the dev office, so phone check-ins have a geofence to be checked against.
+  await tx
+    .update(schema.locationVersions)
+    .set({ latitude: DEV_OFFICE.latitude, longitude: DEV_OFFICE.longitude })
+    .where(
+      and(
+        eq(schema.locationVersions.locationId, SEED_ORG.chennai),
+        isNull(schema.locationVersions.latitude),
+      ),
+    );
 }
+
+/** Synthetic coordinates for the dev Chennai office (e2e sets the browser's position from these). */
+export const DEV_OFFICE = { latitude: 13.0, longitude: 80.2 };

@@ -7,6 +7,8 @@ import { hasRole, SignIn, useMe, useSignOut } from './auth.js';
 import { Note } from './design-system/index.js';
 import { PolicyAdmin } from './features/admin/PolicyAdmin.js';
 import { Templates } from './features/admin/Templates.js';
+import { MyAttendance } from './features/attendance/Attendance.js';
+import { BiometricDevices } from './features/attendance/Devices.js';
 import { Holidays } from './features/holidays/Holidays.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
 import { NewOffer } from './features/offers/NewOffer.js';
@@ -84,6 +86,11 @@ function Shell() {
               My profile
             </NavLink>
           )}
+          {user.personId && (
+            <NavLink to="/attendance" className="nav-item">
+              My attendance
+            </NavLink>
+          )}
           <NavLink to="/requests" className="nav-item">
             My requests
           </NavLink>
@@ -137,6 +144,11 @@ function Shell() {
               Holidays
             </NavLink>
           )}
+          {hasRole(user, 'admin', 'hr_head') && (
+            <NavLink to="/devices" className="nav-item">
+              Check-in sites
+            </NavLink>
+          )}
           {seesOrgSetup && (
             <NavLink to="/templates" className="nav-item">
               Templates
@@ -160,6 +172,8 @@ function Shell() {
             <Route path="/" element={<Inbox />} />
             <Route path="/approvals" element={<Inbox />} />
             <Route path="/tasks" element={<Inbox />} />
+            <Route path="/attendance" element={<MyAttendance />} />
+            <Route path="/devices" element={<BiometricDevices />} />
             <Route path="/requests" element={<Requests />} />
             <Route path="/requests/:requestId" element={<Requests />} />
             <Route path="/policies" element={<MyPolicies />} />
