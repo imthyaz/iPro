@@ -27,6 +27,9 @@ export const settingSchemas = {
   /** Spec workflow 5 (decision #69): how many days back a day can be regularised, and how many a month. */
   regularisation_window_days: z.number().int().min(0).max(60),
   regularisation_max_per_month: z.number().int().min(0).max(31),
+  /** Leave (decision #74): how many days back leave can be applied for, and when a second approval is needed. */
+  leave_backdate_days: z.number().int().min(0).max(60),
+  leave_second_approval_over_days: z.number().int().min(1).max(365),
   notice_days: z.object({
     on_probation: z.number().int().min(0),
     confirmed: z.number().int().min(0),
@@ -50,6 +53,8 @@ export const settingDefaults: { [K in SettingKey]: SettingValue<K> } = {
   geofence_radius_metres: 200,
   regularisation_window_days: 5,
   regularisation_max_per_month: 3,
+  leave_backdate_days: 5,
+  leave_second_approval_over_days: 5,
 };
 
 export function formatEmployeeCode(value: number, format: SettingValue<'employee_code'>): string {

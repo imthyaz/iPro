@@ -3,7 +3,10 @@ import { businessDate } from '../common/effective-dating.js';
 import { APP_CONFIG, type AppConfig } from '../config.js';
 import { runWithContext } from '../context/request-context.js';
 import { ScheduledJobs } from '../jobs/jobs.module.js';
+import { AttendanceModule } from '../attendance/attendance.module.js';
 import { LeaveController } from './leave.controller.js';
+import { LeaveRequestsController } from './requests.controller.js';
+import { LeaveRequestsService } from './requests.service.js';
 import { LeaveService } from './leave.service.js';
 
 /**
@@ -31,8 +34,9 @@ class LeaveJobs implements OnModuleInit {
 }
 
 @Module({
-  controllers: [LeaveController],
-  providers: [LeaveService, LeaveJobs],
+  imports: [AttendanceModule],
+  controllers: [LeaveController, LeaveRequestsController],
+  providers: [LeaveService, LeaveRequestsService, LeaveJobs],
   exports: [LeaveService],
 })
 export class LeaveModule {}

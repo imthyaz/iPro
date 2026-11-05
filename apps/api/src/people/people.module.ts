@@ -24,6 +24,6 @@ import { SettingsService } from './settings.service.js';
     JourneyService,
     { provide: SCOPE_RESOLVER, useClass: PeopleScopeResolver },
   ],
-  exports: [PeopleService, SettingsService, JourneyService, SCOPE_RESOLVER],
+  exports: [PeopleService, SettingsService, JourneyService, DocumentsService, SCOPE_RESOLVER],
 })
 export class PeopleModule {}

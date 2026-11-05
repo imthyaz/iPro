@@ -304,6 +304,12 @@ function DayDetail({ day, children }: { day: AttendanceDayView; children?: React
 
 function why(day: AttendanceDayView): string {
   if (day.regularised) return 'Set by an approved regularisation.';
+  if (day.leave && !day.leave.approved) {
+    return `${day.leave.name} asked for${day.leave.half === 'full' ? '' : ' (half day)'}: waiting for approval.`;
+  }
+  if (day.leave && day.leave.half !== 'full' && day.status !== 'leave') {
+    return `Half a day of ${day.leave.name}; ${day.status === 'absent' ? 'nothing recorded for the other half.' : 'worked the other half.'}`;
+  }
   switch (day.status) {
     case 'holiday':
       return `${day.holiday ?? 'A holiday'} on your holiday calendar.`;
@@ -312,7 +318,7 @@ function why(day: AttendanceDayView): string {
     case 'absent':
       return 'A working day with no check-in or biometric punch.';
     case 'leave':
-      return 'Approved leave.';
+      return day.leave ? `Approved ${day.leave.name}.` : 'Approved leave.';
     case null:
       return day.working ? 'Not built yet: it fills in as you check in.' : 'Not a working day.';
     default:

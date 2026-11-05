@@ -6,6 +6,30 @@ import type { WorkflowDefinition } from '@ipro/shared';
  */
 export const builtInDefinitions: Record<string, WorkflowDefinition> = {
   /**
+   * A leave request (spec workflow 4, decision #74): the manager, then the manager's manager for leave
+   * over the second-approval threshold (HR when there is none). The steps name who approves; the
+   * check is that they can see the person's leave.
+   */
+  leave_request: {
+    name: 'Leave request',
+    steps: [
+      {
+        id: 'manager',
+        label: 'Manager approval',
+        approver: { kind: 'manager' },
+        authorize: { area: 'leave', action: 'read' },
+      },
+      {
+        id: 'manager_of_manager',
+        label: 'Second approval (long leave)',
+        approver: { kind: 'manager_of_manager' },
+        authorize: { area: 'leave', action: 'read' },
+        when: { field: 'needsSecondApproval', equals: true },
+      },
+    ],
+    onApproved: 'leave.approve',
+  },
+  /**
    * Correcting a day of attendance (spec workflow 5, decision #69): the employee's manager approves,
    * whatever their own role (e.g. HR head managing HR). The step already names who approves; the
    * check is that they can see the person's attendance.

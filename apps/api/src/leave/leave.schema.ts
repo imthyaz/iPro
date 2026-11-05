@@ -9,6 +9,7 @@ import {
   pgTable,
   smallint,
   text,
+  timestamp,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -40,6 +41,7 @@ export const leaveTypes = pgTable(
     documentAfterDays: smallint('document_after_days'),
     allowNegative: boolean('allow_negative').notNull().default(false),
     maxPerRequest: integer('max_per_request'),
+    countsCalendarDays: boolean('counts_calendar_days').notNull().default(false),
     expiresAfterDays: smallint('expires_after_days'),
     appliesTo: jsonb('applies_to').$type<AppliesTo>().notNull().default({}),
     active: boolean('active').notNull().default(true),
@@ -94,5 +96,68 @@ export const leaveLedger = pgTable(
     uniqueIndex('leave_ledger_scheduled_key')
       .on(t.tenantId, t.engagementId, t.leaveTypeId, t.kind, t.period)
       .where(sql`${t.kind} in ('accrual', 'carry_forward', 'lapse')`),
+  ],
+);
+
+/**
+ * A leave request (spec workflow 4; decision #74). Its days are in leave_request_day, each with the
+ * type it is taken as (the asked type, or loss of pay for a shortfall). Approval debits the
+ * balance; cancelling or revoking gives the days back.
+ */
+export const leaveRequests = pgTable(
+  'leave_request',
+  {
+    ...tenantColumns(),
+    engagementId: uuid('engagement_id')
+      .notNull()
+      .references(() => engagements.id),
+    personId: uuid('person_id').notNull(),
+    leaveTypeId: uuid('leave_type_id')
+      .notNull()
+      .references(() => leaveTypes.id),
+    fromDate: date('from_date').notNull(),
+    toDate: date('to_date').notNull(),
+    startHalf: text('start_half', { enum: ['full', 'second'] }).notNull(),
+    endHalf: text('end_half', { enum: ['full', 'first'] }).notNull(),
+    /** Hundredths of a day, all days; and how many of them are loss of pay. */
+    days: integer('days').notNull(),
+    lopDays: integer('lop_days').notNull().default(0),
+    reason: text('reason'),
+    status: text('status', {
+      enum: ['applied', 'returned', 'approved', 'cancelled', 'revoked', 'withdrawn'],
+    }).notNull(),
+    /** Applied on or after the first day (spec: counts as unplanned for absenteeism). */
+    unplanned: boolean('unplanned').notNull().default(false),
+    needsCertificate: boolean('needs_certificate').notNull().default(false),
+    certificateDocumentId: uuid('certificate_document_id'),
+    workflowInstanceId: uuid('workflow_instance_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    revokedFrom: date('revoked_from'),
+    revokeReason: text('revoke_reason'),
+  },
+  (t) => [index('leave_request_person_idx').on(t.personId, t.fromDate)],
+);
+
+/** One day (or half day) of a request, as the type it is taken as. Cancelled days stay, marked. */
+export const leaveRequestDays = pgTable(
+  'leave_request_day',
+  {
+    ...tenantColumns(),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => leaveRequests.id),
+    engagementId: uuid('engagement_id').notNull(),
+    personId: uuid('person_id').notNull(),
+    day: date('day').notNull(),
+    half: text('half', { enum: ['full', 'first', 'second'] }).notNull(),
+    leaveTypeId: uuid('leave_type_id')
+      .notNull()
+      .references(() => leaveTypes.id),
+    amount: smallint('amount').notNull(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('leave_request_day_engagement_idx').on(t.engagementId, t.day),
+    index('leave_request_day_request_idx').on(t.requestId),
   ],
 );

@@ -25,6 +25,7 @@ import { ChangeWizard } from './ChangeWizard.js';
 import { ConversionRequest, PayChange } from './PayAndConversion.js';
 import { AttendanceMonth } from '../attendance/Attendance.js';
 import { LeaveBalances } from '../leave/Leave.js';
+import { LeaveRequestList } from '../leave/LeaveRequests.js';
 import { Letters, ShiftHistory } from './PersonExtras.js';
 import type { AssignmentRow, CompensationRow, PersonDetail } from './types.js';
 
@@ -97,7 +98,12 @@ export function PersonRecord({ personId }: { personId: string }) {
         )}
         {tab === 'shifts' && <ShiftHistory personId={personId} />}
         {tab === 'attendance' && <AttendanceMonth personId={personId} />}
-        {tab === 'leave' && <LeaveBalances personId={personId} canAdjust={isHr && !isSelf} />}
+        {tab === 'leave' && (
+          <>
+            <LeaveBalances personId={personId} canAdjust={isHr && !isSelf} />
+            <LeaveRequestList personId={personId} canRevoke={isHr && !isSelf} />
+          </>
+        )}
         {tab === 'pay' && (
           <>
             {isHr && <PayChange person={p} isHrHead={hasRole(me, 'hr_head')} />}

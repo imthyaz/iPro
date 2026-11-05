@@ -88,7 +88,7 @@ H4, H5, joining-date changes, and the IT task to remove guest accounts (decision
       journey), extends, ends the internship or records a break (decision #56).
 - [x] An unpaid intern can become paid from a date, with approval and a journey event.
 
-## [~] Slice 6 — Attendance
+## [x] Slice 6 — Attendance
 
 **Spec:** Data model (Shift, HolidayCalendar, AttendanceDay, Punch); Workflow 5 (Regularisation); Business rules;
 Scheduled jobs (Attendance build, Biometric import); Screens E1, E2, E3, H9.
@@ -100,7 +100,7 @@ the working-day calculator.
 **Done when**
 - [x] Biometric punches (via the device adapter; fake in tests) appear within 15 minutes.
 - [x] Check-in from a phone records location and mode; outside the geofence it is flagged.
-- [ ] Approved leave, holidays and weekly offs show correctly on the attendance calendar.
+- [x] Approved leave, holidays and weekly offs show correctly on the attendance calendar.
 
 **Notes:** sub-PRs: 6a holiday calendars and the working-day calculator; 6b punches (web/phone check-in with geofence,
 generic biometric push, decision #67), the attendance build and My attendance (E2, E3); 6c regularisation, H9 and
@@ -120,8 +120,9 @@ when approved leave shows on the calendar (slice 7).
 - [ ] The monthly attendance and LOP export matches a hand count for the same synthetic month.
 
 **Notes:** sub-PRs: 7a leave types, the balance ledger, accrual and year end, HR adjustments and the cut-over import
-(decisions #71, #72; done); 7b applying, approving, cancelling and revoking leave, the approval card, leave on the
-attendance calendar, E4 and E5; 7c the monthly attendance and LOP export and the H9 balance screen.
+(decisions #71, #72; done); 7b-1 applying, approving, cancelling and revoking leave, the approval card, leave on the
+attendance calendar, E4 and E5 (decision #74; done, and slice 6 done-when #3 with it); 7b-2 comp-off; 7c the
+monthly attendance and LOP export and the H9 balance screen.
 
 ## [ ] Slice 8 — Hybrid planner
 
