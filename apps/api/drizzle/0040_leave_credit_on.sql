@@ -1,0 +1,1 @@
+ALTER TABLE "leave_type" ADD COLUMN "credit_on" text DEFAULT 'month_end' NOT NULL;

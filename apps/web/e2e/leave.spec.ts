@@ -72,6 +72,8 @@ test('My leave shows each balance on a phone; leave types are listed for HR', as
   const type = page.getByRole('complementary', { name: 'Leave type' });
   await expect(type.getByLabel('Days a year')).toHaveValue('15');
   await expect(type.getByLabel('Carry forward up to')).toHaveValue('30');
+  await expect(type.getByLabel('Maximum balance')).toHaveValue('30');
+  await expect(type.getByLabel('Credited')).toHaveValue('month_end');
   // HR reads leave types; admins and HR head edit them.
   await expect(type.getByRole('button', { name: 'Save' })).toHaveCount(0);
 });

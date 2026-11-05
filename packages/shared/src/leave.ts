@@ -31,6 +31,11 @@ export const leaveTypeInputSchema = z.object({
   paid: z.boolean(),
   /** Days a year, credited monthly (accrued kind only). */
   daysPerYear: days.nullable(),
+  /**
+   * When a month's credit is given (decision #73): at the start of the month, in advance (casual,
+   * sick), or at its end, for the month just worked (earned).
+   */
+  creditOn: z.enum(['month_start', 'month_end']),
   /** Accrual starts on the confirmation date (e.g. earned leave). */
   accruesAfterConfirmation: z.boolean(),
   /** Usable during probation. */

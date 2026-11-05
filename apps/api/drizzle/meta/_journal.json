@@ -281,6 +281,20 @@
       "when": 1793884781835,
       "tag": "0039_leave_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793886849040,
+      "tag": "0040_leave_credit_on",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793886852022,
+      "tag": "0041_leave_policy_confirmed",
+      "breakpoints": true
     }
   ]
 }

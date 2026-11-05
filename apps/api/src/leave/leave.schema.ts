@@ -29,6 +29,9 @@ export const leaveTypes = pgTable(
     kind: text('kind', { enum: ['accrued', 'granted', 'per_request', 'unlimited'] }).notNull(),
     paid: boolean('paid').notNull(),
     perYear: integer('per_year'),
+    creditOn: text('credit_on', { enum: ['month_start', 'month_end'] })
+      .notNull()
+      .default('month_end'),
     accruesAfterConfirmation: boolean('accrues_after_confirmation').notNull().default(false),
     availableOnProbation: boolean('available_on_probation').notNull().default(true),
     maxBalance: integer('max_balance'),
