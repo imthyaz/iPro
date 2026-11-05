@@ -35,6 +35,7 @@ import { appliesToMatches } from '../workflow/checklist-rules.js';
 import { WorkflowActions } from '../workflow/actions.js';
 import { WorkflowService } from '../workflow/workflow.service.js';
 import { leaveLedger, leaveRequestDays, leaveRequests, leaveTypes } from './leave.schema.js';
+import { usableBy } from './comp-off-rules.js';
 import { LeaveService } from './leave.service.js';
 import {
   halvesOverlap,
@@ -425,7 +426,26 @@ export class LeaveRequestsService implements OnModuleInit {
     let balanceBefore: number | null = null;
     let balanceAfter: number | null = null;
     let shortfall = 0;
-    if (hasBalance(type) && days.length) {
+    if (type.kind === 'granted' && days.length) {
+      // Comp-off runs out by grant (decision #76): only grants still valid on the last day count.
+      const available = await this.usableGrants(tx, summary.engagementId, type.id, input.to);
+      balanceBefore = available;
+      const split = type.allowNegative
+        ? { paid: days, lop: [] }
+        : splitShortfall(days, available);
+      paid = split.paid;
+      lop.push(...split.lop);
+      shortfall = totalOf(lop);
+      balanceAfter = balanceBefore - totalOf(paid);
+      if (shortfall > 0) {
+        if (!lopType) problems.push(`Not enough ${type.name}`);
+        else if (!input.lopForShortfall) {
+          problems.push(
+            `You have ${daysWord(balanceBefore)} of ${type.name} usable by ${fmt(input.to)}; ${daysWord(shortfall)} would be loss of pay`,
+          );
+        }
+      }
+    } else if (hasBalance(type) && days.length) {
       const years = [...new Set(days.map((d) => d.day.slice(0, 4)))].sort();
       paid = [];
       for (const year of years) {
@@ -485,6 +505,13 @@ export class LeaveRequestsService implements OnModuleInit {
         ),
       );
     return balance - totalOf(held);
+  }
+
+  /** Comp-off usable by a day: the balance less undecided requests, without grants run out by then. */
+  private async usableGrants(tx: Tx, engagementId: string, typeId: string, by: string) {
+    const { balance, grants } = await this.leave.grantPosition(tx, engagementId, typeId);
+    const pending = await this.leave.pendingDays(tx, engagementId, typeId);
+    return usableBy(grants, balance - pending, by);
   }
 
   /** The first day that overlaps leave already asked for or approved. */
@@ -634,7 +661,14 @@ export class LeaveRequestsService implements OnModuleInit {
         }${row.endHalf === 'first' ? ', until midday' : ''}`,
       },
     ];
-    if (hasBalance(type)) {
+    if (type.kind === 'granted') {
+      const { balance } = await this.leave.grantPosition(tx, row.engagementId, type.id);
+      lines.push({
+        label: `${type.name} balance`,
+        from: String(toDays(balance)),
+        to: String(toDays(balance - totalOf(paid))),
+      });
+    } else if (hasBalance(type)) {
       const year = Number(row.fromDate.slice(0, 4));
       const balance = await this.leave.balanceOf(tx, row.engagementId, type.id, year);
       lines.push({

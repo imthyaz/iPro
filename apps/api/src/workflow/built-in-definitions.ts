@@ -29,6 +29,19 @@ export const builtInDefinitions: Record<string, WorkflowDefinition> = {
     ],
     onApproved: 'leave.approve',
   },
+  /** Comp-off for a weekly off or holiday worked (decisions #73, #76): the manager grants it. */
+  comp_off_request: {
+    name: 'Comp-off request',
+    steps: [
+      {
+        id: 'manager',
+        label: 'Manager approval',
+        approver: { kind: 'manager' },
+        authorize: { area: 'leave', action: 'read' },
+      },
+    ],
+    onApproved: 'leave.grant_comp_off',
+  },
   /**
    * Correcting a day of attendance (spec workflow 5, decision #69): the employee's manager approves,
    * whatever their own role (e.g. HR head managing HR). The step already names who approves; the

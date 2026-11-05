@@ -100,6 +100,8 @@ export interface LeaveBalanceView {
   adjusted: number;
   balance: number;
   entries: LedgerEntryView[];
+  /** Granted leave still held and when it runs out, soonest first (comp-off; empty otherwise). */
+  expiring: { days: number; on: string }[];
 }
 
 export const leaveYearQuerySchema = z.object({
@@ -210,3 +212,35 @@ export const leaveRevokeSchema = z.object({
   reason: z.string().trim().min(3).max(500),
 });
 export type LeaveRevokeInput = z.infer<typeof leaveRevokeSchema>;
+
+/**
+ * POST /api/leave/comp-off (decision #76): the employee asks for comp-off for a weekly off or holiday
+ * they worked; their manager approves and it is credited, usable for the type's expiry days.
+ */
+export const compOffRequestSchema = z.object({
+  workedOn: z.iso.date(),
+  days: z.number().refine((n) => n === 1 || n === 0.5, 'Choose a full day or half a day'),
+  reason: z.string().trim().max(500).optional(),
+});
+export type CompOffRequestInput = z.infer<typeof compOffRequestSchema>;
+
+export const compOffStatusSchema = z.enum(['applied', 'returned', 'approved', 'withdrawn']);
+export type CompOffStatus = z.infer<typeof compOffStatusSchema>;
+
+export interface CompOffRequestView {
+  id: string;
+  workedOn: string;
+  /** "Weekly off" or the holiday's name. */
+  dayKind: string;
+  days: number;
+  reason: string | null;
+  status: CompOffStatus;
+  grantedOn: string | null;
+  /** The last day it can be used; null until granted, or when the type never expires. */
+  validUntil: string | null;
+  /** What was left of it when it expired. */
+  expiredDays: number | null;
+  requestId: string | null;
+  canCancel: boolean;
+  createdAt: string;
+}

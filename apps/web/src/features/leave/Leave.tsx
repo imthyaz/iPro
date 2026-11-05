@@ -4,6 +4,7 @@ import type { LeaveBalanceView, LedgerKind } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
 import { useSearchParams } from 'react-router';
 import { useMe } from '../../auth.js';
+import { AskCompOff, CompOffList } from './CompOff.js';
 import { ApplyLeave, LeaveRequestList } from './LeaveRequests.js';
 import {
   Chip,
@@ -91,6 +92,11 @@ export function LeaveBalances({
                 {b.accrued || b.granted ? `+${b.accrued + b.granted} this year` : 'days left'}
                 {b.taken ? ` · ${b.taken} taken` : ''}
               </span>
+              {b.expiring[0] && (
+                <span className="muted">
+                  {b.expiring[0].days} usable until {formatDate(b.expiring[0].on)}
+                </span>
+              )}
             </button>
           </li>
         ))}
@@ -140,6 +146,13 @@ function BalanceDetail(props: { balance: LeaveBalanceView; personId: string; can
           .join(' ') || 'Nothing yet'}{' '}
         = {b.balance}
       </p>
+      {b.expiring.length > 0 && (
+        <Note kind="info">
+          Runs out if not used:{' '}
+          {b.expiring.map((x) => `${plural(x.days)} after ${formatDate(x.on)}`).join(', ')}. Leave
+          uses what runs out first.
+        </Note>
+      )}
       {b.entries.length === 0 ? (
         <Empty>No entries in {b.year}.</Empty>
       ) : (
@@ -222,20 +235,30 @@ export function MyLeave() {
   const me = useMe().data;
   const [params, setParams] = useSearchParams();
   const applying = params.has('apply');
+  const askingCompOff = params.has('comp-off');
   if (!me?.personId) return <Note kind="info">Leave is for people with a record in iPro.</Note>;
   return (
     <main className="page">
       <div className="toolbar">
         <h1>My leave</h1>
-        {!applying && (
-          <button className="button button-primary" onClick={() => setParams({ apply: '' })}>
-            Apply leave
-          </button>
-        )}
+        <div className="form-actions">
+          {!askingCompOff && (
+            <button className="button" onClick={() => setParams({ 'comp-off': '' })}>
+              Ask for comp-off
+            </button>
+          )}
+          {!applying && (
+            <button className="button button-primary" onClick={() => setParams({ apply: '' })}>
+              Apply leave
+            </button>
+          )}
+        </div>
       </div>
       {applying && <ApplyLeave onDone={() => setParams({})} />}
+      {askingCompOff && <AskCompOff onDone={() => setParams({})} />}
       <LeaveBalances personId={me.personId} />
       <LeaveRequestList />
+      <CompOffList />
     </main>
   );
 }

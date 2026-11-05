@@ -161,3 +161,46 @@ export const leaveRequestDays = pgTable(
     index('leave_request_day_request_idx').on(t.requestId),
   ],
 );
+
+/**
+ * A comp-off request (decisions #73, #76): the employee asks for a weekly off or holiday they
+ * worked, their manager approves, and the day (or half day) is granted, usable until `valid_until`.
+ * The daily job expires what is left of it after that.
+ */
+export const compOffRequests = pgTable(
+  'comp_off_request',
+  {
+    ...tenantColumns(),
+    engagementId: uuid('engagement_id')
+      .notNull()
+      .references(() => engagements.id),
+    personId: uuid('person_id').notNull(),
+    leaveTypeId: uuid('leave_type_id')
+      .notNull()
+      .references(() => leaveTypes.id),
+    workedOn: date('worked_on').notNull(),
+    /** "Weekly off" or the holiday's name, as it was when asked. */
+    dayKind: text('day_kind').notNull(),
+    /** Hundredths of a day: 100 or 50. */
+    amount: smallint('amount').notNull(),
+    reason: text('reason'),
+    status: text('status', {
+      enum: ['applied', 'returned', 'approved', 'withdrawn'],
+    }).notNull(),
+    workflowInstanceId: uuid('workflow_instance_id'),
+    grantedOn: date('granted_on'),
+    validUntil: date('valid_until'),
+    /** Set by the expiry job: when it ran and what was left (hundredths, 0 when all was used). */
+    expiredAt: timestamp('expired_at', { withTimezone: true }),
+    expiredAmount: smallint('expired_amount'),
+  },
+  (t) => [
+    // One live request a day; a withdrawn one can be asked again.
+    uniqueIndex('comp_off_request_day_key')
+      .on(t.tenantId, t.engagementId, t.workedOn)
+      .where(sql`${t.status} in ('applied', 'returned', 'approved')`),
+    index('comp_off_request_expiry_idx')
+      .on(t.validUntil)
+      .where(sql`${t.status} = 'approved' and ${t.expiredAt} is null`),
+  ],
+);

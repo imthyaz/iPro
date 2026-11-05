@@ -19,7 +19,7 @@ export const requestWords: Record<LeaveRequestStatus, string> = {
   revoked: 'Revoked',
   withdrawn: 'Withdrawn',
 };
-const requestTone: Record<LeaveRequestStatus, 'ok' | 'info' | 'warn' | 'muted'> = {
+export const requestTone: Record<LeaveRequestStatus, 'ok' | 'info' | 'warn' | 'muted'> = {
   applied: 'info',
   returned: 'warn',
   approved: 'ok',
