@@ -8,6 +8,7 @@ import { DbModule } from './db/db.module.js';
 import { HealthModule } from './health/health.module.js';
 import { IdentityModule } from './identity/identity.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { LeaveModule } from './leave/leave.module.js';
 import { LettersModule } from './letters/letters.module.js';
 import { OrgModule } from './org/org.module.js';
 import { PeopleModule } from './people/people.module.js';
@@ -37,6 +38,7 @@ import { WorkflowModule } from './workflow/workflow.module.js';
     OffersModule,
     ReviewsModule,
     ChangesModule,
+    LeaveModule,
   ],
 })
 export class AppModule implements NestModule {

@@ -95,3 +95,11 @@ configurable setting.
       reason codes, and HR's direct corrections don't count towards the limit.
 - [ ] Missing check-in reminder: as built, once a day at shift start plus grace. Is a second reminder (e.g. an hour
       later) or a note to the manager wanted?
+
+## Leave (slice 7, decisions #71–#72 — please confirm)
+- [ ] Paternity and bereavement leave lengths aren't in the spec: proposed 5 and 3 days a request.
+- [ ] Accruals are credited on the 1st for the month just ended, so a new joiner has no casual or sick leave in their
+      first month. Should casual and sick leave be credited at the start of the month instead?
+- [ ] Interns and trainees get casual and sick leave (not earned leave) as proposed. Is that right?
+- [ ] Comp-off: who grants it, and for what (e.g. a manager approves a worked weekly off or holiday)? Built with 7b.
+- [ ] Should a maximum balance apply to any type (e.g. earned leave capped at 45)? None is set.
