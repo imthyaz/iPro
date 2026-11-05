@@ -102,7 +102,5 @@ configurable setting.
 - [x] Interns and trainees get casual and sick leave, not earned leave (decision #73).
 - [x] Comp-off: the manager grants it, on request, for a weekly off or holiday worked (decision #73; 7b).
 - [x] Earned leave is capped at 30 days held, configurable (decision #73).
-- [ ] Medical certificates (decision #74): as built, a sick leave request over 2 days can be sent and approved
-      without one; the card says it is missing. Should approval wait for it, or should HR chase missing ones?
-- [ ] Should HR be able to apply leave on someone's behalf (e.g. for days older than 5 back)? As built HR adjusts the
-      balance and corrects attendance instead.
+- [x] Medical certificates: approval waits for the certificate (decision #75).
+- [x] HR doesn't apply leave on someone's behalf; HR adjusts the balance and corrects attendance (decision #75).

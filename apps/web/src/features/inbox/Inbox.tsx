@@ -203,6 +203,7 @@ function Approval({ card }: { card: ApprovalCard }) {
         </span>
       )}
       <ChangeList changes={card.changes} />
+      {card.waitingFor && <Note kind="info">{card.waitingFor}. It can still be returned.</Note>}
       {rejecting ? (
         <form
           className="inline-form"
@@ -239,7 +240,7 @@ function Approval({ card }: { card: ApprovalCard }) {
         <div className="form-actions">
           <button
             className="button button-primary"
-            disabled={busy}
+            disabled={busy || Boolean(card.waitingFor)}
             onClick={() => approve.mutate()}
           >
             Approve

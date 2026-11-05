@@ -21,6 +21,11 @@ export interface WorkflowAction {
   describe(tx: Tx, instance: ActionInstance): Promise<ChangeLine[]>;
   /** Applies the change in the approval's transaction, as the final approver. */
   apply(tx: Tx, instance: ActionInstance, approver: Actor): Promise<void>;
+  /**
+   * Why it can't be approved yet, at any step (e.g. a medical certificate not attached, decision
+   * #75); null when it can. Rejecting is always possible.
+   */
+  readyToApprove?(tx: Tx, instance: ActionInstance): Promise<string | null>;
   /** May anyone who can read the subject's profile start it through POST /api/workflows? */
   genericSubmit?: boolean;
   /** Keeps the subject in step when the item is returned, withdrawn or sent again. */

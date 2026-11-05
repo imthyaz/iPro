@@ -105,6 +105,8 @@ export interface ApprovalCard {
   /** Set when the signed-in user would decide for someone who delegated to them. */
   onBehalfOf: string | null;
   changes: ChangeLine[];
+  /** Why it can't be approved yet (e.g. waiting for a medical certificate); it can still be returned. */
+  waitingFor: string | null;
 }
 
 export interface WorkflowView {

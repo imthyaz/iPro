@@ -337,15 +337,22 @@ describe('started leave: unplanned, revoked by HR', () => {
 });
 
 describe('certificates and who sees requests', () => {
-  it('sick leave over 2 days needs a certificate; it is attached confidentially', async () => {
+  it('sick leave over 2 days waits for a certificate (decision #75); it is kept confidential', async () => {
     const sent = (
       await apply('emp', { leaveTypeId: typeId('SL'), from: d(50), to: d(52) }).expect(201)
     ).body as LeaveRequestView;
     expect(sent).toMatchObject({ needsCertificate: true, certificateAttached: false });
     let card = (await cardOf('mgr', p.emp.personId))!;
     expect(card.changes.find((c) => c.label === 'Policy')!.to).toMatch(
-      /Medical certificate needed: not yet attached/,
+      /Medical certificate needed: approval waits for it/,
     );
+    // Approval waits; returning it is still possible.
+    expect(card.waitingFor).toBe('Waiting for the medical certificate');
+    const refused = await agents
+      .mgr!.post(`/api/approvals/${card.approvalId}/approve`, {})
+      .expect(409);
+    expect(refused.body.message).toBe('Waiting for the medical certificate');
+    expect((await mine('emp')).find((r) => r.id === sent.id)!.status).toBe('applied');
     const attached = await agents
       .emp!.post(`/api/leave/requests/${sent.id}/certificate`)
       .attach('file', Buffer.from('%PDF-1.4\n% synthetic certificate\n'), {
@@ -358,6 +365,9 @@ describe('certificates and who sees requests', () => {
     expect(card.changes.find((c) => c.label === 'Policy')!.to).toMatch(
       /Medical certificate attached/,
     );
+    expect(card.waitingFor).toBeNull();
+    await agents.mgr!.post(`/api/approvals/${card.approvalId}/approve`, {}).expect(201);
+    expect((await mine('emp')).find((r) => r.id === sent.id)!.status).toBe('approved');
     const docs = await pool.query(
       `select type, confidential from document where person_id = $1 and type = 'certificate'`,
       [p.emp.personId],
