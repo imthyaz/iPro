@@ -32,6 +32,7 @@ import { assignments, engagements } from '../people/people.schema.js';
 import { PeopleService } from '../people/people.service.js';
 import { SettingsService } from '../people/settings.service.js';
 import { attendanceDays, biometricDevices, punches } from './attendance.schema.js';
+import { leaveRequestDays, leaveRequests, leaveTypes } from '../leave/leave.schema.js';
 import { ShiftsService } from './shifts.service.js';
 import { notify, userOfPerson } from '../workflow/lookups.js';
 import { notifications } from '../workflow/workflow.schema.js';
@@ -87,6 +88,8 @@ export function buildDay(input: {
     halfDayMinutes: number;
   } | null;
   punches: Pick<PunchRow, 'at' | 'source' | 'mode' | 'latitude' | 'outsideGeofence'>[];
+  /** Approved leave on the day (slice 7): the whole day, or the first or second half. */
+  leave?: 'full' | 'first' | 'second' | null;
 }): {
   status: AttendanceStatus;
   firstIn: Date | null;
@@ -97,7 +100,12 @@ export function buildDay(input: {
 } | null {
   const sorted = [...input.punches].sort((a, b) => a.at.getTime() - b.at.getTime());
   const dayOff = !input.working;
+  const leave = input.leave ?? null;
+  // A day of approved leave is leave; half a day of leave with work in the other half is a half day,
+  // and with nothing in the other half (once the day is over) absent for that half.
+  if (leave === 'full') return blank('leave');
   if (sorted.length === 0) {
+    if (leave) return input.day < input.today ? blank('absent') : null;
     if (input.holiday && !input.holiday.optional) return blank('holiday');
     if (dayOff) return blank('weekly_off');
     return input.day < input.today ? blank('absent') : null;
@@ -112,6 +120,7 @@ export function buildDay(input: {
   const flags = new Set<AttendanceFlag>();
   if (
     input.shift &&
+    leave !== 'first' &&
     minutesInIndia(firstIn) > toMinutes(input.shift.startTime) + input.shift.graceMinutes
   ) {
     flags.add('late');
@@ -126,6 +135,7 @@ export function buildDay(input: {
     mode === 'wfh' ? 'wfh' : mode === 'client_site' ? 'client_site' : 'present';
   if (workedMinutes !== null && input.shift && workedMinutes < input.shift.halfDayMinutes)
     status = 'half_day';
+  if (leave) status = 'half_day';
   return { status, firstIn, lastOut, workedMinutes, mode, flags: [...flags] };
 
   function blank(status: AttendanceStatus) {
@@ -447,15 +457,30 @@ export class AttendanceService {
           ),
         );
       const byDay = new Map(built.map((d) => [d.day, d]));
+      const leave = await leaveOn(tx, summary.engagementId, from, to, false);
       const days: AttendanceDayView[] = [];
       for (let date = from; date <= to; date = addDays(date, 1)) {
-        const row = byDay.get(date);
+        // A day built as leave whose leave was since cancelled or revoked (e.g. back today) shows as
+        // not built until a punch or the nightly build replaces it: attendance rows aren't deleted.
+        const stored = byDay.get(date);
+        const row =
+          stored?.status === 'leave' && !leave.get(date)?.approved && !stored.regularised
+            ? undefined
+            : stored;
         const work = calendar.dayOn(date);
         const holiday = work.holiday && !work.holiday.optional ? work.holiday.name : null;
         const working = calendar.isWorking(date);
         days.push({
           date,
-          status: row?.status ?? (holiday ? 'holiday' : working ? null : 'weekly_off'),
+          status:
+            row?.status ??
+            (leave.get(date)?.approved && leave.get(date)?.half === 'full'
+              ? 'leave'
+              : holiday
+                ? 'holiday'
+                : working
+                  ? null
+                  : 'weekly_off'),
           working,
           holiday,
           firstIn: row?.firstIn?.toISOString() ?? null,
@@ -464,6 +489,7 @@ export class AttendanceService {
           mode: row?.mode ?? null,
           flags: (row?.flags ?? []) as AttendanceFlag[],
           regularised: row?.regularised ?? false,
+          leave: leave.get(date) ?? null,
         });
       }
       return days;
@@ -500,6 +526,7 @@ export class AttendanceService {
       let reminded = 0;
       for (const engagement of rows) {
         if (punched.has(engagement.id)) continue;
+        if ((await leaveOn(tx, engagement.id, day, day, true)).has(day)) continue;
         const calendar = await this.shifts.calendarForEngagement(tx, engagement.id);
         if (!calendar.isWorking(day)) continue;
         const work = calendar.dayOn(day);
@@ -563,6 +590,7 @@ export class AttendanceService {
           }
         : null,
       punches: rows,
+      leave: (await leaveOn(tx, engagement.id, day, day, true)).get(day)?.half ?? null,
     });
     if (!result) return;
     const values = { ...result, builtAt: now, updatedAt: now };
@@ -639,6 +667,60 @@ function punchView(row: PunchRow): PunchView {
     outsideGeofence: row.outsideGeofence,
     distanceMetres: row.distanceMetres,
   };
+}
+
+type DayLeave = NonNullable<AttendanceDayView['leave']>;
+
+/**
+ * Leave on each day for one engagement (slice 7): approved, or also asked for. Two halves on one
+ * day make a full day.
+ */
+async function leaveOn(
+  tx: Tx,
+  engagementId: string,
+  from: string,
+  to: string,
+  approvedOnly: boolean,
+): Promise<Map<string, DayLeave>> {
+  const rows = await tx
+    .select({
+      day: leaveRequestDays.day,
+      half: leaveRequestDays.half,
+      status: leaveRequests.status,
+      code: leaveTypes.code,
+      name: leaveTypes.name,
+    })
+    .from(leaveRequestDays)
+    .innerJoin(leaveRequests, eq(leaveRequests.id, leaveRequestDays.requestId))
+    .innerJoin(leaveTypes, eq(leaveTypes.id, leaveRequestDays.leaveTypeId))
+    .where(
+      and(
+        eq(leaveRequestDays.engagementId, engagementId),
+        isNull(leaveRequestDays.cancelledAt),
+        inArray(
+          leaveRequests.status,
+          approvedOnly ? ['approved'] : ['applied', 'returned', 'approved'],
+        ),
+        gte(leaveRequestDays.day, from),
+        lte(leaveRequestDays.day, to),
+      ),
+    );
+  const byDay = new Map<string, DayLeave>();
+  for (const r of rows) {
+    const approved = r.status === 'approved';
+    const seen = byDay.get(r.day);
+    if (!seen) {
+      byDay.set(r.day, { code: r.code, name: r.name, half: r.half, approved });
+      continue;
+    }
+    byDay.set(r.day, {
+      code: seen.code,
+      name: seen.name,
+      half: seen.half !== r.half || r.half === 'full' ? 'full' : seen.half,
+      approved: seen.approved && approved,
+    });
+  }
+  return byDay;
 }
 
 /** The last day of a YYYY-MM month. */

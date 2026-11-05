@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import type { LeaveBalanceView, LedgerKind } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
+import { useSearchParams } from 'react-router';
 import { useMe } from '../../auth.js';
+import { ApplyLeave, LeaveRequestList } from './LeaveRequests.js';
 import {
   Chip,
   Empty,
@@ -215,13 +217,25 @@ function Adjust({ personId, balance }: { personId: string; balance: LeaveBalance
   );
 }
 
+/** E5 My leave, with E4 Apply leave on top (opened straight from home with ?apply). */
 export function MyLeave() {
   const me = useMe().data;
+  const [params, setParams] = useSearchParams();
+  const applying = params.has('apply');
   if (!me?.personId) return <Note kind="info">Leave is for people with a record in iPro.</Note>;
   return (
     <main className="page">
-      <h1>My leave</h1>
+      <div className="toolbar">
+        <h1>My leave</h1>
+        {!applying && (
+          <button className="button button-primary" onClick={() => setParams({ apply: '' })}>
+            Apply leave
+          </button>
+        )}
+      </div>
+      {applying && <ApplyLeave onDone={() => setParams({})} />}
       <LeaveBalances personId={me.personId} />
+      <LeaveRequestList />
     </main>
   );
 }

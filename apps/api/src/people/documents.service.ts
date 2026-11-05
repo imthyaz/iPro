@@ -80,9 +80,10 @@ export class DocumentsService {
     meta: { type: DocumentView['type']; title: string; confidential: boolean },
   ): Promise<DocumentView> {
     if (!file) throw new BadRequestException({ message: 'No file' });
-    const contentType = detectContentType(file.buffer);
-    if (!contentType) throw new BadRequestException({ message: 'Only PDF, JPEG and PNG files' });
-    const { actor, tenantId } = requireContext();
+    if (!detectContentType(file.buffer)) {
+      throw new BadRequestException({ message: 'Only PDF, JPEG and PNG files' });
+    }
+    const { actor } = requireContext();
     const legalEntityId = (await this.people.summary(personId)).legalEntityId;
     if (meta.type === 'kyc_scan') {
       const kyc: Resource = { area: 'kyc', subjectPersonId: personId, legalEntityId };
@@ -95,7 +96,22 @@ export class DocumentsService {
         legalEntityId,
       });
     }
+    return this.store(personId, file, meta);
+  }
 
+  /**
+   * Stores a file as one of the person's documents. Callers have already checked the permission for
+   * their own area: e.g. a medical certificate for a leave request, under the leave row (decision #74).
+   */
+  async store(
+    personId: string,
+    file: IncomingFile | undefined,
+    meta: { type: DocumentView['type']; title: string; confidential: boolean },
+  ): Promise<DocumentView> {
+    if (!file) throw new BadRequestException({ message: 'No file' });
+    const contentType = detectContentType(file.buffer);
+    if (!contentType) throw new BadRequestException({ message: 'Only PDF, JPEG and PNG files' });
+    const { actor, tenantId } = requireContext();
     const id = randomUUID();
     // No names in keys: storage paths are ids only.
     const storageKey = `${tenantId}/people/${personId}/${id}`;

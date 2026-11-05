@@ -48,6 +48,8 @@ export const leaveTypeInputSchema = z.object({
   /** A document is needed for more than this many consecutive days (e.g. medical certificate). */
   documentAfterDays: z.number().int().min(0).max(365).nullable(),
   allowNegative: z.boolean(),
+  /** Weekly offs and holidays inside the leave count too (e.g. maternity: 26 weeks). */
+  countsCalendarDays: z.boolean(),
   /** Per-request entitlement (per_request kind), e.g. 182 days of maternity leave. */
   maxDaysPerRequest: days.nullable(),
   /** Granted leave lapses this many days after it is granted (comp-off). */
@@ -135,3 +137,76 @@ export interface LeaveImportResult {
   changes: { line: number; employeeCode: string; leaveType: string; from: number; to: number }[];
   errors: { line: number; message: string }[];
 }
+
+/** Spec workflow 4 as built (decision #74). */
+export const leaveRequestStatusSchema = z.enum([
+  'applied',
+  'returned',
+  'approved',
+  'cancelled',
+  'revoked',
+  'withdrawn',
+]);
+export type LeaveRequestStatus = z.infer<typeof leaveRequestStatusSchema>;
+
+/** E4: the request. The first day may start in the afternoon; the last may end at midday. */
+export const leaveApplySchema = z
+  .object({
+    leaveTypeId: z.uuid(),
+    from: z.iso.date(),
+    to: z.iso.date(),
+    startHalf: z.enum(['full', 'second']).default('full'),
+    endHalf: z.enum(['full', 'first']).default('full'),
+    reason: z.string().trim().max(500).optional(),
+    /** Take days beyond the balance as loss of pay (decision #74), after the form offered it. */
+    lopForShortfall: z.boolean().default(false),
+  })
+  .refine((v) => v.from <= v.to, { message: 'The leave ends before it starts', path: ['to'] });
+export type LeaveApplyInput = z.input<typeof leaveApplySchema>;
+
+/** What a request would be, shown on the form before sending (balance after, warnings). */
+export interface LeavePreview {
+  days: number;
+  /** Days taken from the asked type and as loss of pay. */
+  fromType: number;
+  lop: number;
+  balanceBefore: number | null;
+  balanceAfter: number | null;
+  /** Days beyond the balance (offer loss of pay) when the type can't go negative. */
+  shortfall: number;
+  needsSecondApproval: boolean;
+  unplanned: boolean;
+  /** A certificate is needed (e.g. more than 2 consecutive sick days). */
+  needsCertificate: boolean;
+  /** Reasons it can't be sent, in plain words. */
+  problems: string[];
+}
+
+export interface LeaveRequestView {
+  id: string;
+  personId: string;
+  leaveType: { id: string; code: string; name: string };
+  from: string;
+  to: string;
+  startHalf: 'full' | 'second';
+  endHalf: 'full' | 'first';
+  days: number;
+  lop: number;
+  reason: string | null;
+  status: LeaveRequestStatus;
+  unplanned: boolean;
+  certificateAttached: boolean;
+  needsCertificate: boolean;
+  requestId: string | null;
+  /** Revoked by HR from this day. */
+  revokedFrom: string | null;
+  canCancel: boolean;
+  createdAt: string;
+}
+
+/** POST /api/leave/requests/:id/revoke (HR, after the leave started): days from a date are given back. */
+export const leaveRevokeSchema = z.object({
+  from: z.iso.date(),
+  reason: z.string().trim().min(3).max(500),
+});
+export type LeaveRevokeInput = z.infer<typeof leaveRevokeSchema>;

@@ -79,6 +79,30 @@ describe('the attendance build for one day', () => {
   });
 });
 
+describe('leave on the day (slice 7)', () => {
+  it('a day of approved leave is leave, punches or not, today or later too', () => {
+    expect(buildDay({ ...base, leave: 'full' })?.status).toBe('leave');
+    expect(buildDay({ ...base, today: base.day, leave: 'full' })?.status).toBe('leave');
+    expect(buildDay({ ...base, leave: 'full', punches: [punch('09:20')] })?.status).toBe('leave');
+  });
+
+  it('half a day of leave: a half day with work in the other half, absent without', () => {
+    // Morning leave, in after lunch: a half day, and not late.
+    const afternoon = buildDay({
+      ...base,
+      leave: 'first',
+      punches: [punch('13:30'), punch('18:30')],
+    })!;
+    expect(afternoon.status).toBe('half_day');
+    expect(afternoon.flags).not.toContain('late');
+    expect(
+      buildDay({ ...base, leave: 'second', punches: [punch('09:20'), punch('13:30')] })?.status,
+    ).toBe('half_day');
+    expect(buildDay({ ...base, leave: 'second' })?.status).toBe('absent');
+    expect(buildDay({ ...base, today: base.day, leave: 'second' })).toBeNull();
+  });
+});
+
 describe('helpers', () => {
   it('distance between two points in metres', () => {
     expect(distanceMetres({ lat: 13.0827, lng: 80.2707 }, { lat: 13.0827, lng: 80.2707 })).toBe(0);

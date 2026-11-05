@@ -62,6 +62,12 @@ export function Inbox() {
     <main className="page">
       <h1>Action inbox</h1>
       <TodayCard />
+      {me?.personId && (
+        <Link className="card quick-link" to="/leave?apply">
+          <strong>Apply leave</strong>
+          <span className="muted">See your balances and send a request</span>
+        </Link>
+      )}
       {onboarding.data && (
         <Link className="card onboarding-link" to="/onboarding">
           <strong>Your onboarding</strong>

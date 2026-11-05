@@ -108,6 +108,13 @@ export interface AttendanceDayView {
   mode: WorkMode | null;
   flags: AttendanceFlag[];
   regularised: boolean;
+  /** Leave on the day, approved or asked for (slice 7). */
+  leave: {
+    code: string;
+    name: string;
+    half: 'full' | 'first' | 'second';
+    approved: boolean;
+  } | null;
 }
 
 export const attendanceFlagSchema = z.enum([

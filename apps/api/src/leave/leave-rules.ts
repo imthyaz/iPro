@@ -34,7 +34,11 @@ export const defaultLeaveTypes: (LeaveTypeInput & { sortOrder: number })[] = [
     sortOrder: 3,
   }),
   type('CO', 'Comp-off', 'granted', { expiresAfterDays: 60, carryForwardCap: 0, sortOrder: 4 }),
-  type('ML', 'Maternity leave', 'per_request', { maxDaysPerRequest: 182, sortOrder: 5 }),
+  type('ML', 'Maternity leave', 'per_request', {
+    maxDaysPerRequest: 182,
+    countsCalendarDays: true,
+    sortOrder: 5,
+  }),
   // Paternity and bereavement lengths aren't in the spec: proposed, to confirm (open questions).
   type('PTL', 'Paternity leave', 'per_request', { maxDaysPerRequest: 5, sortOrder: 6 }),
   type('BL', 'Bereavement leave', 'per_request', { maxDaysPerRequest: 3, sortOrder: 7 }),
@@ -62,6 +66,7 @@ function type(
     documentAfterDays: null,
     allowNegative: false,
     maxDaysPerRequest: null,
+    countsCalendarDays: false,
     expiresAfterDays: null,
     // Employees on payroll and trainees/interns; retainers and consultants have no leave.
     appliesTo: { engagementTypes: ['permanent', 'fixed_term', 'trainee', 'intern'] },
