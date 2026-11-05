@@ -22,6 +22,8 @@ export const settingSchemas = {
   }),
   /** What a review form rates 1–5 (probation and intern assessments). */
   review_competencies: z.array(z.string().trim().min(1).max(100)).min(1).max(12),
+  /** How far from a site a check-in still counts as on site, where the site sets none (decision #68). */
+  geofence_radius_metres: z.number().int().min(25).max(5000),
   notice_days: z.object({
     on_probation: z.number().int().min(0),
     confirmed: z.number().int().min(0),
@@ -42,6 +44,7 @@ export const settingDefaults: { [K in SettingKey]: SettingValue<K> } = {
   offer_expiry_days: 7,
   probation_extension: { max_count: 1, max_months: 3 },
   review_competencies: ['Quality of work', 'Ownership', 'Collaboration', 'Learning'],
+  geofence_radius_metres: 200,
 };
 
 export function formatEmployeeCode(value: number, format: SettingValue<'employee_code'>): string {

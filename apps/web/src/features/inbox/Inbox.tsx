@@ -10,6 +10,7 @@ import type {
 } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
 import { useMe } from '../../auth.js';
+import { TodayCard } from '../attendance/Attendance.js';
 import { useOnboarding } from '../onboarding/Onboarding.js';
 import { CheckInCard, useOpenCheckIns } from '../reviews/CheckIns.js';
 import { useReviews } from '../reviews/Reviews.js';
@@ -60,6 +61,7 @@ export function Inbox() {
   return (
     <main className="page">
       <h1>Action inbox</h1>
+      <TodayCard />
       {onboarding.data && (
         <Link className="card onboarding-link" to="/onboarding">
           <strong>Your onboarding</strong>

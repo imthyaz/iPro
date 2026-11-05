@@ -12,3 +12,4 @@ export * from './offers.js';
 export * from './reviews.js';
 export * from './changes.js';
 export * from './holidays.js';
+export * from './attendance.js';

@@ -239,6 +239,20 @@
       "when": 1793824702291,
       "tag": "0033_holidays_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793826328218,
+      "tag": "0034_attendance",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793826332748,
+      "tag": "0035_attendance_rls",
+      "breakpoints": true
     }
   ]
 }
