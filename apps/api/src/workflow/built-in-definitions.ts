@@ -5,6 +5,29 @@ import type { WorkflowDefinition } from '@ipro/shared';
  * version 1 on first use). Like HR settings, they are configuration with a sensible starting point.
  */
 export const builtInDefinitions: Record<string, WorkflowDefinition> = {
+  /**
+   * Correcting a day of attendance (spec workflow 5, decision #69): the employee's manager approves,
+   * whatever their own role (e.g. HR head managing HR). The step already names who approves; the
+   * check is that they can see the person's attendance.
+   */
+  attendance_regularisation: {
+    name: 'Attendance regularisation',
+    steps: [
+      {
+        id: 'manager',
+        label: 'Manager approval',
+        approver: { kind: 'manager' },
+        authorize: { area: 'attendance', action: 'read' },
+      },
+    ],
+    onApproved: 'attendance.regularise',
+    journey: {
+      eventType: 'attendance_regularised',
+      category: 'attendance',
+      title: 'Attendance regularised',
+      sensitivity: 'manager',
+    },
+  },
   /** The decision on an intern's assessment (decision #65): HR decides; a conversion then goes to HR head and CXO. */
   internship_decision: {
     name: 'Internship decision',

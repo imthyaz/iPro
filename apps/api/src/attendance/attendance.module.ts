@@ -7,6 +7,7 @@ import { AttendanceController } from './attendance.controller.js';
 import { AttendanceService } from './attendance.service.js';
 import { HolidaysController } from './holidays.controller.js';
 import { HolidaysService } from './holidays.service.js';
+import { RegularisationService } from './regularisation.service.js';
 import { ShiftsController } from './shifts.controller.js';
 import { ShiftsService } from './shifts.service.js';
 
@@ -27,6 +28,11 @@ class AttendanceBuildJobs implements OnModuleInit {
       run: () => runWithContext(tenant, () => this.attendance.buildToday()),
     });
     this.jobs.register({
+      name: 'attendance-missing-check-in',
+      cron: '*/15 * * * *',
+      run: () => runWithContext(tenant, () => this.attendance.remindMissingCheckIns()),
+    });
+    this.jobs.register({
       name: 'attendance-rebuild',
       cron: '0 2 * * *',
       run: () =>
@@ -37,10 +43,16 @@ class AttendanceBuildJobs implements OnModuleInit {
   }
 }
 
-/** Shifts, holiday calendars, punches and attendance days; regularisation follows (slice 6c). */
+/** Shifts, holiday calendars, punches, attendance days and regularisation. */
 @Module({
   controllers: [ShiftsController, HolidaysController, AttendanceController],
-  providers: [ShiftsService, HolidaysService, AttendanceService, AttendanceBuildJobs],
+  providers: [
+    ShiftsService,
+    HolidaysService,
+    AttendanceService,
+    RegularisationService,
+    AttendanceBuildJobs,
+  ],
   exports: [ShiftsService, AttendanceService],
 })
 export class AttendanceModule {}

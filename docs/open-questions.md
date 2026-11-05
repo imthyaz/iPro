@@ -91,3 +91,8 @@ configurable setting.
 - [ ] Late and half-day: as built, late is after the shift start plus its grace minutes, and a half day is worked time
       under the shift's half-day threshold. Does late count towards anything (e.g. three lates = half day)?
 - [ ] Are WFH and client-site days reported separately from present days in the monthly attendance export?
+- [ ] Regularisation (decision #69): confirm the window (5 days after the day) and the limit (3 a month), and the
+      reason codes (forgot to punch, on duty elsewhere, client site, system issue). Should HR's direct corrections
+      count towards the person's limit (as built, they don't)?
+- [ ] Missing check-in reminder: as built, once a day at shift start plus grace. Is a second reminder (e.g. an hour
+      later) or a note to the manager wanted?

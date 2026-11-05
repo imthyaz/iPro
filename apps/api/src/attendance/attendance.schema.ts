@@ -207,3 +207,39 @@ export const attendanceDays = pgTable(
   },
   (t) => [uniqueIndex('attendance_day_key').on(t.tenantId, t.engagementId, t.day)],
 );
+
+/**
+ * A correction to one day (spec workflow 5, decision #69): asked for by the employee and approved by
+ * their manager, or made directly by HR with a reason. Approved, it sets the attendance day and marks
+ * it regularised, so the build no longer changes it.
+ */
+export const attendanceRegularisations = pgTable(
+  'attendance_regularisation',
+  {
+    ...tenantColumns(),
+    engagementId: uuid('engagement_id')
+      .notNull()
+      .references(() => engagements.id),
+    personId: uuid('person_id').notNull(),
+    day: date('day').notNull(),
+    source: text('source', { enum: ['employee', 'hr'] }).notNull(),
+    /** The employee's reason code; HR gives a free-text reason instead. */
+    reasonCode: text('reason_code', {
+      enum: ['forgot_to_punch', 'on_duty', 'client_site', 'system_issue'],
+    }),
+    note: text('note'),
+    status: text('status', { enum: ['present', 'wfh', 'client_site', 'half_day'] }).notNull(),
+    firstIn: timestamp('first_in', { withTimezone: true }),
+    lastOut: timestamp('last_out', { withTimezone: true }),
+    state: text('state', { enum: ['pending', 'returned', 'approved', 'withdrawn'] }).notNull(),
+    workflowInstanceId: uuid('workflow_instance_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('attendance_regularisation_person_day_idx').on(t.personId, t.day),
+    // One open request per day.
+    uniqueIndex('attendance_regularisation_open_key')
+      .on(t.tenantId, t.engagementId, t.day)
+      .where(sql`${t.state} in ('pending', 'returned')`),
+  ],
+);

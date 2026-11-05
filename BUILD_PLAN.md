@@ -105,7 +105,9 @@ the working-day calculator.
 **Notes:** sub-PRs: 6a holiday calendars and the working-day calculator; 6b punches (web/phone check-in with geofence,
 generic biometric push, decision #67), the attendance build and My attendance (E2, E3); 6c regularisation, H9 and
 the missing check-in reminder. Approved leave on the calendar is confirmed with slice 7. 6b done (decision #68):
-pushed punches show at once and the build also runs every 15 minutes; holidays and weekly offs show on E3.
+pushed punches show at once and the build also runs every 15 minutes; holidays and weekly offs show on E3. 6c done
+(decision #69): regularisation, H9 exceptions and corrections, and the missing check-in reminder. The slice closes
+when approved leave shows on the calendar (slice 7).
 
 ## [ ] Slice 7 — Leave
 

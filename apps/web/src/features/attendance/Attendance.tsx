@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import type {
   AttendanceDayView,
   AttendanceFlag,
   AttendanceStatus,
   CheckInInput,
+  RegularisationAllowance,
+  RegularisationInput,
+  RegularisationView,
   TodayView,
   WorkMode,
 } from '@ipro/shared';
@@ -33,7 +36,7 @@ const statusTone: Record<AttendanceStatus, 'ok' | 'info' | 'warn' | 'muted'> = {
   holiday: 'muted',
   weekly_off: 'muted',
 };
-const flagWords: Record<AttendanceFlag, string> = {
+export const flagWords: Record<AttendanceFlag, string> = {
   late: 'Late',
   outside_geofence: 'Outside the office area',
   no_location: 'No location',
@@ -160,7 +163,7 @@ export function TodayCard() {
 }
 
 /** E3 My attendance; also the Attendance tab of a person record. */
-export function AttendanceMonth({ personId }: { personId: string }) {
+export function AttendanceMonth({ personId, self = false }: { personId: string; self?: boolean }) {
   const [month, setMonth] = useState(todayIso().slice(0, 7));
   const [selected, setSelected] = useState<string | null>(null);
   const days = useQuery({
@@ -174,6 +177,14 @@ export function AttendanceMonth({ personId }: { personId: string }) {
   // Monday-first grid: blanks before the 1st.
   const lead = (new Date(`${month}-01T00:00:00Z`).getUTCDay() + 6) % 7;
   const day = days.data?.find((d) => d.date === selected) ?? null;
+  const requests = useQuery({
+    queryKey: ['regularisations', month],
+    queryFn: () =>
+      api<{ allowance: RegularisationAllowance; items: RegularisationView[] }>(
+        `/attendance/regularisations?month=${month}`,
+      ),
+    enabled: self,
+  });
 
   const list = (
     <>
@@ -236,7 +247,20 @@ export function AttendanceMonth({ personId }: { personId: string }) {
   return (
     <ListDetail
       list={list}
-      detail={day ? <DayDetail day={day} /> : null}
+      detail={
+        day ? (
+          <DayDetail day={day}>
+            {self && requests.data && (
+              <Regularise
+                key={day.date}
+                day={day}
+                allowance={requests.data.allowance}
+                request={requests.data.items.filter((r) => r.date === day.date).at(-1) ?? null}
+              />
+            )}
+          </DayDetail>
+        ) : null
+      }
       onClose={() => setSelected(null)}
       detailLabel="Attendance day"
     />
@@ -244,7 +268,7 @@ export function AttendanceMonth({ personId }: { personId: string }) {
 }
 
 /** One day, with the "why": the times it was built from and the rule that gave the status. */
-function DayDetail({ day }: { day: AttendanceDayView }) {
+function DayDetail({ day, children }: { day: AttendanceDayView; children?: ReactNode }) {
   return (
     <article className="record">
       <header className="record-header">
@@ -273,6 +297,7 @@ function DayDetail({ day }: { day: AttendanceDayView }) {
         </ul>
       )}
       {day.regularised && <Note kind="info">This day was corrected by a regularisation.</Note>}
+      {children}
     </article>
   );
 }
@@ -307,7 +332,175 @@ export function MyAttendance() {
     <main className="page">
       <h1>My attendance</h1>
       <TodayCard />
-      <AttendanceMonth personId={me.personId} />
+      <AttendanceMonth personId={me.personId} self />
     </main>
+  );
+}
+
+const reasonWords: Record<RegularisationInput['reason'], string> = {
+  forgot_to_punch: 'Forgot to punch',
+  on_duty: 'On duty elsewhere',
+  client_site: 'At a client site',
+  system_issue: 'System or device issue',
+};
+const correctedWords: Record<RegularisationInput['status'], string> = {
+  present: 'Present (office)',
+  wfh: 'WFH',
+  client_site: 'Client site',
+  half_day: 'Half day',
+};
+
+/** Calendar days from a date to today. */
+const daysAgo = (date: string) =>
+  Math.round(
+    (new Date(`${todayIso()}T00:00:00Z`).getTime() - new Date(`${date}T00:00:00Z`).getTime()) /
+      86_400_000,
+  );
+
+/** E3: ask to correct this day (spec workflow 5), or see where the request is. */
+function Regularise(props: {
+  day: AttendanceDayView;
+  allowance: RegularisationAllowance;
+  request: RegularisationView | null;
+}) {
+  const { day, allowance, request } = props;
+  const client = useQueryClient();
+  const [form, setForm] = useState({
+    reason: 'forgot_to_punch' as RegularisationInput['reason'],
+    status: 'present' as RegularisationInput['status'],
+    firstIn: '',
+    lastOut: '',
+    note: '',
+  });
+  const ask = useMutation({
+    mutationFn: () =>
+      api<RegularisationView>('/attendance/regularisations', {
+        body: {
+          date: day.date,
+          reason: form.reason,
+          status: form.status,
+          firstIn: form.firstIn || undefined,
+          lastOut: form.lastOut || undefined,
+          note: form.note || undefined,
+        },
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['regularisations'] });
+      void client.invalidateQueries({ queryKey: ['attendance-month'] });
+    },
+  });
+  if (day.regularised) return null;
+  if (request?.state === 'pending') {
+    return <Note kind="info">Regularisation sent: waiting for your manager.</Note>;
+  }
+  if (request?.state === 'returned') {
+    return (
+      <Note kind="info">
+        Your manager returned your regularisation. Answer or withdraw it in My requests.
+      </Note>
+    );
+  }
+  const needs =
+    day.status === 'absent' ||
+    day.status === 'half_day' ||
+    day.flags.includes('missing_check_out') ||
+    (day.status === null && day.working);
+  const ago = daysAgo(day.date);
+  if (!needs || ago < 1) return null;
+  if (ago > allowance.windowDays) {
+    return (
+      <p className="muted">
+        Days can be regularised up to {allowance.windowDays} days after; ask HR for this one.
+      </p>
+    );
+  }
+  if (allowance.used >= allowance.max) {
+    return (
+      <p className="muted">You have used all {allowance.max} regularisations this month; ask HR.</p>
+    );
+  }
+  return (
+    <form
+      className="inline-form"
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        ask.mutate();
+      }}
+    >
+      <h3>Regularise this day</h3>
+      <p className="muted">
+        {allowance.max - allowance.used} of {allowance.max} left this month. Your manager approves.
+      </p>
+      <div className="form-grid">
+        <Field label="Reason">
+          {(id) => (
+            <select
+              id={id}
+              value={form.reason}
+              onChange={(e) =>
+                setForm({ ...form, reason: e.target.value as RegularisationInput['reason'] })
+              }
+            >
+              {Object.entries(reasonWords).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+        <Field label="Mark as">
+          {(id) => (
+            <select
+              id={id}
+              value={form.status}
+              onChange={(e) =>
+                setForm({ ...form, status: e.target.value as RegularisationInput['status'] })
+              }
+            >
+              {Object.entries(correctedWords).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+        <Field label="In at" hint="Optional">
+          {(id) => (
+            <input
+              id={id}
+              type="time"
+              value={form.firstIn}
+              onChange={(e) => setForm({ ...form, firstIn: e.target.value })}
+            />
+          )}
+        </Field>
+        <Field label="Out at" hint="Optional">
+          {(id) => (
+            <input
+              id={id}
+              type="time"
+              value={form.lastOut}
+              onChange={(e) => setForm({ ...form, lastOut: e.target.value })}
+            />
+          )}
+        </Field>
+      </div>
+      <Field label="Note" hint="Optional, for your manager">
+        {(id) => (
+          <input
+            id={id}
+            maxLength={500}
+            value={form.note}
+            onChange={(e) => setForm({ ...form, note: e.target.value })}
+          />
+        )}
+      </Field>
+      <button className="button button-primary" disabled={ask.isPending}>
+        Send to my manager
+      </button>
+      {ask.error && <Note kind="error">{errorMessage(ask.error)}</Note>}
+    </form>
   );
 }

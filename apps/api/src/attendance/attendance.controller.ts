@@ -12,7 +12,12 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  attendanceCorrectionSchema,
+  attendanceExceptionsQuerySchema,
   attendanceMonthQuerySchema,
+  regularisationInputSchema,
+  type AttendanceCorrectionInput,
+  type RegularisationInput,
   biometricDeviceInputSchema,
   biometricPushSchema,
   checkInSchema,
@@ -20,16 +25,53 @@ import {
   type CheckInInput,
 } from '@ipro/shared';
 import type { z } from 'zod';
-import { Authorize, Public, SignedIn } from '../authz/decorators.js';
+import { Authorize, AuthorizeAny, Public, SignedIn } from '../authz/decorators.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { AttendanceService } from './attendance.service.js';
+import { RegularisationService } from './regularisation.service.js';
 
 const uuid = new ParseUUIDPipe();
 
 /** Check-in (E2), the day and month views (E1, E3), and biometric devices (A5; decision #67). */
 @Controller()
 export class AttendanceController {
-  constructor(@Inject(AttendanceService) private readonly attendance: AttendanceService) {}
+  constructor(
+    @Inject(AttendanceService) private readonly attendance: AttendanceService,
+    @Inject(RegularisationService) private readonly regularisation: RegularisationService,
+  ) {}
+
+  /** E3: ask to correct a past day (spec workflow 5); the manager approves from the inbox. */
+  @Authorize('attendance', 'regularise')
+  @Post('attendance/regularisations')
+  regularise(@Body(new ZodPipe(regularisationInputSchema)) body: RegularisationInput) {
+    return this.regularisation.request(body);
+  }
+
+  @Authorize('attendance', 'regularise')
+  @Get('attendance/regularisations')
+  myRegularisations(
+    @Query(new ZodPipe(attendanceMonthQuerySchema))
+    query: z.infer<typeof attendanceMonthQuerySchema>,
+  ) {
+    return this.regularisation.mine(query.month);
+  }
+
+  /** H9: HR corrects days directly, with a reason. */
+  @Authorize('attendance', 'update')
+  @Post('attendance/corrections')
+  correct(@Body(new ZodPipe(attendanceCorrectionSchema)) body: AttendanceCorrectionInput) {
+    return this.regularisation.correct(body);
+  }
+
+  /** H9 (and managers for their team): days that need a look. */
+  @AuthorizeAny(['attendance', 'update'], ['attendance', 'approve'])
+  @Get('attendance/exceptions')
+  exceptions(
+    @Query(new ZodPipe(attendanceExceptionsQuerySchema))
+    query: z.infer<typeof attendanceExceptionsQuerySchema>,
+  ) {
+    return this.regularisation.exceptions(query.from, query.to);
+  }
 
   @Authorize('attendance', 'create')
   @Post('attendance/check-in')

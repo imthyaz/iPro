@@ -9,6 +9,7 @@ import { PolicyAdmin } from './features/admin/PolicyAdmin.js';
 import { Templates } from './features/admin/Templates.js';
 import { MyAttendance } from './features/attendance/Attendance.js';
 import { BiometricDevices } from './features/attendance/Devices.js';
+import { AttendanceExceptions } from './features/attendance/Exceptions.js';
 import { Holidays } from './features/holidays/Holidays.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
 import { NewOffer } from './features/offers/NewOffer.js';
@@ -99,6 +100,11 @@ function Shell() {
               Policies
             </NavLink>
           )}
+          {hasRole(user, 'hr', 'hr_head', 'manager') && (
+            <NavLink to="/attendance-exceptions" className="nav-item">
+              Attendance exceptions
+            </NavLink>
+          )}
           {seesPeople && (
             <NavLink to="/people" className="nav-item">
               People
@@ -174,6 +180,7 @@ function Shell() {
             <Route path="/tasks" element={<Inbox />} />
             <Route path="/attendance" element={<MyAttendance />} />
             <Route path="/devices" element={<BiometricDevices />} />
+            <Route path="/attendance-exceptions" element={<AttendanceExceptions />} />
             <Route path="/requests" element={<Requests />} />
             <Route path="/requests/:requestId" element={<Requests />} />
             <Route path="/policies" element={<MyPolicies />} />
