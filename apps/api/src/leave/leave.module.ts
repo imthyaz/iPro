@@ -6,7 +6,10 @@ import { ScheduledJobs } from '../jobs/jobs.module.js';
 import { LeaveController } from './leave.controller.js';
 import { LeaveService } from './leave.service.js';
 
-/** Spec: leave accrual on the 1st of each month at 01:00 IST; year end in January. */
+/**
+ * Leave accrual daily at 01:00 IST (decision #73: the spec's 1st-of-month run, made daily so joiners
+ * are credited the day after joining); year end in January.
+ */
 @Injectable()
 class LeaveJobs implements OnModuleInit {
   constructor(
@@ -18,10 +21,10 @@ class LeaveJobs implements OnModuleInit {
   onModuleInit(): void {
     this.jobs.register({
       name: 'leave-accrual',
-      cron: '0 1 1 * *',
+      cron: '0 1 * * *',
       run: () =>
         runWithContext({ tenantId: this.config.TENANT_ID }, () =>
-          this.leave.runMonthly(businessDate(new Date())),
+          this.leave.runDaily(businessDate(new Date())),
         ),
     });
   }

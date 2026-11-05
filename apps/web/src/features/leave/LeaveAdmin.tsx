@@ -16,7 +16,12 @@ const kindWords: Record<LeaveTypeInput['kind'], string> = {
 /** One line on what a type gives, e.g. "15 a year, monthly · after confirmation · carry 30". */
 function summary(t: LeaveTypeView): string {
   const parts: string[] = [];
-  if (t.kind === 'accrued') parts.push(`${t.daysPerYear} a year, monthly`);
+  if (t.kind === 'accrued') {
+    parts.push(
+      `${t.daysPerYear} a year, credited at the ${t.creditOn === 'month_start' ? 'start' : 'end'} of each month`,
+    );
+  }
+  if (t.maxBalance !== null) parts.push(`up to ${t.maxBalance} held`);
   if (t.kind === 'per_request') parts.push(`up to ${t.maxDaysPerRequest} days a request`);
   if (t.kind === 'granted') parts.push('granted');
   if (t.kind === 'unlimited') parts.push('unpaid');
@@ -151,6 +156,23 @@ function EditType({ type, canEdit }: { type: LeaveTypeView; canEdit: boolean }) 
             )}
           </Field>
           {type.kind === 'accrued' && num('daysPerYear', 'Days a year', 'Credited monthly')}
+          {type.kind === 'accrued' && (
+            <Field label="Credited" hint="Each month’s share">
+              {(id) => (
+                <select
+                  id={id}
+                  disabled={!canEdit}
+                  value={form.creditOn}
+                  onChange={(e) =>
+                    setForm({ ...form, creditOn: e.target.value as LeaveTypeInput['creditOn'] })
+                  }
+                >
+                  <option value="month_start">At the start of the month, in advance</option>
+                  <option value="month_end">At the end of the month, for the month worked</option>
+                </select>
+              )}
+            </Field>
+          )}
           {type.kind === 'per_request' && num('maxDaysPerRequest', 'Days a request')}
           {(type.kind === 'accrued' || type.kind === 'granted') &&
             num('carryForwardCap', 'Carry forward up to', '0 lapses all; blank carries all')}

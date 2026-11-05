@@ -5,11 +5,20 @@ import type { LeaveTypeInput } from '@ipro/shared';
  * hand. Quantities are hundredths of a day.
  */
 
-/** The spec's proposed policy, confirmed by the owner (decision #71). Types are editable afterwards. */
+/**
+ * The spec's proposed policy, confirmed by the owner (decisions #71, #73). Types are editable
+ * afterwards.
+ */
 export const defaultLeaveTypes: (LeaveTypeInput & { sortOrder: number })[] = [
-  type('CL', 'Casual leave', 'accrued', { daysPerYear: 12, carryForwardCap: 0, sortOrder: 1 }),
+  type('CL', 'Casual leave', 'accrued', {
+    daysPerYear: 12,
+    creditOn: 'month_start',
+    carryForwardCap: 0,
+    sortOrder: 1,
+  }),
   type('SL', 'Sick leave', 'accrued', {
     daysPerYear: 12,
+    creditOn: 'month_start',
     carryForwardCap: 0,
     documentAfterDays: 2,
     sortOrder: 2,
@@ -18,6 +27,7 @@ export const defaultLeaveTypes: (LeaveTypeInput & { sortOrder: number })[] = [
     daysPerYear: 15,
     accruesAfterConfirmation: true,
     availableOnProbation: false,
+    maxBalance: 30,
     carryForwardCap: 30,
     encashable: true,
     appliesTo: { engagementTypes: ['permanent', 'fixed_term'] },
@@ -43,6 +53,7 @@ function type(
     kind,
     paid: true,
     daysPerYear: null,
+    creditOn: 'month_end',
     accruesAfterConfirmation: false,
     availableOnProbation: true,
     maxBalance: null,

@@ -95,21 +95,27 @@ afterAll(async () => {
   await pool.end();
 });
 
-describe('leave types (decision #71)', () => {
+describe('leave types (decisions #71, #73)', () => {
   it('start from the confirmed policy; admins and HR head edit them, HR reads', async () => {
     const types = (await agents.emp!.get('/api/leave-types').expect(200)).body as LeaveTypeView[];
     expect(types.map((t) => t.code)).toEqual(['CL', 'SL', 'EL', 'CO', 'ML', 'PTL', 'BL', 'LOP']);
     expect(types.find((t) => t.code === 'EL')).toMatchObject({
       daysPerYear: 15,
+      creditOn: 'month_end',
       accruesAfterConfirmation: true,
       availableOnProbation: false,
+      maxBalance: 30,
       carryForwardCap: 30,
       encashable: true,
     });
     expect(types.find((t) => t.code === 'SL')).toMatchObject({
       daysPerYear: 12,
+      creditOn: 'month_start',
       documentAfterDays: 2,
     });
+    expect(types.find((t) => t.code === 'CL')!.creditOn).toBe('month_start');
+    expect(types.find((t) => t.code === 'PTL')!.maxDaysPerRequest).toBe(5);
+    expect(types.find((t) => t.code === 'BL')!.maxDaysPerRequest).toBe(3);
     const el = types.find((t) => t.code === 'EL')!;
     const { id: _id, sortOrder: _s, ...body } = el;
     await agents.hr!.put(`/api/leave-types/${el.id}`, body).expect(403);
@@ -311,9 +317,34 @@ describe('HR adjustments and who sees balances', () => {
   });
 });
 
-describe('the monthly job', () => {
+describe('the daily job (decision #73)', () => {
+  it('credits casual and sick at the start of the month, earned at its end; joiners the next day', async () => {
+    const cl = (await balance(p.a, 'CL'))!;
+    await run((s) => s.runDaily('2026-06-01'));
+    // June's casual and sick leave are there on 1 June; June's earned leave is not, May's is.
+    const after = (await balance(p.a, 'CL'))!;
+    expect(after.entries.find((e) => e.note?.startsWith('June accrual'))).toMatchObject({
+      days: 1,
+      date: '2026-06-30',
+    });
+    expect(after.balance).toBe(cl.balance + 1);
+    const el = (await balance(p.a, 'EL'))!;
+    expect(el.entries.some((e) => e.note?.startsWith('May accrual'))).toBe(true);
+    expect(el.entries.some((e) => e.note?.startsWith('June accrual'))).toBe(false);
+
+    // Joined 10 June: credited the next morning, 21 of 30 days of 1 = 0.7 → 0.5.
+    const e = await hire('Esha Joiner', 'permanent', '2026-06-10');
+    await run((s) => s.runDaily('2026-06-11'));
+    expect((await balance(e, 'CL'))!.entries[0]).toMatchObject({
+      days: 0.5,
+      note: 'June accrual: 21 of 30 days (joined 10 Jun)',
+    });
+    await run((s) => s.runDaily('2026-06-12'));
+    expect((await balance(e, 'CL'))!.balance).toBe(0.5);
+  });
+
   it('in January credits December and the month before, then closes the year', async () => {
-    const result = await run((s) => s.runMonthly('2027-01-01'));
+    const result = await run((s) => s.runDaily('2027-01-01'));
     expect(result.closedYear).toBe(2026);
     // A December credit happened before closing: A's 2026 EL carried includes it.
     const el2026 = (await balance(p.a, 'EL'))!;

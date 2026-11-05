@@ -52,6 +52,7 @@ function typeView(row: TypeRow): LeaveTypeView {
     kind: row.kind,
     paid: row.paid,
     daysPerYear: d(row.perYear),
+    creditOn: row.creditOn,
     accruesAfterConfirmation: row.accruesAfterConfirmation,
     availableOnProbation: row.availableOnProbation,
     maxBalance: d(row.maxBalance),
@@ -74,6 +75,7 @@ function typeValues(input: LeaveTypeInput) {
     kind: input.kind,
     paid: input.paid,
     perYear: input.kind === 'accrued' ? h(input.daysPerYear ?? 0) : null,
+    creditOn: input.creditOn,
     accruesAfterConfirmation: input.accruesAfterConfirmation,
     availableOnProbation: input.availableOnProbation,
     maxBalance: h(input.maxBalance),
@@ -386,12 +388,14 @@ export class LeaveService {
    * Credits one month's accruals to everyone employed in it. Safe to run again: each person, type
    * and month is credited once. Months up to an imported balance are skipped.
    */
-  async accrueMonth(month: string): Promise<{ credited: number }> {
+  async accrueMonth(month: string, creditOn?: TypeRow['creditOn']): Promise<{ credited: number }> {
     const first = `${month}-01`;
     const last = lastDay(month);
     const year = Number(month.slice(0, 4));
     return this.db.tx(async (tx) => {
-      const types = (await this.ensureTypes(tx)).filter((t) => t.active && t.kind === 'accrued');
+      const types = (await this.ensureTypes(tx)).filter(
+        (t) => t.active && t.kind === 'accrued' && (!creditOn || t.creditOn === creditOn),
+      );
       const people = await tx
         .select()
         .from(engagements)
@@ -529,16 +533,26 @@ export class LeaveService {
   }
 
   /**
-   * The 1st-of-month job: the month just ended, and the one before it again (it changes nothing if
-   * already credited, and picks up a confirmation recorded late); in January, the year is closed.
+   * The daily job (decision #73). Types credited at the month's start get this month (a joiner is
+   * credited the day after joining, pro-rata from that day) and last month again; types credited at
+   * its end get the month just ended and the one before (picking up a confirmation recorded late).
+   * Nothing is credited twice. In January the year just ended is closed, after December's credits.
    */
-  async runMonthly(today: string): Promise<{ credited: number; closedYear: number | null }> {
+  async runDaily(today: string): Promise<{ credited: number; closedYear: number | null }> {
+    const month = today.slice(0, 7);
     const last = previousMonth(today);
     const before = previousMonth(`${last}-01`);
-    const credited =
-      (await this.accrueMonth(before)).credited + (await this.accrueMonth(last)).credited;
+    let credited = 0;
+    for (const [m, timing] of [
+      [before, 'month_end'],
+      [last, 'month_end'],
+      [last, 'month_start'],
+      [month, 'month_start'],
+    ] as const) {
+      credited += (await this.accrueMonth(m, timing)).credited;
+    }
     let closedYear: number | null = null;
-    if (last.endsWith('-12')) {
+    if (month.endsWith('-01')) {
       closedYear = Number(last.slice(0, 4));
       await this.closeYear(closedYear);
     }

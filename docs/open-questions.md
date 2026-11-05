@@ -97,9 +97,8 @@ configurable setting.
       later) or a note to the manager wanted?
 
 ## Leave (slice 7, decisions #71–#72 — please confirm)
-- [ ] Paternity and bereavement leave lengths aren't in the spec: proposed 5 and 3 days a request.
-- [ ] Accruals are credited on the 1st for the month just ended, so a new joiner has no casual or sick leave in their
-      first month. Should casual and sick leave be credited at the start of the month instead?
-- [ ] Interns and trainees get casual and sick leave (not earned leave) as proposed. Is that right?
-- [ ] Comp-off: who grants it, and for what (e.g. a manager approves a worked weekly off or holiday)? Built with 7b.
-- [ ] Should a maximum balance apply to any type (e.g. earned leave capped at 45)? None is set.
+- [x] Paternity 5 days and bereavement 3 days a request (decision #73).
+- [x] Casual and sick leave are credited at the start of the month; earned at the end (decision #73).
+- [x] Interns and trainees get casual and sick leave, not earned leave (decision #73).
+- [x] Comp-off: the manager grants it, on request, for a weekly off or holiday worked (decision #73; 7b).
+- [x] Earned leave is capped at 30 days held, configurable (decision #73).
