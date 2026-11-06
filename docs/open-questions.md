@@ -104,3 +104,5 @@ configurable setting.
 - [x] Earned leave is capped at 30 days held, configurable (decision #73).
 - [x] Medical certificates: approval waits for the certificate (decision #75).
 - [x] HR doesn't apply leave on someone's behalf; HR adjusts the balance and corrects attendance (decision #75).
+- [ ] Comp-off (decision #76): how long after the day worked can it be asked for? Built as 30 days (setting).
+      Is a minimum of hours worked needed for a full or half day, or does the manager judge from the card?

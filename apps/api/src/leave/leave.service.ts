@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import {
   toDays,
   toHundredths,
@@ -28,8 +28,15 @@ import { assignments, engagements } from '../people/people.schema.js';
 import { PeopleService } from '../people/people.service.js';
 import { appliesToMatches } from '../workflow/checklist-rules.js';
 import { parseCsv } from './csv.js';
+import { heldByGrant, type LiveGrant } from './comp-off-rules.js';
 import { defaultLeaveTypes, monthlyAccrual, yearEnd } from './leave-rules.js';
-import { leaveLedger, leaveTypes } from './leave.schema.js';
+import {
+  compOffRequests,
+  leaveLedger,
+  leaveRequestDays,
+  leaveRequests,
+  leaveTypes,
+} from './leave.schema.js';
 
 type TypeRow = typeof leaveTypes.$inferSelect;
 type EngagementRow = typeof engagements.$inferSelect;
@@ -179,19 +186,25 @@ export class LeaveService {
         departmentId: summary.department?.id ?? null,
         locationId: summary.location?.id ?? null,
       };
-      return types
-        .filter(
-          (t) =>
-            (t.active && appliesToMatches(t.appliesTo, facts)) ||
-            entries.some((e) => e.leaveTypeId === t.id),
-        )
-        .map((t) =>
+      const shown = types.filter(
+        (t) =>
+          (t.active && appliesToMatches(t.appliesTo, facts)) ||
+          entries.some((e) => e.leaveTypeId === t.id),
+      );
+      const views: LeaveBalanceView[] = [];
+      for (const t of shown) {
+        const expiring =
+          t.kind === 'granted' ? await this.expiringOf(tx, summary.engagementId, t.id) : [];
+        views.push(
           balanceView(
             t,
             year,
             entries.filter((e) => e.leaveTypeId === t.id),
+            expiring,
           ),
         );
+      }
+      return views;
     });
   }
 
@@ -253,7 +266,9 @@ export class LeaveService {
           ),
         )
         .orderBy(asc(leaveLedger.entryDate), asc(leaveLedger.createdAt));
-      return balanceView(type, year, entries);
+      const expiring =
+        type.kind === 'granted' ? await this.expiringOf(tx, summary.engagementId, type.id) : [];
+      return balanceView(type, year, entries, expiring);
     });
   }
 
@@ -605,6 +620,75 @@ export class LeaveService {
     return row?.total ?? 0;
   }
 
+  /**
+   * Granted leave (comp-off, decision #76) runs out by grant, not by year: its balance over all
+   * years (carry-forwards left out, as they repeat the year before) and the grants not yet expired.
+   */
+  async grantPosition(
+    tx: Tx,
+    engagementId: string,
+    leaveTypeId: string,
+  ): Promise<{ balance: number; grants: (LiveGrant & { workedOn: string })[] }> {
+    const [row] = await tx
+      .select({ total: sql<number>`coalesce(sum(${leaveLedger.amount}), 0)::int` })
+      .from(leaveLedger)
+      .where(
+        and(
+          eq(leaveLedger.engagementId, engagementId),
+          eq(leaveLedger.leaveTypeId, leaveTypeId),
+          ne(leaveLedger.kind, 'carry_forward'),
+        ),
+      );
+    const grants = await tx
+      .select({
+        id: compOffRequests.id,
+        amount: compOffRequests.amount,
+        validUntil: compOffRequests.validUntil,
+        workedOn: compOffRequests.workedOn,
+      })
+      .from(compOffRequests)
+      .where(
+        and(
+          eq(compOffRequests.engagementId, engagementId),
+          eq(compOffRequests.leaveTypeId, leaveTypeId),
+          eq(compOffRequests.status, 'approved'),
+          isNull(compOffRequests.expiredAt),
+          isNotNull(compOffRequests.validUntil),
+        ),
+      );
+    return {
+      balance: row?.total ?? 0,
+      grants: grants.map((g) => ({ ...g, validUntil: g.validUntil! })),
+    };
+  }
+
+  /** Days of a type asked for and not yet decided, in any year (held, not yet debited). */
+  async pendingDays(tx: Tx, engagementId: string, leaveTypeId: string): Promise<number> {
+    const [row] = await tx
+      .select({ total: sql<number>`coalesce(sum(${leaveRequestDays.amount}), 0)::int` })
+      .from(leaveRequestDays)
+      .innerJoin(leaveRequests, eq(leaveRequests.id, leaveRequestDays.requestId))
+      .where(
+        and(
+          eq(leaveRequestDays.engagementId, engagementId),
+          eq(leaveRequestDays.leaveTypeId, leaveTypeId),
+          isNull(leaveRequestDays.cancelledAt),
+          inArray(leaveRequests.status, ['applied', 'returned']),
+        ),
+      );
+    return row?.total ?? 0;
+  }
+
+  /** What is still held of each grant and when it runs out, soonest first. */
+  private async expiringOf(tx: Tx, engagementId: string, leaveTypeId: string) {
+    const { balance, grants } = await this.grantPosition(tx, engagementId, leaveTypeId);
+    const held = heldByGrant(grants, balance);
+    return grants
+      .filter((g) => held.get(g.id)! > 0)
+      .sort((a, b) => a.validUntil.localeCompare(b.validUntil))
+      .map((g) => ({ days: toDays(held.get(g.id)!), on: g.validUntil }));
+  }
+
   /** Who each engagement is on a day, for applies-to rules (entity, type, department, location). */
   private async factsOn(tx: Tx, people: EngagementRow[], day: string) {
     const ids = people.map((p) => p.id);
@@ -638,7 +722,7 @@ export class LeaveService {
 
 const sums: Record<
   LedgerKind,
-  keyof Omit<LeaveBalanceView, 'leaveType' | 'year' | 'balance' | 'entries'>
+  keyof Omit<LeaveBalanceView, 'leaveType' | 'year' | 'balance' | 'entries' | 'expiring'>
 > = {
   opening: 'opening',
   carry_forward: 'opening',
@@ -656,6 +740,7 @@ function balanceView(
   type: TypeRow,
   year: number,
   entries: (typeof leaveLedger.$inferSelect)[],
+  expiring: LeaveBalanceView['expiring'] = [],
 ): LeaveBalanceView {
   const totals = {
     opening: 0,
@@ -690,5 +775,6 @@ function balanceView(
       days: toDays(e.amount),
       note: e.note,
     })),
+    expiring,
   };
 }

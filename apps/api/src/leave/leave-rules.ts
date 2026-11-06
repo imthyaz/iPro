@@ -33,7 +33,8 @@ export const defaultLeaveTypes: (LeaveTypeInput & { sortOrder: number })[] = [
     appliesTo: { engagementTypes: ['permanent', 'fixed_term'] },
     sortOrder: 3,
   }),
-  type('CO', 'Comp-off', 'granted', { expiresAfterDays: 60, carryForwardCap: 0, sortOrder: 4 }),
+  // Comp-off runs out by its expiry date, not at year end (decision #76).
+  type('CO', 'Comp-off', 'granted', { expiresAfterDays: 60, sortOrder: 4 }),
   type('ML', 'Maternity leave', 'per_request', {
     maxDaysPerRequest: 182,
     countsCalendarDays: true,

@@ -121,7 +121,7 @@ when approved leave shows on the calendar (slice 7).
 
 **Notes:** sub-PRs: 7a leave types, the balance ledger, accrual and year end, HR adjustments and the cut-over import
 (decisions #71, #72; done); 7b-1 applying, approving, cancelling and revoking leave, the approval card, leave on the
-attendance calendar, E4 and E5 (decision #74; done, and slice 6 done-when #3 with it); 7b-2 comp-off; 7c the
+attendance calendar, E4 and E5 (decision #74; done, and slice 6 done-when #3 with it); 7b-2 comp-off (decision #76; done); 7c the
 monthly attendance and LOP export and the H9 balance screen.
 
 ## [ ] Slice 8 — Hybrid planner

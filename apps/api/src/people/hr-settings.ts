@@ -30,6 +30,8 @@ export const settingSchemas = {
   /** Leave (decision #74): how many days back leave can be applied for, and when a second approval is needed. */
   leave_backdate_days: z.number().int().min(0).max(60),
   leave_second_approval_over_days: z.number().int().min(1).max(365),
+  /** Comp-off (decision #76): how many days after the day worked it can be asked for. */
+  comp_off_request_window_days: z.number().int().min(0).max(365),
   notice_days: z.object({
     on_probation: z.number().int().min(0),
     confirmed: z.number().int().min(0),
@@ -55,6 +57,7 @@ export const settingDefaults: { [K in SettingKey]: SettingValue<K> } = {
   regularisation_max_per_month: 3,
   leave_backdate_days: 5,
   leave_second_approval_over_days: 5,
+  comp_off_request_window_days: 30,
 };
 
 export function formatEmployeeCode(value: number, format: SettingValue<'employee_code'>): string {
