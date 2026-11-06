@@ -9,11 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import {
-  compOffRequestSchema,
-  leaveYearQuerySchema,
-  type CompOffRequestInput,
-} from '@ipro/shared';
+import { compOffRequestSchema, leaveYearQuerySchema, type CompOffRequestInput } from '@ipro/shared';
 import type { z } from 'zod';
 import { Authorize } from '../authz/decorators.js';
 import { ZodPipe } from '../common/zod.pipe.js';
