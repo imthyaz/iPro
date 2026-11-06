@@ -10,6 +10,8 @@ configurable setting.
 - [ ] Regularisation window and monthly limit; check-in methods per population.
 - [x] Hybrid policies, anchor days and the 18:00 cut-off: the spec's proposed values (decision #78). Seat counts
       per office are set on each location; named seats are optional.
+- [ ] Hybrid compliance (decision #79): should a missed week notify anyone (the employee, the manager, HR), or is
+      the M4 report enough? Built as the report only.
 - [ ] Approval chains, second-level leave threshold, escalation window.
 - [ ] Buckets list and designation-to-band mapping.
 - [ ] Data retention periods (confirm with legal).

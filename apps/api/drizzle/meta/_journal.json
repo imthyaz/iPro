@@ -351,6 +351,20 @@
       "when": 1793945344135,
       "tag": "0049_hybrid_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793988237170,
+      "tag": "0050_hybrid_compliance",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1793988239507,
+      "tag": "0051_hybrid_compliance_rls",
+      "breakpoints": true
     }
   ]
 }

@@ -123,3 +123,79 @@ export interface SeatAvailability extends SeatView {
 
 /** PUT /api/hybrid/team-anchor: the manager's team anchor day, or none. */
 export const teamAnchorSchema = z.object({ weekday: z.number().int().min(1).max(7).nullable() });
+
+/** M2 Team today: where each person in the team (HR: the entity) is today. */
+export type TeamTodayStatus =
+  'office' | 'wfh' | 'client_site' | 'leave' | 'off' | 'absent' | 'not_checked_in';
+
+export interface TeamTodayRow {
+  personId: string;
+  name: string;
+  employeeCode: string;
+  status: TeamTodayStatus;
+  /** What was booked for today, if anything. */
+  planned: WorkMode | null;
+  checkedInAt: string | null;
+  /** The leave type's name, or the holiday's name. */
+  note: string | null;
+}
+
+export interface TeamTodayView {
+  date: string;
+  rows: TeamTodayRow[];
+  counts: Record<TeamTodayStatus, number>;
+}
+
+/** team: the viewer's own reports (default); all: everyone the viewer may see (HR: their entities). */
+export const teamScopeSchema = z.enum(['team', 'all']).default('team');
+export type TeamScope = z.infer<typeof teamScopeSchema>;
+export const teamTodayQuerySchema = z.object({ scope: teamScopeSchema });
+
+/** M3 Team calendar: a month of leave and bookings per person. */
+export const teamMonthQuerySchema = z.object({
+  scope: teamScopeSchema,
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+});
+
+export interface TeamCalendarDay {
+  date: string;
+  working: boolean;
+  holiday: string | null;
+  leave: { code: string; half: 'full' | 'first' | 'second'; approved: boolean } | null;
+  booking: { mode: WorkMode; status: BookingStatus } | null;
+}
+
+export interface TeamCalendarView {
+  month: string;
+  people: { personId: string; name: string; employeeCode: string; days: TeamCalendarDay[] }[];
+}
+
+/** M4 compliance: planned vs actual office days per person per week (weeks start on Monday). */
+export const complianceQuerySchema = z.object({
+  from: z.iso.date(),
+  to: z.iso.date(),
+  scope: teamScopeSchema,
+});
+
+export interface ComplianceWeek {
+  weekStart: string;
+  policyName: string;
+  requiredMode: 'office' | 'client_site';
+  /** Required days, lowered for leave and holidays. */
+  target: number;
+  planned: number;
+  actual: number;
+  met: boolean;
+  /** The manager approved this week below policy. */
+  approvedBelow: boolean;
+  /** The "why": each day as planned and as it happened. */
+  days: { date: string; planned: WorkMode | null; units: number; why: string }[];
+}
+
+export interface ComplianceView {
+  from: string;
+  to: string;
+  people: { personId: string; name: string; employeeCode: string; weeks: ComplianceWeek[] }[];
+  /** Per week: how many met their policy (approved weeks below policy counted apart). */
+  summary: { weekStart: string; people: number; met: number; approvedBelow: number }[];
+}

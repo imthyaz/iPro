@@ -12,9 +12,12 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  complianceQuerySchema,
   seatInputSchema,
   seatQuerySchema,
   teamAnchorSchema,
+  teamMonthQuerySchema,
+  teamTodayQuerySchema,
   weekPlanSchema,
   weekQuerySchema,
   workPolicyInputSchema,
@@ -23,8 +26,9 @@ import {
   type WorkPolicyInput,
 } from '@ipro/shared';
 import { z } from 'zod';
-import { Authorize } from '../authz/decorators.js';
+import { Authorize, AuthorizeAny } from '../authz/decorators.js';
 import { ZodPipe } from '../common/zod.pipe.js';
+import { ComplianceService } from './compliance.service.js';
 import { HybridService } from './hybrid.service.js';
 
 const seatActiveSchema = z.object({ active: z.boolean() });
@@ -33,7 +37,35 @@ const locationQuerySchema = z.object({ locationId: z.uuid() });
 /** E6 Plan my week, the team anchor day, and the configuration behind them (A2). */
 @Controller()
 export class HybridController {
-  constructor(@Inject(HybridService) private readonly hybrid: HybridService) {}
+  constructor(
+    @Inject(HybridService) private readonly hybrid: HybridService,
+    @Inject(ComplianceService) private readonly compliance: ComplianceService,
+  ) {}
+
+  /** M2 Team today: managers (their team) and HR (their entities). */
+  @AuthorizeAny(['hybrid_booking', 'approve'], ['attendance', 'update'])
+  @Get('hybrid/team-today')
+  teamToday(@Query(new ZodPipe(teamTodayQuerySchema)) query: z.infer<typeof teamTodayQuerySchema>) {
+    return this.compliance.teamToday(query.scope);
+  }
+
+  /** M3 Team calendar. */
+  @AuthorizeAny(['hybrid_booking', 'approve'], ['attendance', 'update'])
+  @Get('hybrid/team-calendar')
+  teamCalendar(
+    @Query(new ZodPipe(teamMonthQuerySchema)) query: z.infer<typeof teamMonthQuerySchema>,
+  ) {
+    return this.compliance.teamCalendar(query.month, query.scope);
+  }
+
+  /** M4 compliance: planned vs actual per person per week. */
+  @AuthorizeAny(['hybrid_booking', 'approve'], ['attendance', 'update'])
+  @Get('hybrid/compliance')
+  complianceReport(
+    @Query(new ZodPipe(complianceQuerySchema)) query: z.infer<typeof complianceQuerySchema>,
+  ) {
+    return this.compliance.report(query.from, query.to, query.scope);
+  }
 
   @Authorize('hybrid_booking', 'read')
   @Get('hybrid/week')

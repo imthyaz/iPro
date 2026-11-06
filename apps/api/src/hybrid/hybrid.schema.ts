@@ -130,3 +130,35 @@ export const workBookings = pgTable(
     index('work_booking_week_idx').on(t.engagementId, t.weekStart),
   ],
 );
+
+/**
+ * A day as planned and as it happened (spec job: hybrid compliance, daily 03:00; decision #78).
+ * Derived: the nightly job writes yesterday, and on Monday the whole of last week again, so a
+ * late regularisation counts. M4 reads weeks from these rows.
+ */
+export const hybridComplianceDays = pgTable(
+  'hybrid_compliance_day',
+  {
+    ...tenantColumns(),
+    engagementId: uuid('engagement_id')
+      .notNull()
+      .references(() => engagements.id),
+    personId: uuid('person_id').notNull(),
+    date: date('date').notNull(),
+    weekStart: date('week_start').notNull(),
+    policyId: uuid('policy_id')
+      .notNull()
+      .references(() => workPolicies.id),
+    requiredMode: text('required_mode', { enum: ['office', 'client_site'] }).notNull(),
+    requiredDays: smallint('required_days').notNull(),
+    working: boolean('working').notNull(),
+    onLeave: boolean('on_leave').notNull(),
+    plannedMode: text('planned_mode', { enum: MODES }),
+    actualStatus: text('actual_status'),
+    actualMode: text('actual_mode', { enum: MODES }),
+  },
+  (t) => [
+    uniqueIndex('hybrid_compliance_day_key').on(t.tenantId, t.engagementId, t.date),
+    index('hybrid_compliance_day_week_idx').on(t.weekStart),
+  ],
+);

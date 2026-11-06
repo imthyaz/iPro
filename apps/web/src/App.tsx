@@ -16,6 +16,7 @@ import { LeaveImport, LeaveTypes } from './features/leave/LeaveAdmin.js';
 import { AllLeaveBalances, PayrollExport } from './features/leave/LeaveHr.js';
 import { Seats, WorkPolicies } from './features/hybrid/HybridAdmin.js';
 import { PlanWeek } from './features/hybrid/PlanWeek.js';
+import { HybridCompliance, TeamCalendar, TeamToday } from './features/hybrid/Team.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
 import { NewOffer } from './features/offers/NewOffer.js';
 import { Offers } from './features/offers/Offers.js';
@@ -113,6 +114,21 @@ function Shell() {
           {user.personId && (
             <NavLink to="/policies" className="nav-item">
               Policies
+            </NavLink>
+          )}
+          {hasRole(user, 'hr', 'hr_head', 'manager') && (
+            <NavLink to="/team-today" className="nav-item">
+              Team today
+            </NavLink>
+          )}
+          {hasRole(user, 'hr', 'hr_head', 'manager') && (
+            <NavLink to="/team-calendar" className="nav-item">
+              Team calendar
+            </NavLink>
+          )}
+          {hasRole(user, 'hr', 'hr_head', 'manager') && (
+            <NavLink to="/hybrid-compliance" className="nav-item">
+              Hybrid compliance
             </NavLink>
           )}
           {hasRole(user, 'hr', 'hr_head', 'manager') && (
@@ -228,6 +244,9 @@ function Shell() {
             <Route path="/attendance-exceptions" element={<AttendanceExceptions />} />
             <Route path="/leave" element={<MyLeave />} />
             <Route path="/hybrid" element={<PlanWeek />} />
+            <Route path="/team-today" element={<TeamToday />} />
+            <Route path="/team-calendar" element={<TeamCalendar />} />
+            <Route path="/hybrid-compliance" element={<HybridCompliance />} />
             <Route path="/work-policies" element={<WorkPolicies />} />
             <Route path="/work-policies/:policyId" element={<WorkPolicies />} />
             <Route path="/seats" element={<Seats />} />
