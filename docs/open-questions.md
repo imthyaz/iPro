@@ -8,7 +8,8 @@ configurable setting.
 - [ ] Working days, shift times, grace, half-day threshold; holiday calendar per location.
 - [ ] Leave types: entitlement, accrual, carry-forward, encashment, sandwich rule, leave year, probation rules.
 - [ ] Regularisation window and monthly limit; check-in methods per population.
-- [ ] Hybrid policies per team, anchor days, booking cut-off, seat counts per office.
+- [x] Hybrid policies, anchor days and the 18:00 cut-off: the spec's proposed values (decision #78). Seat counts
+      per office are set on each location; named seats are optional.
 - [ ] Approval chains, second-level leave threshold, escalation window.
 - [ ] Buckets list and designation-to-band mapping.
 - [ ] Data retention periods (confirm with legal).

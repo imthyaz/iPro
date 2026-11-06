@@ -14,6 +14,8 @@ import { Holidays } from './features/holidays/Holidays.js';
 import { MyLeave } from './features/leave/Leave.js';
 import { LeaveImport, LeaveTypes } from './features/leave/LeaveAdmin.js';
 import { AllLeaveBalances, PayrollExport } from './features/leave/LeaveHr.js';
+import { Seats, WorkPolicies } from './features/hybrid/HybridAdmin.js';
+import { PlanWeek } from './features/hybrid/PlanWeek.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
 import { NewOffer } from './features/offers/NewOffer.js';
 import { Offers } from './features/offers/Offers.js';
@@ -100,6 +102,11 @@ function Shell() {
               My leave
             </NavLink>
           )}
+          {user.personId && (
+            <NavLink to="/hybrid" className="nav-item">
+              Plan my week
+            </NavLink>
+          )}
           <NavLink to="/requests" className="nav-item">
             My requests
           </NavLink>
@@ -164,6 +171,16 @@ function Shell() {
             </NavLink>
           )}
           {seesOrgSetup && (
+            <NavLink to="/work-policies" className="nav-item">
+              Work policies
+            </NavLink>
+          )}
+          {seesOrgSetup && (
+            <NavLink to="/seats" className="nav-item">
+              Seats
+            </NavLink>
+          )}
+          {seesOrgSetup && (
             <NavLink to="/leave-types" className="nav-item">
               Leave types
             </NavLink>
@@ -210,6 +227,10 @@ function Shell() {
             <Route path="/devices" element={<BiometricDevices />} />
             <Route path="/attendance-exceptions" element={<AttendanceExceptions />} />
             <Route path="/leave" element={<MyLeave />} />
+            <Route path="/hybrid" element={<PlanWeek />} />
+            <Route path="/work-policies" element={<WorkPolicies />} />
+            <Route path="/work-policies/:policyId" element={<WorkPolicies />} />
+            <Route path="/seats" element={<Seats />} />
             <Route path="/leave-types" element={<LeaveTypes />} />
             <Route path="/leave-types/:typeId" element={<LeaveTypes />} />
             <Route path="/leave-import" element={<LeaveImport />} />

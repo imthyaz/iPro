@@ -43,6 +43,28 @@ export const builtInDefinitions: Record<string, WorkflowDefinition> = {
     onApproved: 'leave.grant_comp_off',
   },
   /**
+   * A week below the hybrid policy (spec workflow 6; decision #78): the manager approves, whatever
+   * their own role; the check is that they can see the person's bookings.
+   */
+  hybrid_exception: {
+    name: 'Hybrid week below policy',
+    steps: [
+      {
+        id: 'manager',
+        label: 'Manager approval',
+        approver: { kind: 'manager' },
+        authorize: { area: 'hybrid_booking', action: 'read' },
+      },
+    ],
+    onApproved: 'hybrid.approve_exception',
+    journey: {
+      eventType: 'hybrid_exception_approved',
+      category: 'attendance',
+      title: 'Hybrid week below policy approved',
+      sensitivity: 'manager',
+    },
+  },
+  /**
    * Correcting a day of attendance (spec workflow 5, decision #69): the employee's manager approves,
    * whatever their own role (e.g. HR head managing HR). The step already names who approves; the
    * check is that they can see the person's attendance.

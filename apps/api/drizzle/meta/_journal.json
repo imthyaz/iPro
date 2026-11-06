@@ -337,6 +337,20 @@
       "when": 1793943227354,
       "tag": "0047_payroll_export_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793945341808,
+      "tag": "0048_hybrid",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793945344135,
+      "tag": "0049_hybrid_rls",
+      "breakpoints": true
     }
   ]
 }
