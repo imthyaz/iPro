@@ -81,7 +81,8 @@ export class CompOffService implements OnModuleInit {
       },
       describe: (tx, instance) =>
         this.describe(tx, payloadSchema.parse(instance.payload).compOffRequestId),
-      apply: (tx, instance) => this.grant(tx, payloadSchema.parse(instance.payload).compOffRequestId),
+      apply: (tx, instance) =>
+        this.grant(tx, payloadSchema.parse(instance.payload).compOffRequestId),
       onStatus: async (tx, instance, status) => {
         if (status === 'approved') return;
         await tx
@@ -155,7 +156,9 @@ export class CompOffService implements OnModuleInit {
           ),
         );
       if (taken) {
-        throw new ConflictException({ message: 'There is already a comp-off request for this day' });
+        throw new ConflictException({
+          message: 'There is already a comp-off request for this day',
+        });
       }
       const [row] = await tx
         .insert(compOffRequests)
@@ -232,7 +235,9 @@ export class CompOffService implements OnModuleInit {
       });
       if (actor.personId !== row.personId) throw new ForbiddenException();
       if (!OPEN.includes(row.status as (typeof OPEN)[number]) || !row.workflowInstanceId) {
-        throw new BadRequestException({ message: 'Only a request not yet decided can be withdrawn' });
+        throw new BadRequestException({
+          message: 'Only a request not yet decided can be withdrawn',
+        });
       }
       await this.workflows.cancelIn(tx, row.workflowInstanceId);
       return view((await this.load(tx, id))!, actor.personId);
@@ -352,7 +357,10 @@ export class CompOffService implements OnModuleInit {
       .select()
       .from(attendanceDays)
       .where(
-        and(eq(attendanceDays.engagementId, row.engagementId), eq(attendanceDays.day, row.workedOn)),
+        and(
+          eq(attendanceDays.engagementId, row.engagementId),
+          eq(attendanceDays.day, row.workedOn),
+        ),
       );
     let attendance = 'No check-in recorded';
     if (day?.firstIn) {
@@ -405,8 +413,7 @@ function view(row: Row, actorPersonId: string | null | undefined): CompOffReques
     validUntil: row.validUntil,
     expiredDays: row.expiredAmount === null ? null : toDays(row.expiredAmount),
     requestId: row.workflowInstanceId,
-    canCancel:
-      actorPersonId === row.personId && OPEN.includes(row.status as (typeof OPEN)[number]),
+    canCancel: actorPersonId === row.personId && OPEN.includes(row.status as (typeof OPEN)[number]),
     createdAt: row.createdAt.toISOString(),
   };
 }

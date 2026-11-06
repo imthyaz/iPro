@@ -285,7 +285,9 @@ describe('using and expiring comp-off (decision #71: expires 60 days after it is
 });
 
 function shortDate(iso: string) {
-  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
-    new Date(`${iso}T00:00:00Z`),
-  );
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(`${iso}T00:00:00Z`));
 }

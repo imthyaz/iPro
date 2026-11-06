@@ -70,6 +70,13 @@ export class LeaveController {
     return this.leave.adjust(id, body);
   }
 
+  /** H9: everyone's balances for HR (the people whose leave HR may change). */
+  @Authorize('leave', 'update')
+  @Get('leave/balances')
+  all(@Query(new ZodPipe(leaveYearQuerySchema)) query: z.infer<typeof leaveYearQuerySchema>) {
+    return this.leave.allBalances(query.year);
+  }
+
   @Authorize('leave', 'update')
   @Post('leave/balances/import')
   @HttpCode(200)

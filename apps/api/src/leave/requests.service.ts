@@ -430,9 +430,7 @@ export class LeaveRequestsService implements OnModuleInit {
       // Comp-off runs out by grant (decision #76): only grants still valid on the last day count.
       const available = await this.usableGrants(tx, summary.engagementId, type.id, input.to);
       balanceBefore = available;
-      const split = type.allowNegative
-        ? { paid: days, lop: [] }
-        : splitShortfall(days, available);
+      const split = type.allowNegative ? { paid: days, lop: [] } : splitShortfall(days, available);
       paid = split.paid;
       lop.push(...split.lop);
       shortfall = totalOf(lop);

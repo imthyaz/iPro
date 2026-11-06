@@ -7,6 +7,8 @@ import { AttendanceModule } from '../attendance/attendance.module.js';
 import { CompOffController } from './comp-off.controller.js';
 import { CompOffService } from './comp-off.service.js';
 import { LeaveController } from './leave.controller.js';
+import { PayrollExportController } from './payroll-export.controller.js';
+import { PayrollExportService } from './payroll-export.service.js';
 import { LeaveRequestsController } from './requests.controller.js';
 import { LeaveRequestsService } from './requests.service.js';
 import { LeaveService } from './leave.service.js';
@@ -41,8 +43,13 @@ class LeaveJobs implements OnModuleInit {
 
 @Module({
   imports: [AttendanceModule],
-  controllers: [LeaveController, LeaveRequestsController, CompOffController],
-  providers: [LeaveService, LeaveRequestsService, CompOffService, LeaveJobs],
+  controllers: [
+    LeaveController,
+    LeaveRequestsController,
+    CompOffController,
+    PayrollExportController,
+  ],
+  providers: [LeaveService, LeaveRequestsService, CompOffService, PayrollExportService, LeaveJobs],
   exports: [LeaveService],
 })
 export class LeaveModule {}

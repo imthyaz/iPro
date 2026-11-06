@@ -122,7 +122,11 @@ export function LeaveBalances({
 }
 
 /** The "why": each entry that made the balance, in order. */
-function BalanceDetail(props: { balance: LeaveBalanceView; personId: string; canAdjust: boolean }) {
+export function BalanceDetail(props: {
+  balance: LeaveBalanceView;
+  personId: string;
+  canAdjust: boolean;
+}) {
   const b = props.balance;
   return (
     <article className="record">
@@ -186,7 +190,7 @@ function Adjust({ personId, balance }: { personId: string; balance: LeaveBalance
       }),
     onSuccess: () => {
       setForm({ days: '', reason: '' });
-      return client.invalidateQueries({ queryKey: ['leave-balances', personId] });
+      return client.invalidateQueries({ queryKey: ['leave-balances'] });
     },
   });
   return (
