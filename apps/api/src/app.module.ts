@@ -6,6 +6,7 @@ import { ConfigModule } from './config.module.js';
 import { RequestContextMiddleware } from './context/request-context.js';
 import { DbModule } from './db/db.module.js';
 import { HealthModule } from './health/health.module.js';
+import { HybridModule } from './hybrid/hybrid.module.js';
 import { IdentityModule } from './identity/identity.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { LeaveModule } from './leave/leave.module.js';
@@ -39,6 +40,7 @@ import { WorkflowModule } from './workflow/workflow.module.js';
     ReviewsModule,
     ChangesModule,
     LeaveModule,
+    HybridModule,
   ],
 })
 export class AppModule implements NestModule {

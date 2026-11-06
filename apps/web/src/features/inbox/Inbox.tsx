@@ -68,6 +68,12 @@ export function Inbox() {
           <span className="muted">See your balances and send a request</span>
         </Link>
       )}
+      {me?.personId && (
+        <Link className="card quick-link" to="/hybrid">
+          <strong>Plan my week</strong>
+          <span className="muted">Office, WFH or client site for next week</span>
+        </Link>
+      )}
       {onboarding.data && (
         <Link className="card onboarding-link" to="/onboarding">
           <strong>Your onboarding</strong>

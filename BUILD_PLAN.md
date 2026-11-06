@@ -129,9 +129,12 @@ monthly attendance and LOP export and the H9 balance screen (decision #77; done)
 **Spec:** Data model (WorkPolicy, WorkBooking, Seat); Workflow 6; Screens E6, M2, M3, M4.
 
 **Done when**
-- [ ] Booking within policy confirms instantly; below policy asks for approval.
-- [ ] Seat booking blocks double-booking of a seat.
+- [x] Booking within policy confirms instantly; below policy asks for approval.
+- [x] Seat booking blocks double-booking of a seat.
 - [ ] The compliance report shows planned vs actual office days per person per week.
+
+**Notes:** sub-PRs: 8a work policies, seats, E6 Plan my week, the below-policy approval, the cut-off and the Friday
+reminder (decision #78; done); 8b M2 Team today, M3 team calendar, the nightly compliance job and M4.
 
 ## [ ] Slice 9 — Exit
 
