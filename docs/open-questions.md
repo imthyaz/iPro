@@ -90,7 +90,7 @@ configurable setting.
       outside the radius only be flagged (as built) or need a reason from the person?
 - [ ] Late and half-day: as built, late is after the shift start plus its grace minutes, and a half day is worked time
       under the shift's half-day threshold. Does late count towards anything (e.g. three lates = half day)?
-- [ ] Are WFH and client-site days reported separately from present days in the monthly attendance export?
+- [x] WFH and client-site days are columns of their own in the monthly export (decision #77).
 - [x] Regularisation (decision #69): confirmed by the owner (decision #70): the 5-day window, 3 a month, the four
       reason codes, and HR's direct corrections don't count towards the limit.
 - [ ] Missing check-in reminder: as built, once a day at shift start plus grace. Is a second reminder (e.g. an hour
@@ -106,3 +106,7 @@ configurable setting.
 - [x] HR doesn't apply leave on someone's behalf; HR adjusts the balance and corrects attendance (decision #75).
 - [ ] Comp-off (decision #76): how long after the day worked can it be asked for? Built as 30 days (setting).
       Is a minimum of hours worked needed for a full or half day, or does the manager judge from the card?
+- [x] Payroll export (decision #77): absent 1 day and an uncovered half day 0.5 of loss of pay; a month is exported
+      once it is over, later changes come through next month as adjustments; undecided requests warn, not block.
+- [ ] Payroll export: which columns and order does the current payroll vendor want? Built with the columns in
+      decision #77; a sample file from the vendor would settle it.
