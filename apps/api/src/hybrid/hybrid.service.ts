@@ -133,7 +133,7 @@ interface Planned {
   seatId: string | null;
 }
 
-interface Context {
+export interface Context {
   summary: PersonSummary;
   engagementId: string;
   policy: PolicyRow | null;
@@ -700,7 +700,8 @@ export class HybridService implements OnModuleInit {
     return rows;
   }
 
-  private async contextOf(tx: Tx, summary: PersonSummary, weekStart: string): Promise<Context> {
+  /** Who someone is for planning a week: their policy, calendar, anchor day and places. */
+  async contextOf(tx: Tx, summary: PersonSummary, weekStart: string): Promise<Context> {
     const places = await this.placesOn(tx, weekStart, summary.legalEntityId);
     const home = summary.location ? places.find((p) => p.id === summary.location!.id) : undefined;
     const facts = {

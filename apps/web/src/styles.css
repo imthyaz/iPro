@@ -1004,3 +1004,47 @@ a.onboarding-link:hover {
 .day-off {
   opacity: 0.7;
 }
+
+.chip-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* M3 Team calendar: the month scrolls sideways inside its box, never the page. */
+.calendar-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.team-calendar {
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.team-calendar th,
+.team-calendar td {
+  min-width: 2.2rem;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.team-calendar th[scope='row'] {
+  position: sticky;
+  left: 0;
+  min-width: 9rem;
+  background: var(--color-bg);
+  text-align: left;
+}
+
+.team-calendar .cal-off {
+  background: var(--color-surface);
+}
+
+.team-calendar .cal-leave {
+  background: var(--color-warn-bg);
+}
