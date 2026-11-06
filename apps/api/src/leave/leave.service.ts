@@ -11,6 +11,7 @@ import {
   toDays,
   toHundredths,
   type LeaveAdjustmentInput,
+  type LeaveBalanceRow,
   type LeaveBalanceView,
   type LeaveImportInput,
   type LeaveImportResult,
@@ -24,6 +25,7 @@ import { addDays, businessDate } from '../common/effective-dating.js';
 import { requireContext } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
+import { personSummaries } from '../people/people.queries.js';
 import { assignments, engagements } from '../people/people.schema.js';
 import { PeopleService } from '../people/people.service.js';
 import { appliesToMatches } from '../workflow/checklist-rules.js';
@@ -205,6 +207,77 @@ export class LeaveService {
         );
       }
       return views;
+    });
+  }
+
+  /** H9: each current person's balances for a year, for HR (people whose leave HR may change). */
+  async allBalances(year: number): Promise<LeaveBalanceRow[]> {
+    const actor = requireContext().actor!;
+    return this.db.tx(async (tx) => {
+      const people = await tx
+        .select()
+        .from(engagements)
+        .where(inArray(engagements.status, ['active', 'on_notice']))
+        .orderBy(asc(engagements.employeeCode));
+      const visible: EngagementRow[] = [];
+      for (const e of people) {
+        const decision = await this.authz.check(actor, 'update', {
+          area: 'leave',
+          subjectPersonId: e.personId,
+          legalEntityId: e.legalEntityId,
+        });
+        if (decision.allowed && !decision.obligations.has('aggregates_only')) visible.push(e);
+      }
+      if (visible.length === 0) return [];
+      const types = (await this.ensureTypes(tx)).filter(
+        (t) => t.kind === 'accrued' || t.kind === 'granted',
+      );
+      const sums = await tx
+        .select({
+          engagementId: leaveLedger.engagementId,
+          leaveTypeId: leaveLedger.leaveTypeId,
+          total: sql<number>`sum(${leaveLedger.amount})::int`,
+        })
+        .from(leaveLedger)
+        .where(
+          and(
+            eq(leaveLedger.year, year),
+            inArray(
+              leaveLedger.engagementId,
+              visible.map((e) => e.id),
+            ),
+          ),
+        )
+        .groupBy(leaveLedger.engagementId, leaveLedger.leaveTypeId);
+      const summaries = new Map(
+        (
+          await personSummaries(tx, businessDate(new Date()), {
+            personIds: visible.map((e) => e.personId),
+          })
+        ).map((s) => [s.personId, s]),
+      );
+      const facts = await this.factsOn(tx, visible, businessDate(new Date()));
+      return visible.map((e) => {
+        const summary = summaries.get(e.personId);
+        const mine = sums.filter((s) => s.engagementId === e.id);
+        return {
+          personId: e.personId,
+          employeeCode: e.employeeCode,
+          name: summary?.legalName ?? '',
+          department: summary?.department?.name ?? null,
+          balances: types
+            .filter(
+              (t) =>
+                (t.active && appliesToMatches(t.appliesTo, facts.get(e.id)!)) ||
+                mine.some((s) => s.leaveTypeId === t.id),
+            )
+            .map((t) => ({
+              leaveTypeId: t.id,
+              code: t.code,
+              balance: toDays(mine.find((s) => s.leaveTypeId === t.id)?.total ?? 0),
+            })),
+        };
+      });
     });
   }
 

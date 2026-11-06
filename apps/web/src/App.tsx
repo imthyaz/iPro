@@ -13,6 +13,7 @@ import { AttendanceExceptions } from './features/attendance/Exceptions.js';
 import { Holidays } from './features/holidays/Holidays.js';
 import { MyLeave } from './features/leave/Leave.js';
 import { LeaveImport, LeaveTypes } from './features/leave/LeaveAdmin.js';
+import { AllLeaveBalances, PayrollExport } from './features/leave/LeaveHr.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
 import { NewOffer } from './features/offers/NewOffer.js';
 import { Offers } from './features/offers/Offers.js';
@@ -168,6 +169,16 @@ function Shell() {
             </NavLink>
           )}
           {hasRole(user, 'hr', 'hr_head') && (
+            <NavLink to="/leave-balances" className="nav-item">
+              Leave balances
+            </NavLink>
+          )}
+          {hasRole(user, 'hr', 'hr_head') && (
+            <NavLink to="/payroll-export" className="nav-item">
+              Payroll export
+            </NavLink>
+          )}
+          {hasRole(user, 'hr', 'hr_head') && (
             <NavLink to="/leave-import" className="nav-item">
               Import leave
             </NavLink>
@@ -202,6 +213,8 @@ function Shell() {
             <Route path="/leave-types" element={<LeaveTypes />} />
             <Route path="/leave-types/:typeId" element={<LeaveTypes />} />
             <Route path="/leave-import" element={<LeaveImport />} />
+            <Route path="/leave-balances" element={<AllLeaveBalances />} />
+            <Route path="/payroll-export" element={<PayrollExport />} />
             <Route path="/requests" element={<Requests />} />
             <Route path="/requests/:requestId" element={<Requests />} />
             <Route path="/policies" element={<MyPolicies />} />

@@ -109,7 +109,7 @@ pushed punches show at once and the build also runs every 15 minutes; holidays a
 (decision #69): regularisation, H9 exceptions and corrections, and the missing check-in reminder. The slice closes
 when approved leave shows on the calendar (slice 7).
 
-## [~] Slice 7 — Leave
+## [x] Slice 7 — Leave
 
 **Spec:** Data model (LeaveType, LeaveBalance, LeaveRequest); Workflow 4; Business rules (leave rows); Scheduled jobs
 (Leave accrual); Screens E4, E5.
@@ -117,12 +117,12 @@ when approved leave shows on the calendar (slice 7).
 **Done when**
 - [x] A full month of accruals for all leave types matches a hand-calculated sample of 10 synthetic people.
 - [x] Leave balances imported from a CSV match the source for every person.
-- [ ] The monthly attendance and LOP export matches a hand count for the same synthetic month.
+- [x] The monthly attendance and LOP export matches a hand count for the same synthetic month.
 
 **Notes:** sub-PRs: 7a leave types, the balance ledger, accrual and year end, HR adjustments and the cut-over import
 (decisions #71, #72; done); 7b-1 applying, approving, cancelling and revoking leave, the approval card, leave on the
 attendance calendar, E4 and E5 (decision #74; done, and slice 6 done-when #3 with it); 7b-2 comp-off (decision #76; done); 7c the
-monthly attendance and LOP export and the H9 balance screen.
+monthly attendance and LOP export and the H9 balance screen (decision #77; done).
 
 ## [ ] Slice 8 — Hybrid planner
 

@@ -244,3 +244,68 @@ export interface CompOffRequestView {
   canCancel: boolean;
   createdAt: string;
 }
+
+/** GET /api/payroll-export?month=YYYY-MM (decision #77): a month once it is over. */
+export const payrollMonthQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+});
+
+/** One person's month for payroll: days in days, every loss-of-pay day with why. */
+export interface PayrollExportRow {
+  personId: string;
+  /** One row an engagement (a conversion in the month gives two). */
+  engagementId: string;
+  employeeCode: string;
+  name: string;
+  department: string | null;
+  /** Set when the person joined or left in the month. */
+  joinedOn: string | null;
+  leftOn: string | null;
+  calendarDays: number;
+  employedDays: number;
+  payableDays: number;
+  present: number;
+  wfh: number;
+  clientSite: number;
+  paidLeave: number;
+  lopLeave: number;
+  lopAbsent: number;
+  lop: number;
+  weeklyOffs: number;
+  holidays: number;
+  lopDays: { date: string; days: number; why: string }[];
+  /** Requests in the month not yet decided; counted as the days stand. */
+  pending: number;
+  /** A change to last month's loss of pay since it was exported (+ deduct more, − give back). */
+  adjustment: { days: number; note: string } | null;
+}
+
+export interface PayrollPendingItem {
+  personId: string;
+  engagementId: string;
+  name: string;
+  employeeCode: string;
+  what: string;
+  date: string;
+}
+
+export interface PayrollExportView {
+  month: string;
+  previousMonth: string;
+  /** When last month was last exported; null when it never was (no adjustments then). */
+  previousExportedAt: string | null;
+  /** This month's earlier exports, newest first. */
+  exports: { at: string; rows: number }[];
+  rows: PayrollExportRow[];
+  pending: PayrollPendingItem[];
+  totals: { people: number; lop: number; payable: number; adjustments: number };
+}
+
+/** H9 balances: one row a person, the balance of each type with one. */
+export interface LeaveBalanceRow {
+  personId: string;
+  employeeCode: string;
+  name: string;
+  department: string | null;
+  balances: { leaveTypeId: string; code: string; balance: number }[];
+}

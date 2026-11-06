@@ -204,3 +204,22 @@ export const compOffRequests = pgTable(
       .where(sql`${t.status} = 'approved' and ${t.expiredAt} is null`),
   ],
 );
+
+/**
+ * A downloaded payroll export (decision #77): what was sent for a month, per engagement, so next
+ * month's export can carry any later change to loss of pay as an adjustment. Kept, never changed.
+ */
+export const payrollExports = pgTable(
+  'payroll_export',
+  {
+    ...tenantColumns(),
+    /** YYYY-MM. */
+    month: text('month').notNull(),
+    rowCount: integer('row_count').notNull(),
+    /** Loss of pay and payable days as exported, hundredths of a day. */
+    lines: jsonb('lines')
+      .$type<{ engagementId: string; lop: number; payable: number }[]>()
+      .notNull(),
+  },
+  (t) => [index('payroll_export_month_idx').on(t.tenantId, t.month, t.createdAt)],
+);
