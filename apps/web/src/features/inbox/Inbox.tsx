@@ -254,8 +254,11 @@ function Approval({ card }: { card: ApprovalCard }) {
           <button className="button" disabled={busy} onClick={() => setRejecting(true)}>
             Reject…
           </button>
-          <Link className="button button-quiet" to={`/requests/${card.instanceId}`}>
-            Details
+          <Link
+            className={card.link ? 'button' : 'button button-quiet'}
+            to={card.link ?? `/requests/${card.instanceId}`}
+          >
+            {card.link ? 'Open' : 'Details'}
           </Link>
         </div>
       )}

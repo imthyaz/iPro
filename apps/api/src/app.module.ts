@@ -5,6 +5,7 @@ import { AuthzModule } from './authz/authz.module.js';
 import { ConfigModule } from './config.module.js';
 import { RequestContextMiddleware } from './context/request-context.js';
 import { DbModule } from './db/db.module.js';
+import { ExitModule } from './exit/exit.module.js';
 import { HealthModule } from './health/health.module.js';
 import { HybridModule } from './hybrid/hybrid.module.js';
 import { IdentityModule } from './identity/identity.module.js';
@@ -41,6 +42,7 @@ import { WorkflowModule } from './workflow/workflow.module.js';
     ChangesModule,
     LeaveModule,
     HybridModule,
+    ExitModule,
   ],
 })
 export class AppModule implements NestModule {

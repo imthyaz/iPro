@@ -426,13 +426,26 @@ export class ChecklistsService {
       .where(and(inArray(checklistTasks.runId, ids), eq(checklistTasks.status, 'open')));
   }
 
-  /** Cancels an engagement's open checklists in the caller's transaction (offer withdrawn, no-show). */
-  async cancelOpenIn(tx: Tx, engagementId: string, reason: string): Promise<void> {
+  /**
+   * Cancels an engagement's open checklists in the caller's transaction (offer withdrawn, no-show),
+   * or only those of one stage (a resignation withdrawn cancels the exit checklist).
+   */
+  async cancelOpenIn(
+    tx: Tx,
+    engagementId: string,
+    reason: string,
+    stage?: 'onboarding' | 'exit' | 'transfer' | 'access',
+  ): Promise<void> {
     const actor = requireContext().actor;
-    const open = await tx
-      .select()
-      .from(checklistRuns)
-      .where(and(eq(checklistRuns.engagementId, engagementId), eq(checklistRuns.status, 'open')));
+    const open = (
+      await tx
+        .select({ run: checklistRuns, stage: checklistTemplates.stage })
+        .from(checklistRuns)
+        .innerJoin(checklistTemplates, eq(checklistTemplates.id, checklistRuns.templateId))
+        .where(and(eq(checklistRuns.engagementId, engagementId), eq(checklistRuns.status, 'open')))
+    )
+      .filter((r) => !stage || r.stage === stage)
+      .map((r) => r.run);
     for (const run of open) {
       await tx
         .update(checklistRuns)
