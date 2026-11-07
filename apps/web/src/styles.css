@@ -1048,3 +1048,13 @@ a.onboarding-link:hover {
 .team-calendar .cal-leave {
   background: var(--color-warn-bg);
 }
+
+/* A3: choosing a named person for a checklist task. */
+.owner-picker {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}

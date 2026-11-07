@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import {
   appliesToSchema,
   templateTaskSchema,
@@ -142,6 +142,30 @@ export class ChecklistsService {
       })
       // Two first uses at once: the second keeps the first one's version.
       .onConflictDoNothing();
+  }
+
+  /**
+   * People who can own a task by name (decision #15: IT, finance, buddies are assignees, not roles;
+   * decision #81: the exit checklist's IT and finance tasks go to designated people). Active sign-in
+   * users matching a name or email, for admins editing a template.
+   */
+  async ownerCandidates(q: string): Promise<{ userId: string; label: string; email: string }[]> {
+    await this.authz.assert(requireContext().actor!, 'update', { area: 'org_config' });
+    const like = `%${q.replace(/[%_\\]/g, '\\$&')}%`;
+    const rows = await this.db.tx((tx) =>
+      tx
+        .select({ id: appUsers.id, name: appUsers.displayName, email: appUsers.email })
+        .from(appUsers)
+        .where(
+          and(
+            eq(appUsers.status, 'active'),
+            or(ilike(appUsers.displayName, like), ilike(appUsers.email, like)),
+          ),
+        )
+        .orderBy(asc(appUsers.displayName))
+        .limit(20),
+    );
+    return rows.map((r) => ({ userId: r.id, label: r.name, email: r.email }));
   }
 
   async listTemplates() {

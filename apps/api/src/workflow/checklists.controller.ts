@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import {
   cancelRunSchema,
   checklistTemplateSchema,
@@ -13,6 +23,7 @@ import { ZodPipe } from '../common/zod.pipe.js';
 import { ChecklistsService } from './checklists.service.js';
 
 const uuid = new ParseUUIDPipe();
+const ownerQuerySchema = z.object({ q: z.string().trim().min(2).max(80) });
 const keySchema = z
   .string()
   .regex(/^[a-z][a-z0-9_.]*$/)
@@ -30,6 +41,13 @@ export class ChecklistsController {
   @Get('checklist-templates')
   templates() {
     return this.checklists.listTemplates();
+  }
+
+  /** A3: people a task can be given to by name (e.g. the IT or finance person). */
+  @Authorize('org_config', 'update')
+  @Get('checklist-owners')
+  owners(@Query(new ZodPipe(ownerQuerySchema)) query: z.infer<typeof ownerQuerySchema>) {
+    return this.checklists.ownerCandidates(query.q);
   }
 
   @Authorize('org_config', 'update')

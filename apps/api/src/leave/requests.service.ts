@@ -681,7 +681,8 @@ export class LeaveRequestsService implements OnModuleInit {
     const fit: string[] = [];
     const lead = Math.round(
       (Date.parse(`${row.fromDate}T00:00:00Z`) -
-        Date.parse(`${row.createdAt.toISOString().slice(0, 10)}T00:00:00Z`)) /
+        // The day it was asked for in India, not in UTC (00:00–05:30 IST is the day before in UTC).
+        Date.parse(`${businessDate(row.createdAt)}T00:00:00Z`)) /
         86_400_000,
     );
     fit.push(

@@ -182,6 +182,53 @@ const blankTask = (): TaskRow => ({
 const ownerValue = (owner: TaskOwner) =>
   owner.kind === 'role' ? `role:${owner.role}` : owner.kind === 'user' ? 'user' : owner.kind;
 
+/**
+ * Gives a task to a named person, e.g. the IT or finance person on the exit checklist (decisions
+ * #15, #81): search active sign-in users by name or email.
+ */
+function OwnerPicker(props: {
+  onPick: (owner: Extract<TaskOwner, { kind: 'user' }>) => void;
+  onCancel: () => void;
+}) {
+  const [q, setQ] = useState('');
+  const found = useQuery({
+    queryKey: ['checklist-owners', q.trim()],
+    queryFn: () =>
+      api<{ userId: string; label: string; email: string }[]>(
+        `/checklist-owners?q=${encodeURIComponent(q.trim())}`,
+      ),
+    enabled: q.trim().length >= 2,
+  });
+  return (
+    <div className="owner-picker" role="group" aria-label="Choose a person">
+      <Field label="Find a person" hint="Name or email">
+        {(id) => <input id={id} type="search" value={q} onChange={(e) => setQ(e.target.value)} />}
+      </Field>
+      {found.error && <Note kind="error">{errorMessage(found.error)}</Note>}
+      {found.data?.length === 0 && <Empty>No one matches.</Empty>}
+      <ul className="rows">
+        {found.data?.map((u) => (
+          <li key={u.userId}>
+            <button
+              type="button"
+              className="row row-button"
+              onClick={() => props.onPick({ kind: 'user', userId: u.userId, label: u.label })}
+            >
+              <span className="row-main">
+                <strong>{u.label}</strong>
+                <span className="muted">{u.email}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className="button button-quiet" onClick={props.onCancel}>
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 function ChecklistEditor({ templateKey, canEdit }: { templateKey: string; canEdit: boolean }) {
   const isNew = templateKey === 'new';
   const client = useQueryClient();
@@ -201,6 +248,7 @@ function ChecklistEditor({ templateKey, canEdit }: { templateKey: string; canEdi
           appliesTo: {} as AppliesTo,
           tasks: [blankTask()],
         });
+  const [picking, setPicking] = useState<number | null>(null);
   const update = (patch: Partial<typeof form>) => setDraft({ ...form, ...patch });
   const setTask = (index: number, patch: Partial<TaskRow>) =>
     update({ tasks: form.tasks.map((t, i) => (i === index ? { ...t, ...patch } : t)) });
@@ -300,6 +348,10 @@ function ChecklistEditor({ templateKey, canEdit }: { templateKey: string; canEdi
                       onChange={(e) => {
                         const v = e.target.value;
                         if (v === 'user') return;
+                        if (v === 'pick') {
+                          setPicking(i);
+                          return;
+                        }
                         setTask(i, {
                           owner: v.startsWith('role:')
                             ? { kind: 'role', role: v.slice(5) as (typeof roles)[number] }
@@ -319,9 +371,19 @@ function ChecklistEditor({ templateKey, canEdit }: { templateKey: string; canEdi
                       {task.owner.kind === 'user' && (
                         <option value="user">{task.owner.label}</option>
                       )}
+                      <option value="pick">A named person…</option>
                     </select>
                   )}
                 </Field>
+                {picking === i && (
+                  <OwnerPicker
+                    onPick={(owner) => {
+                      setTask(i, { owner });
+                      setPicking(null);
+                    }}
+                    onCancel={() => setPicking(null)}
+                  />
+                )}
                 <Field label="Due (days)">
                   {(id) => (
                     <input
