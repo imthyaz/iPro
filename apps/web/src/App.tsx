@@ -16,6 +16,7 @@ import { LeaveImport, LeaveTypes } from './features/leave/LeaveAdmin.js';
 import { AllLeaveBalances, PayrollExport } from './features/leave/LeaveHr.js';
 import { Seats, WorkPolicies } from './features/hybrid/HybridAdmin.js';
 import { PlanWeek } from './features/hybrid/PlanWeek.js';
+import { ExitTracker, Resign } from './features/exit/Exit.js';
 import { HybridCompliance, TeamCalendar, TeamToday } from './features/hybrid/Team.js';
 import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
 import { NewOffer } from './features/offers/NewOffer.js';
@@ -114,6 +115,11 @@ function Shell() {
           {user.personId && (
             <NavLink to="/policies" className="nav-item">
               Policies
+            </NavLink>
+          )}
+          {hasRole(user, 'hr', 'hr_head', 'manager') && (
+            <NavLink to="/exits" className="nav-item">
+              Exits
             </NavLink>
           )}
           {hasRole(user, 'hr', 'hr_head', 'manager') && (
@@ -244,6 +250,9 @@ function Shell() {
             <Route path="/attendance-exceptions" element={<AttendanceExceptions />} />
             <Route path="/leave" element={<MyLeave />} />
             <Route path="/hybrid" element={<PlanWeek />} />
+            <Route path="/resign" element={<Resign />} />
+            <Route path="/exits" element={<ExitTracker />} />
+            <Route path="/exits/:exitId" element={<ExitTracker />} />
             <Route path="/team-today" element={<TeamToday />} />
             <Route path="/team-calendar" element={<TeamCalendar />} />
             <Route path="/hybrid-compliance" element={<HybridCompliance />} />

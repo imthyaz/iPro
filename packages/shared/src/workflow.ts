@@ -107,6 +107,8 @@ export interface ApprovalCard {
   changes: ChangeLine[];
   /** Why it can't be approved yet (e.g. waiting for a medical certificate); it can still be returned. */
   waitingFor: string | null;
+  /** Where to act on it when the card alone isn't enough (e.g. an exit page); else the request. */
+  link?: string | null;
 }
 
 export interface WorkflowView {

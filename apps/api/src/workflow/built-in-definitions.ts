@@ -65,6 +65,55 @@ export const builtInDefinitions: Record<string, WorkflowDefinition> = {
     },
   },
   /**
+   * A resignation (spec workflow 7; decision #80): the manager after the retention conversation,
+   * then HR, who fixes the last day; HR head too when the last day is earlier than the notice.
+   * The manager's and HR's steps wait for what they record on the exit page.
+   */
+  resignation: {
+    name: 'Resignation',
+    steps: [
+      {
+        id: 'manager',
+        label: 'Manager: retention conversation',
+        approver: { kind: 'manager' },
+        authorize: { area: 'exit', action: 'approve' },
+      },
+      {
+        id: 'hr',
+        label: 'HR: last working day',
+        approver: { kind: 'role', role: 'hr' },
+        authorize: { area: 'exit', action: 'update' },
+      },
+      {
+        id: 'hr_head',
+        label: 'HR head: early release',
+        approver: { kind: 'role', role: 'hr_head' },
+        authorize: { area: 'exit', action: 'approve' },
+        when: { field: 'earlyRelease', equals: true },
+      },
+    ],
+    onApproved: 'exit.accept_resignation',
+  },
+  /** Withdrawing an accepted resignation (spec workflow 7): the manager, then HR. */
+  resignation_withdrawal: {
+    name: 'Withdraw resignation',
+    steps: [
+      {
+        id: 'manager',
+        label: 'Manager approval',
+        approver: { kind: 'manager' },
+        authorize: { area: 'exit', action: 'approve' },
+      },
+      {
+        id: 'hr',
+        label: 'HR approval',
+        approver: { kind: 'role', role: 'hr' },
+        authorize: { area: 'exit', action: 'approve' },
+      },
+    ],
+    onApproved: 'exit.withdraw',
+  },
+  /**
    * Correcting a day of attendance (spec workflow 5, decision #69): the employee's manager approves,
    * whatever their own role (e.g. HR head managing HR). The step already names who approves; the
    * check is that they can see the person's attendance.

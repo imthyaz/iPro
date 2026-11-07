@@ -141,9 +141,13 @@ reminder (decision #78; done); 8b M2 Team today, M3 team calendar, the nightly c
 **Spec:** Workflow 7 (Exit); Screens E10, H8.
 
 **Done when**
-- [ ] Accepting a resignation creates the exit checklist and sets the last working day from the notice rules.
+- [x] Accepting a resignation creates the exit checklist and sets the last working day from the notice rules.
 - [ ] Access is disabled at the end of the last working day (Entra via SCIM; fake in tests).
 - [ ] Relieving and experience letters generate only after all clearance tasks are done.
+
+**Notes:** sub-PRs: 9a resignation, acceptance, withdrawal, termination, the exit checklist, E10 and H8
+(decision #80; done); 9b clearance, the exit interview, exit at the end of the last day with access disabled
+(Entra via Microsoft Graph; fake in tests), letters after clearance, probation termination through this workflow.
 
 ## [ ] Slice 10 — Journey timelines
 

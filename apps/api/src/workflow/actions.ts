@@ -26,6 +26,8 @@ export interface WorkflowAction {
    * #75); null when it can. Rejecting is always possible.
    */
   readyToApprove?(tx: Tx, instance: ActionInstance): Promise<string | null>;
+  /** A page to act on it from the card (e.g. recording a retention note); default: the request. */
+  link?(instance: ActionInstance): string;
   /** May anyone who can read the subject's profile start it through POST /api/workflows? */
   genericSubmit?: boolean;
   /** Keeps the subject in step when the item is returned, withdrawn or sent again. */

@@ -354,6 +354,7 @@ export class WorkflowService {
           changes: await this.actions.get(definition.onApproved).describe(tx, instance),
           waitingFor:
             (await this.actions.get(definition.onApproved).readyToApprove?.(tx, instance)) ?? null,
+          link: this.actions.get(definition.onApproved).link?.(instance) ?? null,
         });
       }
       return cards;

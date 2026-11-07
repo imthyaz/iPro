@@ -113,3 +113,13 @@ configurable setting.
       once it is over, later changes come through next month as adjustments; undecided requests warn, not block.
 - [ ] Payroll export: which columns and order does the current payroll vendor want? Built with the columns in
       decision #77; a sample file from the vendor would settle it.
+
+## Exit (slice 9, decision #80)
+- [x] Notice: the spec's proposed periods; earlier release by buyout or waiver with HR head's approval (decision #80).
+- [x] The manager records a retention conversation before accepting (decision #80).
+- [x] Access: disable the Entra and iPro accounts at the end of the last day (9b; needs IT to grant the Graph
+      permission).
+- [x] Exit interview: required before exit, with the rehire flag (9b).
+- [ ] Exit checklist: the built-in tasks are proposed (handover, assets, access, dues, exit interview). Who owns
+      the IT and finance tasks, and are there others (e.g. client sign-off for deployed people)?
+- [ ] Exit interview questions: the proposed set is reason for leaving, what we could improve, would you return.
