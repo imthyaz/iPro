@@ -120,6 +120,5 @@ configurable setting.
 - [x] Access: disable the Entra and iPro accounts at the end of the last day (9b; needs IT to grant the Graph
       permission).
 - [x] Exit interview: required before exit, with the rehire flag (9b).
-- [ ] Exit checklist: the built-in tasks are proposed (handover, assets, access, dues, exit interview). Who owns
-      the IT and finance tasks, and are there others (e.g. client sign-off for deployed people)?
-- [ ] Exit interview questions: the proposed set is reason for leaving, what we could improve, would you return.
+- [x] Exit checklist: IT and finance tasks go to the designated people, named on the template (decision #81).
+- [x] Exit interview questions: reason for leaving, what we could improve, would you return (decision #81).
