@@ -1,4 +1,6 @@
 import { BadRequestException, Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import { businessDate } from '../common/effective-dating.js';
+import { JourneyService } from '../journey/journey.service.js';
 import { eq } from 'drizzle-orm';
 import {
   allocateShiftSchema,
@@ -52,15 +54,29 @@ export class RequestsService implements OnModuleInit {
     @Inject(ShiftsService) private readonly shiftsService: ShiftsService,
     @Inject(WorkflowActions) private readonly actions: WorkflowActions,
     @Inject(WorkflowService) private readonly workflows: WorkflowService,
+    @Inject(JourneyService) private readonly journey: JourneyService,
   ) {}
 
   onModuleInit(): void {
     this.actions.register('profile.apply', {
+      records: ['profile_changed'],
       validate: (payload) => parseOr400<ProfileChange>(profileChangeSchema, payload),
       describe: (tx, instance) =>
         this.describeProfile(tx, instance.subjectPersonId, instance.payload),
       apply: async (tx, instance) => {
         await this.applyProfile(tx, instance.subjectPersonId, instance.payload as ProfileChange);
+        const summary = await this.people.summary(instance.subjectPersonId);
+        await this.journey.record(tx, {
+          engagementId: summary.engagementId,
+          personId: instance.subjectPersonId,
+          eventType: 'profile_changed',
+          category: 'profile',
+          occurredOn: businessDate(new Date()),
+          title: 'Personal details updated',
+          sensitivity: 'hr',
+          sourceTable: 'workflow_instance',
+          sourceId: instance.id,
+        });
       },
     });
     this.actions.register('shift.allocate', {

@@ -150,15 +150,18 @@ reminder (decision #78; done); 8b M2 Team today, M3 team calendar, the nightly c
 (Entra via Microsoft Graph; fake in tests), letters after clearance (decision #82; done); 9c probation termination
 through this workflow and full and final settlement entered by hand (decision #83; done).
 
-## [ ] Slice 10 — Journey timelines
+## [~] Slice 10 — Journey timelines
 
 **Spec:** Data model (JournalEvent); Screens E8, M6, H11. Visual reference: the timeline designs (exited, current,
 compact, team) in the design canvas linked from the product requirements.
 
 **Done when**
-- [ ] Every workflow's final step writes the correct event; no event is written twice.
-- [ ] A manager cannot see compensation or exit-reason events for their team.
+- [x] Every workflow's final step writes the correct event; no event is written twice.
+- [x] A manager cannot see compensation or exit-reason events for their team.
 - [ ] The team view loads 150 people over 3 years in under 3 seconds.
+
+**Notes:** sub-PRs: 10a every workflow's event, planned events, the person timeline (E8, H2 full and compact)
+(decision #84; done); 10b team journeys (M6, H11) with grouping and tiles, and the 150-person load test.
 
 ## [ ] Slice 11 — Action inbox, notifications, Teams
 

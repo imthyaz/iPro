@@ -97,6 +97,7 @@ export class OffersService implements OnModuleInit {
 
   onModuleInit(): void {
     this.actions.register('offer.release', {
+      records: ['offer_made'],
       validate: (payload) => {
         const parsed = releasePayload.safeParse(payload);
         if (!parsed.success) throw new BadRequestException({ message: 'Invalid offer request' });
@@ -562,6 +563,17 @@ export class OffersService implements OnModuleInit {
     await this.setStatus(tx, offer, 'offered', {
       offeredAt: new Date(),
       expiresOn: addDays(today, expiryDays),
+    });
+    await this.journey.record(tx, {
+      engagementId: offer.engagementId,
+      personId: offer.personId,
+      eventType: 'offer_made',
+      category: 'lifecycle',
+      occurredOn: today,
+      title: 'Offer made',
+      sensitivity: 'hr',
+      sourceTable: 'offer',
+      sourceId: offer.id,
     });
     await this.letters.sendIn(tx, offer.letterId!);
   }

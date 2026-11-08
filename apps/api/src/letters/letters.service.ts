@@ -24,6 +24,7 @@ import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
 import { ESIGN_PROVIDER, FakeEsign, type EsignProvider } from '../esign/esign.js';
 import { exitCases } from '../exit/exit.schema.js';
+import { JourneyService } from '../journey/journey.service.js';
 import { grades, legalEntities } from '../org/org.schema.js';
 import { documents } from '../people/documents.schema.js';
 import { inForce, personSummaries } from '../people/people.queries.js';
@@ -95,10 +96,12 @@ export class LettersService implements OnModuleInit {
     @Inject(ESIGN_PROVIDER) private readonly esign: EsignProvider,
     @Inject(WorkflowActions) private readonly actions: WorkflowActions,
     @Inject(WorkflowService) private readonly workflows: WorkflowService,
+    @Inject(JourneyService) private readonly journey: JourneyService,
   ) {}
 
   onModuleInit(): void {
     this.actions.register('letter.release', {
+      records: ['letter_issued'],
       validate: (payload) => {
         const parsed = releasePayload.safeParse(payload);
         if (!parsed.success) throw new BadRequestException({ message: 'Invalid letter approval' });
@@ -120,7 +123,30 @@ export class LettersService implements OnModuleInit {
         ];
       },
       apply: async (tx, instance) => {
-        await this.setStatus(tx, releasePayload.parse(instance.payload).letterId, 'ready');
+        const { letterId } = releasePayload.parse(instance.payload);
+        await this.setStatus(tx, letterId, 'ready');
+        const [row] = await tx
+          .select({
+            personId: letters.personId,
+            engagementId: letters.engagementId,
+            name: letterTemplates.name,
+          })
+          .from(letters)
+          .innerJoin(letterTemplates, eq(letterTemplates.id, letters.templateId))
+          .where(eq(letters.id, letterId));
+        if (row) {
+          await this.journey.record(tx, {
+            engagementId: row.engagementId,
+            personId: row.personId,
+            eventType: 'letter_issued',
+            category: 'documents',
+            occurredOn: businessDate(new Date()),
+            title: `${row.name} issued`,
+            sensitivity: 'hr',
+            sourceTable: 'letter',
+            sourceId: letterId,
+          });
+        }
       },
       onStatus: async (tx, instance, status) => {
         const { letterId } = releasePayload.parse(instance.payload);

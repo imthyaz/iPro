@@ -55,6 +55,8 @@ test('HR asks for a promotion from next month; HR head approves on the card; it 
   await page.getByLabel('Search').fill(name);
   await page.getByRole('link', { name: new RegExp(name) }).click();
   await record.getByRole('tab', { name: 'Journey' }).click();
-  const event = record.getByRole('listitem').filter({ hasText: reason });
-  await expect(event.getByText('Upcoming')).toBeVisible();
+  // The full journey (slice 10): the change is an upcoming card on the track.
+  const title = reason.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const event = record.getByRole('button', { name: new RegExp(`^${title}, .*, upcoming$`) });
+  await expect(event).toBeVisible();
 });

@@ -16,3 +16,4 @@ export * from './attendance.js';
 export * from './leave.js';
 export * from './hybrid.js';
 export * from './exit.js';
+export * from './journey.js';

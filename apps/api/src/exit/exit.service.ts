@@ -32,6 +32,7 @@ import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
 import { appUsers } from '../identity/identity.schema.js';
 import { JourneyService } from '../journey/journey.service.js';
+import { lastWorkingDay } from '../journey/planned-events.js';
 import { LettersService } from '../letters/letters.service.js';
 import { designations } from '../org/org.schema.js';
 import { noticePeriodDays } from '../people/hr-settings.js';
@@ -109,6 +110,7 @@ export class ExitService implements OnModuleInit {
       await this.record(tx, row, 'exit_clearance_complete', 'Exit clearance complete');
     });
     this.actions.register('exit.accept_resignation', {
+      records: ['resignation_accepted'],
       validate: (payload) => {
         const parsed = acceptPayload.safeParse(payload);
         if (!parsed.success) throw new BadRequestException({ message: 'Invalid resignation' });
@@ -140,6 +142,7 @@ export class ExitService implements OnModuleInit {
       },
     });
     this.actions.register('exit.withdraw', {
+      records: ['resignation_withdrawn'],
       validate: (payload) => {
         const parsed = withdrawPayload.safeParse(payload);
         if (!parsed.success) throw new BadRequestException({ message: 'Invalid withdrawal' });
@@ -591,6 +594,7 @@ export class ExitService implements OnModuleInit {
           updatedBy: actor.userId,
         })
         .where(eq(engagements.id, row.engagementId));
+      await this.journey.markHappened(tx, 'exit_case', row.id, 'last_working_day');
       const summary = await this.people.summary(row.personId);
       for (const templateKey of ['relieving', 'experience']) {
         await this.letters.generateIn(tx, summary, { templateKey, extra: {}, approval: false });
@@ -783,6 +787,15 @@ export class ExitService implements OnModuleInit {
       ],
     });
     await this.checklists.startApplicable(tx, row.engagementId, 'exit', row.lastWorkingDate!);
+    await this.journey.record(
+      tx,
+      lastWorkingDay({
+        engagementId: row.engagementId,
+        personId: row.personId,
+        lastWorkingDate: row.lastWorkingDate!,
+        exitCaseId: row.id,
+      }),
+    );
   }
 
   /** The manager and HR approved a withdrawal: back to work, the exit checklist cancelled. */
