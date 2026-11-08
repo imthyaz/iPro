@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
   exitReasonSchema,
+  exitInterviewQuestions,
   exitReasonWords,
   type ExitCaseView,
   type ExitReason,
@@ -223,6 +224,32 @@ export function ExitDetail({ id }: { id: string }) {
   if (x.retentionNote) rows.push(['Retention conversation', x.retentionNote]);
   if (x.checklist)
     rows.push(['Exit checklist', `${x.checklist.done} of ${x.checklist.total} done`]);
+  if (x.clearanceDoneAt) rows.push(['Clearance', `Done ${formatDate(x.clearanceDoneAt)}`]);
+  if (x.interview) {
+    rows.push([
+      'Exit interview',
+      x.interview.declined
+        ? `Declined by the employee (${formatDate(x.interview.recordedAt)})`
+        : `Recorded ${formatDate(x.interview.recordedAt)}`,
+    ]);
+    rows.push(['Can be rehired', x.interview.rehireEligible ? 'Yes' : 'No']);
+    if (x.interview.answers) {
+      rows.push([exitInterviewQuestions.reason, x.interview.answers.reason]);
+      if (x.interview.answers.improve) {
+        rows.push([exitInterviewQuestions.improve, x.interview.answers.improve]);
+      }
+      rows.push([exitInterviewQuestions.wouldReturn, returnWords[x.interview.answers.wouldReturn]]);
+    }
+  }
+  if (x.access) {
+    rows.push([
+      'Access',
+      x.access.method === 'entra'
+        ? `Entra and iPro accounts disabled ${formatDate(x.access.disabledAt)}`
+        : `iPro account disabled ${formatDate(x.access.disabledAt)}; IT disables Entra (task raised)`,
+    ]);
+  }
+  if (x.exitedAt) rows.push(['Exited', formatDate(x.exitedAt)]);
   return (
     <article className="record" aria-label={`Exit: ${x.name}`}>
       <header className="record-header">
@@ -250,7 +277,145 @@ export function ExitDetail({ id }: { id: string }) {
       )}
       {x.can.managerAccept && <ManagerAccept exit={x} />}
       {x.can.hrAccept && <HrAccept exit={x} />}
+      {x.blockers.length > 0 && (
+        <div className="note note-info" role="status" aria-label="Before the exit">
+          <strong>Before the exit can be completed:</strong>
+          <ul>
+            {x.blockers.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {x.can.recordInterview && !x.interview && <Interview exit={x} />}
+      {x.can.completeExit && <CompleteExit exit={x} />}
     </article>
+  );
+}
+
+const returnWords = { yes: 'Yes', maybe: 'Maybe', no: 'No' } as const;
+
+/** HR records the exit interview (decision #81), or that the employee declined; and the rehire flag. */
+function Interview({ exit: x }: { exit: ExitCaseView }) {
+  const [form, setForm] = useState({
+    declined: false,
+    reason: '',
+    improve: '',
+    wouldReturn: '' as '' | 'yes' | 'maybe' | 'no',
+    rehireEligible: true,
+  });
+  const save = useExitMutation<object>(x.id, 'interview');
+  return (
+    <form
+      className="inline-form"
+      aria-label="Exit interview"
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        save.mutate({
+          declined: form.declined,
+          rehireEligible: form.rehireEligible,
+          ...(form.declined
+            ? {}
+            : {
+                answers: {
+                  reason: form.reason,
+                  improve: form.improve,
+                  wouldReturn: form.wouldReturn,
+                },
+              }),
+        });
+      }}
+    >
+      <h3>Exit interview</h3>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={form.declined}
+          onChange={(e) => setForm({ ...form, declined: e.target.checked })}
+        />
+        The employee declined the interview
+      </label>
+      {!form.declined && (
+        <div className="form-grid">
+          <Field label={exitInterviewQuestions.reason}>
+            {(id) => (
+              <textarea
+                id={id}
+                required
+                rows={3}
+                value={form.reason}
+                onChange={(e) => setForm({ ...form, reason: e.target.value })}
+              />
+            )}
+          </Field>
+          <Field label={exitInterviewQuestions.improve}>
+            {(id) => (
+              <textarea
+                id={id}
+                rows={3}
+                value={form.improve}
+                onChange={(e) => setForm({ ...form, improve: e.target.value })}
+              />
+            )}
+          </Field>
+          <Field label={exitInterviewQuestions.wouldReturn}>
+            {(id) => (
+              <select
+                id={id}
+                required
+                value={form.wouldReturn}
+                onChange={(e) =>
+                  setForm({ ...form, wouldReturn: e.target.value as 'yes' | 'maybe' | 'no' })
+                }
+              >
+                <option value="">Choose…</option>
+                <option value="yes">Yes</option>
+                <option value="maybe">Maybe</option>
+                <option value="no">No</option>
+              </select>
+            )}
+          </Field>
+        </div>
+      )}
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={form.rehireEligible}
+          onChange={(e) => setForm({ ...form, rehireEligible: e.target.checked })}
+        />
+        Can be rehired
+      </label>
+      <p className="muted field-hint">The answers are seen by HR only.</p>
+      <button className="button button-primary" disabled={save.isPending}>
+        Save the interview
+      </button>
+      {save.error && <Note kind="error">{errorMessage(save.error)}</Note>}
+    </form>
+  );
+}
+
+/** HR completes the exit: letters and the Exit event. Irreversible, so it confirms first. */
+function CompleteExit({ exit: x }: { exit: ExitCaseView }) {
+  const complete = useExitMutation<object>(x.id, 'complete');
+  return (
+    <div className="form-actions">
+      <button
+        className="button button-primary"
+        disabled={complete.isPending}
+        onClick={() => {
+          if (
+            window.confirm(
+              `Complete ${x.name}'s exit? Relieving and experience letters are generated.`,
+            )
+          ) {
+            complete.mutate({});
+          }
+        }}
+      >
+        Complete exit
+      </button>
+      {complete.error && <Note kind="error">{errorMessage(complete.error)}</Note>}
+    </div>
   );
 }
 

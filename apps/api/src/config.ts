@@ -45,6 +45,11 @@ const envSchema = z
     ZOHO_SIGN_WEBHOOK_HEADER: z.string().default('X-ZS-WEBHOOK-SIGNATURE'),
     /** Pre-joiner guest invitations (decision #55): "fake" locally and in tests; Microsoft Graph in AWS. */
     INVITES_PROVIDER: z.enum(['fake', 'graph']).default('fake'),
+    /**
+     * Disabling a leaver's Entra account at the end of the last day (decision #82): "fake" locally and
+     * in tests; "graph" once IT grants the permission; "none" until then (an IT task is raised).
+     */
+    DIRECTORY_PROVIDER: z.enum(['fake', 'graph', 'none']).default('fake'),
     GRAPH_CLIENT_ID: optionalText,
     GRAPH_CLIENT_SECRET: optionalText,
     /** The Entra group for pre-joiners, mapped to the employee role. */
@@ -84,6 +89,11 @@ const envSchema = z
         if (!env[key]) fail(key, 'required for Graph guest invitations');
       }
     }
+    if (env.DIRECTORY_PROVIDER === 'graph') {
+      for (const key of ['ENTRA_TENANT_ID', 'GRAPH_CLIENT_ID', 'GRAPH_CLIENT_SECRET'] as const) {
+        if (!env[key]) fail(key, 'required to disable Entra accounts through Graph');
+      }
+    }
     if (env.ESIGN_PROVIDER === 'zoho') {
       for (const key of [
         'ZOHO_SIGN_CLIENT_ID',
@@ -107,6 +117,9 @@ const envSchema = z
       }
       if (env.INVITES_PROVIDER === 'fake') {
         fail('INVITES_PROVIDER', 'production pre-joiners must be invited through Microsoft Graph');
+      }
+      if (env.DIRECTORY_PROVIDER === 'fake') {
+        fail('DIRECTORY_PROVIDER', 'production uses Microsoft Graph, or "none" for IT tasks');
       }
     }
   });

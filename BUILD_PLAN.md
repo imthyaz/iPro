@@ -136,18 +136,19 @@ monthly attendance and LOP export and the H9 balance screen (decision #77; done)
 **Notes:** sub-PRs: 8a work policies, seats, E6 Plan my week, the below-policy approval, the cut-off and the Friday
 reminder (decision #78; done); 8b M2 Team today, M3 team calendar, the nightly compliance job and M4 (decision #79; done).
 
-## [ ] Slice 9 — Exit
+## [~] Slice 9 — Exit
 
 **Spec:** Workflow 7 (Exit); Screens E10, H8.
 
 **Done when**
 - [x] Accepting a resignation creates the exit checklist and sets the last working day from the notice rules.
-- [ ] Access is disabled at the end of the last working day (Entra via SCIM; fake in tests).
-- [ ] Relieving and experience letters generate only after all clearance tasks are done.
+- [x] Access is disabled at the end of the last working day (Entra via SCIM; fake in tests).
+- [x] Relieving and experience letters generate only after all clearance tasks are done.
 
 **Notes:** sub-PRs: 9a resignation, acceptance, withdrawal, termination, the exit checklist, E10 and H8
 (decision #80; done); 9b clearance, the exit interview, exit at the end of the last day with access disabled
-(Entra via Microsoft Graph; fake in tests), letters after clearance, probation termination through this workflow.
+(Entra via Microsoft Graph; fake in tests), letters after clearance (decision #82; done); 9c probation termination
+through this workflow and full and final settlement entered by hand.
 
 ## [ ] Slice 10 — Journey timelines
 

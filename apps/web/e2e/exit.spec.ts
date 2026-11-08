@@ -87,6 +87,17 @@ test('resign, the manager and HR accept, then withdraw with their approval', asy
   await expect(detail).toContainText('Serving notice');
   await expect(detail).toContainText('Offered study leave; declined');
   await expect(detail).toContainText(/0 of \d+ done/);
+  // What still stands before the exit, then the exit interview (HR only, decision #81).
+  const before = detail.getByRole('status', { name: 'Before the exit' });
+  await expect(before).toContainText('Record the exit interview first');
+  await expect(before).toContainText('The exit checklist isn’t finished');
+  const interview = detail.getByRole('form', { name: 'Exit interview' });
+  await interview.getByLabel('Why are you leaving?').fill('Higher studies abroad');
+  await interview.getByLabel('Would you come back to Ideassion?').selectOption('yes');
+  await interview.getByRole('button', { name: 'Save the interview' }).click();
+  await expect(detail).toContainText('Higher studies abroad');
+  await expect(before).not.toContainText('Record the exit interview first');
+  await expect(detail.getByRole('button', { name: 'Complete exit' })).toHaveCount(0);
 
   await signInAs(page, DEV.employee);
   await page.goto('/resign');

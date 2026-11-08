@@ -12,18 +12,22 @@ import {
   exitReasonWords,
   type ChangeLine,
   type ExitCaseView,
+  type ExitInterviewAnswers,
+  type ExitInterviewInput,
   type HrAcceptInput,
   type MyExitView,
   type ResignationInput,
   type TerminationInput,
 } from '@ipro/shared';
 import { z } from 'zod';
+import { minutesInIndia } from '../attendance/attendance.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthzService } from '../authz/authz.service.js';
 import { businessDate } from '../common/effective-dating.js';
 import { requireContext, type Actor } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
+import { appUsers } from '../identity/identity.schema.js';
 import { JourneyService } from '../journey/journey.service.js';
 import { LettersService } from '../letters/letters.service.js';
 import { designations } from '../org/org.schema.js';
@@ -42,6 +46,7 @@ import { WorkflowActions } from '../workflow/actions.js';
 import { notify, roleHolders } from '../workflow/lookups.js';
 import { approvals, workflowInstances } from '../workflow/workflow.schema.js';
 import { WorkflowService } from '../workflow/workflow.service.js';
+import { DIRECTORY_ACCOUNTS, type DirectoryAccounts } from './directory-accounts.js';
 import { checkLastDay, longDate, noticeLastDay, onProbation } from './exit-rules.js';
 import { exitCases } from './exit.schema.js';
 
@@ -53,6 +58,10 @@ const withdrawPayload = z.object({ exitCaseId: z.uuid() });
 const OPEN = ['submitted', 'serving_notice', 'clearance'] as const;
 const STEPS = ['manager', 'hr', 'hr_head'] as const;
 export const EXIT_CHECKLIST = 'exit_clearance';
+/** Raised for IT when iPro can't disable the Entra account itself (decision #82). */
+export const ENTRA_REMOVAL = 'entra_account_removal';
+/** The access job runs at 23:55 IST; from 23:00 on the last day it counts as the end of it. */
+const END_OF_DAY_MINUTES = 23 * 60;
 
 /**
  * Exit (slice 9a; spec workflow 7; decision #80). The employee resigns with a reason and a proposed
@@ -74,9 +83,26 @@ export class ExitService implements OnModuleInit {
     @Inject(WorkflowActions) private readonly actions: WorkflowActions,
     @Inject(ChecklistsService) private readonly checklists: ChecklistsService,
     @Inject(LettersService) private readonly letters: LettersService,
+    @Inject(DIRECTORY_ACCOUNTS) private readonly directory: DirectoryAccounts,
   ) {}
 
   onModuleInit(): void {
+    // Spec workflow 7: all clearance tasks done → Clearance.
+    this.checklists.onRunComplete(async (tx, run) => {
+      if (run.stage !== 'exit') return;
+      const [row] = await tx
+        .select()
+        .from(exitCases)
+        .where(
+          and(eq(exitCases.engagementId, run.engagementId), eq(exitCases.status, 'serving_notice')),
+        );
+      if (!row) return;
+      await tx
+        .update(exitCases)
+        .set({ status: 'clearance', clearanceDoneAt: new Date(), updatedAt: new Date() })
+        .where(eq(exitCases.id, row.id));
+      await this.record(tx, row, 'exit_clearance_complete', 'Exit clearance complete');
+    });
     this.actions.register('exit.accept_resignation', {
       validate: (payload) => {
         const parsed = acceptPayload.safeParse(payload);
@@ -409,6 +435,161 @@ export class ExitService implements OnModuleInit {
     });
   }
 
+  // ---- Clearance, the exit interview and the exit (slice 9b) ----
+
+  /** HR records the exit interview, or that the employee declined it, and the rehire flag. */
+  async recordInterview(id: string, input: ExitInterviewInput): Promise<ExitCaseView> {
+    const actor = requireContext().actor!;
+    return this.db.tx(async (tx) => {
+      const row = await this.mustLoad(tx, id);
+      await this.assertCan(tx, actor, row, 'update');
+      if (row.status !== 'serving_notice' && row.status !== 'clearance') {
+        throw new BadRequestException({ message: 'The exit interview is for someone on notice' });
+      }
+      const declined = input.declined ?? false;
+      await tx
+        .update(exitCases)
+        .set({
+          interviewRecordedAt: new Date(),
+          interviewRecordedBy: actor.userId,
+          interviewDeclined: declined,
+          interviewAnswers: declined ? null : (input.answers ?? null),
+          interviewNote: input.note || null,
+          rehireEligible: input.rehireEligible,
+          updatedAt: new Date(),
+          updatedBy: actor.userId,
+        })
+        .where(eq(exitCases.id, id));
+      await this.audit.record(tx, {
+        action: 'update',
+        table: 'exit_case',
+        recordId: id,
+        subjectPersonId: row.personId,
+        fieldChanges: [
+          { field: 'exit_interview', to: declined ? 'declined' : 'recorded' },
+          { field: 'rehire_eligible', to: String(input.rehireEligible) },
+        ],
+      });
+      return this.view(tx, (await this.load(tx, id))!);
+    });
+  }
+
+  /**
+   * HR completes the exit (spec: Clearance → Exited) once every clearance task is done, the exit
+   * interview is recorded and the last working day has come: relieving and experience letters,
+   * the rehire flag, and the Exit event.
+   */
+  async complete(id: string, now = new Date()): Promise<ExitCaseView> {
+    const actor = requireContext().actor!;
+    const today = businessDate(now);
+    return this.db.tx(async (tx) => {
+      const row = await this.mustLoad(tx, id);
+      await this.assertCan(tx, actor, row, 'update');
+      const blockers = this.blockers(row, await this.checklistOf(tx, row), today);
+      if (row.status !== 'serving_notice' && row.status !== 'clearance') {
+        throw new BadRequestException({ message: 'This exit isn’t open' });
+      }
+      if (blockers.length)
+        throw new BadRequestException({ message: blockers[0], problems: blockers });
+      await tx
+        .update(exitCases)
+        .set({
+          status: 'exited',
+          exitedAt: new Date(),
+          exitedBy: actor.userId,
+          updatedAt: new Date(),
+          updatedBy: actor.userId,
+        })
+        .where(eq(exitCases.id, id));
+      await tx
+        .update(engagements)
+        .set({
+          status: 'exited',
+          rehireEligible: row.rehireEligible,
+          updatedAt: new Date(),
+          updatedBy: actor.userId,
+        })
+        .where(eq(engagements.id, row.engagementId));
+      const summary = await this.people.summary(row.personId);
+      for (const templateKey of ['relieving', 'experience']) {
+        await this.letters.generateIn(tx, summary, { templateKey, extra: {}, approval: false });
+      }
+      await this.audit.record(tx, {
+        action: 'update',
+        table: 'exit_case',
+        recordId: id,
+        subjectPersonId: row.personId,
+        fieldChanges: [{ field: 'status', from: row.status, to: 'exited' }],
+      });
+      await this.record(
+        tx,
+        row,
+        'exit',
+        `Exited; last working day ${longDate(row.lastWorkingDate!)}`,
+      );
+      return this.view(tx, (await this.load(tx, id))!);
+    });
+  }
+
+  /**
+   * The access job (decision #82; slice 9 done-when #2): at the end of the last working day the
+   * leaver's iPro account is disabled (their sessions end with it) and their Entra account through
+   * Microsoft Graph; where that can't be done (not set up, refused, no Entra link) IT gets a task.
+   * Safe to run again; a missed run catches up the next day.
+   */
+  async disableDueAccounts(now = new Date()): Promise<{ disabled: number }> {
+    const today = businessDate(now);
+    const endOfDay = minutesInIndia(now) >= END_OF_DAY_MINUTES;
+    const due = await this.db.tx((tx) =>
+      tx
+        .select()
+        .from(exitCases)
+        .where(
+          and(
+            inArray(exitCases.status, ['serving_notice', 'clearance', 'exited']),
+            isNull(exitCases.accessDisabledAt),
+          ),
+        ),
+    );
+    let disabled = 0;
+    for (const row of due) {
+      const last = row.lastWorkingDate;
+      if (!last || last > today || (last === today && !endOfDay)) continue;
+      await this.db.tx(async (tx) => {
+        const users = await tx
+          .update(appUsers)
+          .set({ status: 'disabled', updatedAt: new Date() })
+          .where(and(eq(appUsers.personId, row.personId), eq(appUsers.status, 'active')))
+          .returning({ id: appUsers.id, entraObjectId: appUsers.entraObjectId });
+        for (const user of users) {
+          await this.audit.record(tx, {
+            action: 'update',
+            table: 'app_user',
+            recordId: user.id,
+            subjectPersonId: row.personId,
+            fieldChanges: [{ field: 'status', from: 'active', to: 'disabled' }],
+          });
+        }
+        const objectIds = users.flatMap((u) => (u.entraObjectId ? [u.entraObjectId] : []));
+        let method: 'entra' | 'it_task' = objectIds.length ? 'entra' : 'it_task';
+        for (const objectId of objectIds) {
+          try {
+            await this.directory.disable(objectId);
+          } catch {
+            method = 'it_task';
+          }
+        }
+        if (method === 'it_task') await this.raiseItTask(tx, row, today);
+        await tx
+          .update(exitCases)
+          .set({ accessDisabledAt: new Date(), accessMethod: method, updatedAt: new Date() })
+          .where(and(eq(exitCases.id, row.id), isNull(exitCases.accessDisabledAt)));
+        disabled++;
+      });
+    }
+    return { disabled };
+  }
+
   // ---- H8: the exit tracker ----
 
   async list(closed = false): Promise<ExitCaseView[]> {
@@ -545,6 +726,74 @@ export class ExitService implements OnModuleInit {
     await this.record(tx, row, 'resignation_withdrawn', 'Resignation withdrawn');
   }
 
+  /** Why an exit can't be completed yet, in plain words (empty when it can). */
+  private blockers(row: CaseRow, checklist: ExitCaseView['checklist'], today: string): string[] {
+    if (row.status !== 'serving_notice' && row.status !== 'clearance') return [];
+    const out: string[] = [];
+    if (!row.clearanceDoneAt) {
+      out.push(
+        checklist
+          ? `The exit checklist isn’t finished (${checklist.done} of ${checklist.total} done)`
+          : 'The exit checklist hasn’t started',
+      );
+    }
+    if (!row.interviewRecordedAt) out.push('Record the exit interview first');
+    if (row.lastWorkingDate && row.lastWorkingDate > today) {
+      out.push(`The last working day is ${longDate(row.lastWorkingDate)}`);
+    }
+    return out;
+  }
+
+  /** Progress of the exit checklist (open or finished). */
+  private async checklistOf(tx: Tx, row: CaseRow): Promise<ExitCaseView['checklist']> {
+    const runs = await tx
+      .select({ id: checklistRuns.id })
+      .from(checklistRuns)
+      .innerJoin(checklistTemplates, eq(checklistTemplates.id, checklistRuns.templateId))
+      .where(
+        and(
+          eq(checklistRuns.engagementId, row.engagementId),
+          eq(checklistTemplates.stage, 'exit'),
+          inArray(checklistRuns.status, ['open', 'complete']),
+        ),
+      );
+    if (runs.length === 0) return null;
+    const tasks = await tx
+      .select({ status: checklistTasks.status })
+      .from(checklistTasks)
+      .where(
+        inArray(
+          checklistTasks.runId,
+          runs.map((r) => r.id),
+        ),
+      );
+    return { done: tasks.filter((t) => t.status !== 'open').length, total: tasks.length };
+  }
+
+  /** IT disables the Entra account and mailbox by hand (an access checklist, like decision #58). */
+  private async raiseItTask(tx: Tx, row: CaseRow, today: string): Promise<void> {
+    await this.checklists.ensureBuiltIn(tx, ENTRA_REMOVAL, {
+      name: 'Leaver account removal',
+      stage: 'access',
+      appliesTo: {},
+      tasks: [
+        {
+          title: 'Disable the Microsoft Entra account and mailbox',
+          // Admins until an admin names the IT person on this template (decisions #15, #81).
+          owner: { kind: 'role', role: 'admin' },
+          dueOffsetDays: 0,
+          mandatory: true,
+          requiresDocument: false,
+        },
+      ],
+    });
+    try {
+      await this.checklists.startIn(tx, row.engagementId, ENTRA_REMOVAL, today);
+    } catch (error) {
+      if (!(error instanceof ConflictException)) throw error;
+    }
+  }
+
   /** Approves the open step of a workflow as the signed-in user (the engine checks they may). */
   private async approveMine(tx: Tx, instanceId: string): Promise<void> {
     const [open] = await tx
@@ -620,32 +869,14 @@ export class ExitService implements OnModuleInit {
         withdrawal = { status: w.status, requestId: row.withdrawalInstanceId };
       }
     }
-    const runs = await tx
-      .select({ id: checklistRuns.id })
-      .from(checklistRuns)
-      .innerJoin(checklistTemplates, eq(checklistTemplates.id, checklistRuns.templateId))
-      .where(
-        and(
-          eq(checklistRuns.engagementId, row.engagementId),
-          eq(checklistTemplates.stage, 'exit'),
-          inArray(checklistRuns.status, ['open', 'complete']),
-        ),
-      );
-    let checklist: ExitCaseView['checklist'] = null;
-    if (runs.length) {
-      const tasks = await tx
-        .select({ status: checklistTasks.status })
-        .from(checklistTasks)
-        .where(
-          inArray(
-            checklistTasks.runId,
-            runs.map((r) => r.id),
-          ),
-        );
-      checklist = { done: tasks.filter((t) => t.status !== 'open').length, total: tasks.length };
-    }
+    const checklist = await this.checklistOf(tx, row);
     const own = row.personId === actor.personId;
     const resource = await this.resource(row);
+    const isHr = !own && (await this.authz.check(actor, 'update', resource)).allowed;
+    const seesAnswers =
+      isHr || (!own && (await this.authz.check(actor, 'terminate', resource)).allowed);
+    const blockers = this.blockers(row, checklist, businessDate(new Date()));
+    const open = row.status === 'serving_notice' || row.status === 'clearance';
     return {
       id: row.id,
       personId: row.personId,
@@ -667,6 +898,21 @@ export class ExitService implements OnModuleInit {
       requestId: row.workflowInstanceId,
       withdrawal,
       checklist,
+      clearanceDoneAt: row.clearanceDoneAt?.toISOString() ?? null,
+      interview: row.interviewRecordedAt
+        ? {
+            recordedAt: row.interviewRecordedAt.toISOString(),
+            declined: row.interviewDeclined ?? false,
+            rehireEligible: row.rehireEligible ?? false,
+            answers: seesAnswers ? (row.interviewAnswers as ExitInterviewAnswers | null) : null,
+          }
+        : null,
+      access:
+        row.accessDisabledAt && row.accessMethod
+          ? { disabledAt: row.accessDisabledAt.toISOString(), method: row.accessMethod }
+          : null,
+      exitedAt: row.exitedAt?.toISOString() ?? null,
+      blockers: isHr || seesAnswers ? blockers : [],
       can: {
         withdraw:
           own &&
@@ -676,8 +922,9 @@ export class ExitService implements OnModuleInit {
           !own &&
           waiting === 'manager' &&
           (await this.authz.check(actor, 'approve', resource)).allowed,
-        hrAccept:
-          !own && waiting === 'hr' && (await this.authz.check(actor, 'update', resource)).allowed,
+        hrAccept: waiting === 'hr' && isHr,
+        recordInterview: isHr && open,
+        completeExit: isHr && open && blockers.length === 0,
       },
       createdAt: row.createdAt.toISOString(),
     };

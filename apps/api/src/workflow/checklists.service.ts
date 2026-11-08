@@ -45,6 +45,12 @@ type RunRow = typeof checklistRuns.$inferSelect;
 
 const storedTasks = z.array(templateTaskSchema);
 
+/** Told when a checklist finishes, in its transaction (e.g. exit clearance, decision #82). */
+export type RunCompleted = (
+  tx: Tx,
+  run: { id: string; engagementId: string; personId: string; stage: string },
+) => Promise<void>;
+
 const ownerLabel = (owner: TaskOwner) =>
   owner.kind === 'employee'
     ? 'Employee'
@@ -66,6 +72,13 @@ export class ChecklistsService {
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(PeopleService) private readonly people: PeopleService,
   ) {}
+
+  private readonly completed: RunCompleted[] = [];
+
+  /** Lets another module act when a checklist is finished. */
+  onRunComplete(handler: RunCompleted): void {
+    this.completed.push(handler);
+  }
 
   // ---- Templates ----
 
@@ -707,6 +720,18 @@ export class ChecklistsService {
       subjectPersonId: run.personId,
       fieldChanges: [{ field: 'status', from: 'open', to: 'complete' }],
     });
+    const [template] = await tx
+      .select({ stage: checklistTemplates.stage })
+      .from(checklistTemplates)
+      .where(eq(checklistTemplates.id, run.templateId));
+    for (const handler of this.completed) {
+      await handler(tx, {
+        id: run.id,
+        engagementId: run.engagementId,
+        personId: run.personId,
+        stage: template?.stage ?? '',
+      });
+    }
     await notify(
       tx,
       await roleHolders(tx, 'hr', legalEntityId),

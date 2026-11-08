@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   date,
   index,
+  jsonb,
   pgTable,
   smallint,
   text,
@@ -52,6 +54,20 @@ export const exitCases = pgTable(
     withdrawReason: text('withdraw_reason'),
     withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
     terminationReason: text('termination_reason'),
+    /** Every exit checklist task done (spec: Serving notice → Clearance). */
+    clearanceDoneAt: timestamp('clearance_done_at', { withTimezone: true }),
+    /** The exit interview (decision #81): HR-only answers, or declined; the rehire flag. */
+    interviewRecordedAt: timestamp('interview_recorded_at', { withTimezone: true }),
+    interviewRecordedBy: uuid('interview_recorded_by'),
+    interviewDeclined: boolean('interview_declined'),
+    interviewAnswers: jsonb('interview_answers').$type<Record<string, string>>(),
+    interviewNote: text('interview_note'),
+    rehireEligible: boolean('rehire_eligible'),
+    /** Access ended at the end of the last day (decision #82): Entra and iPro, or iPro and an IT task. */
+    accessDisabledAt: timestamp('access_disabled_at', { withTimezone: true }),
+    accessMethod: text('access_method', { enum: ['entra', 'it_task'] }),
+    exitedAt: timestamp('exited_at', { withTimezone: true }),
+    exitedBy: uuid('exited_by'),
   },
   (t) => [
     // One open exit an engagement.

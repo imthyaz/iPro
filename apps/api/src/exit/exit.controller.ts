@@ -10,11 +10,13 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  exitInterviewSchema,
   exitWithdrawSchema,
   hrAcceptSchema,
   managerAcceptSchema,
   resignationSchema,
   terminationSchema,
+  type ExitInterviewInput,
   type HrAcceptInput,
   type ResignationInput,
   type TerminationInput,
@@ -83,6 +85,25 @@ export class ExitController {
     @Body(new ZodPipe(hrAcceptSchema)) body: HrAcceptInput,
   ) {
     return this.exits.hrAccept(id, body);
+  }
+
+  /** HR records the exit interview and the rehire flag (decision #81). */
+  @Authorize('exit', 'update')
+  @Post('exits/:id/interview')
+  @HttpCode(200)
+  interview(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body(new ZodPipe(exitInterviewSchema)) body: ExitInterviewInput,
+  ) {
+    return this.exits.recordInterview(id, body);
+  }
+
+  /** HR completes the exit: relieving and experience letters, the rehire flag, the Exit event. */
+  @Authorize('exit', 'update')
+  @Post('exits/:id/complete')
+  @HttpCode(200)
+  complete(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.exits.complete(id);
   }
 
   @Authorize('exit', 'terminate')
