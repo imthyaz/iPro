@@ -27,6 +27,7 @@ import type { Tx } from '../db/tenant-context.js';
 import { JourneyService } from '../journey/journey.service.js';
 import { letterTemplates } from '../letters/letters.schema.js';
 import { ExitService } from '../exit/exit.service.js';
+import { probationEnd } from '../journey/planned-events.js';
 import { LettersService } from '../letters/letters.service.js';
 import { designations } from '../org/org.schema.js';
 import { noticePeriodDays } from '../people/hr-settings.js';
@@ -105,6 +106,15 @@ export class ReviewsService implements OnModuleInit {
 
   onModuleInit(): void {
     this.actions.register('review.decide', {
+      records: [
+        'probation_confirmed',
+        'probation_extended',
+        'probation_terminated',
+        'internship_convert',
+        'internship_extend',
+        'internship_end',
+        'internship_break',
+      ],
       validate: (payload) => {
         const parsed = decidePayload.safeParse(payload);
         if (!parsed.success) throw new BadRequestException({ message: 'Invalid review decision' });
@@ -569,6 +579,16 @@ export class ReviewsService implements OnModuleInit {
         .update(engagements)
         .set({ probationEndDate: review.newEndDate, ...by })
         .where(eq(engagements.id, engagement!.id));
+      await this.journey.record(
+        tx,
+        probationEnd({
+          engagementId: engagement!.id,
+          personId: review.personId,
+          probationEndDate: review.newEndDate!,
+          sourceTable: 'review',
+          sourceId: review.id,
+        }),
+      );
       journey = {
         eventType: 'probation_extended',
         title: 'Probation extended',

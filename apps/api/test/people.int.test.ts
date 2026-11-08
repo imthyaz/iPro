@@ -104,7 +104,9 @@ describe('creating a person (done-when #1)', () => {
         .from(schema.journalEvents)
         .where(sql`${schema.journalEvents.personId} = ${managerPerson.personId}`),
     );
-    expect(events).toHaveLength(1);
+    // Joined, and (decision #84) the probation's planned end.
+    expect(events.map((e) => e.eventType).sort()).toEqual(['joined', 'probation_end']);
+    events.sort((a) => (a.eventType === 'joined' ? -1 : 1));
     expect(events[0]).toMatchObject({
       eventType: 'joined',
       occurredOn: '2025-06-02',
@@ -139,9 +141,10 @@ describe('creating a person (done-when #1)', () => {
       .expect(201);
     reporteePerson = response.body;
     expect(response.body).toMatchObject({ employeeCode: 'IDS-0002', status: 'pre_joining' });
-    const { rows } = await pool.query(`select is_planned from journal_event where person_id = $1`, [
-      reporteePerson.personId,
-    ]);
+    const { rows } = await pool.query(
+      `select is_planned from journal_event where person_id = $1 and event_type = 'joined'`,
+      [reporteePerson.personId],
+    );
     expect(rows).toEqual([{ is_planned: true }]);
 
     const stranger = await hr.post('/api/people', newPerson('Sam Stranger')).expect(201);
@@ -240,8 +243,10 @@ describe('creating a person (done-when #1)', () => {
       `select event_type, is_planned, occurred_on::text from journal_event where person_id = $1 order by occurred_on`,
       [strangerPerson.personId],
     );
+    // Joined; the probation's planned end (decision #84); the planned designation change.
     expect(rows.map((r) => [r.event_type, r.is_planned])).toEqual([
       ['joined', false],
+      ['probation_end', true],
       ['assignment_changed', true],
     ]);
     // Today the person is still a Software Engineer.

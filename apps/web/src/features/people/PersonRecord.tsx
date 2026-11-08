@@ -1,12 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import {
-  kycTypeLabels,
-  type DocumentView,
-  type JourneyEntry,
-  type KycType,
-  type KycView,
-} from '@ipro/shared';
+import { kycTypeLabels, type DocumentView, type KycType, type KycView } from '@ipro/shared';
 import { Link } from 'react-router';
 import { api, errorMessage } from '../../api.js';
 import { hasRole, useMe } from '../../auth.js';
@@ -28,6 +22,7 @@ import { LeaveBalances } from '../leave/Leave.js';
 import { LeaveRequestList } from '../leave/LeaveRequests.js';
 import { Letters, ShiftHistory } from './PersonExtras.js';
 import { PersonExit } from '../exit/Exit.js';
+import { CompactJourney, FullJourney } from '../journey/Journey.js';
 import type { AssignmentRow, CompensationRow, PersonDetail } from './types.js';
 
 type TabId =
@@ -89,6 +84,9 @@ export function PersonRecord({ personId }: { personId: string }) {
       </header>
       <Tabs tabs={tabs} active={tab} onChange={setTab} label="Person record sections" />
       <div role="tabpanel" aria-labelledby={`tab-${tab}`} className="tab-panel">
+        {tab === 'profile' && (
+          <CompactJourney personId={personId} onOpen={() => setTab('journey')} />
+        )}
         {tab === 'profile' && <Profile person={p} canChange={isSelf || isHr} isHr={isHr} />}
         {tab === 'profile' && isSelf && ['active', 'on_notice'].includes(p.status) && (
           <p>
@@ -122,7 +120,7 @@ export function PersonRecord({ personId }: { personId: string }) {
         {tab === 'documents' && <Documents personId={personId} isSelf={isSelf} isHr={isHr} />}
         {tab === 'letters' && <Letters personId={personId} />}
         {tab === 'exit' && <PersonExit personId={personId} active={p.status === 'active'} />}
-        {tab === 'journey' && <Journey personId={personId} />}
+        {tab === 'journey' && <FullJourney personId={personId} />}
       </div>
     </article>
   );
@@ -542,28 +540,6 @@ export function Documents(props: { personId: string; isSelf: boolean; isHr: bool
           {upload.error && <Note kind="error">{errorMessage(upload.error)}</Note>}
         </form>
       )}
-    </>
-  );
-}
-
-function Journey({ personId }: { personId: string }) {
-  const events = useQuery({
-    queryKey: ['journey', personId],
-    queryFn: () => api<JourneyEntry[]>(`/people/${personId}/journey`),
-  });
-  if (events.error) return <Note kind="error">{errorMessage(events.error)}</Note>;
-  if (events.data?.length === 0) return <Empty>No events yet.</Empty>;
-  return (
-    <>
-      <p className="muted">The full journey timeline arrives with slice 10.</p>
-      <ol className="timeline">
-        {[...(events.data ?? [])].reverse().map((event) => (
-          <li key={event.id}>
-            <strong>{event.title}</strong> {event.upcoming && <Chip tone="info">Upcoming</Chip>}
-            <div className="muted">{formatDate(event.occurredOn)}</div>
-          </li>
-        ))}
-      </ol>
     </>
   );
 }

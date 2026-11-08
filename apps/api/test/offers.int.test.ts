@@ -324,6 +324,7 @@ describe('acceptance and joining', () => {
     }[];
     expect(mine.map((t) => t.title)).toContain('First week check-in');
     expect((await journey(accepted.person.personId)).map((e) => e.event_type)).toEqual([
+      'offer_made',
       'offer_accepted',
     ]);
   });
@@ -361,8 +362,8 @@ describe('acceptance and joining', () => {
     expect(joined.status).toBe('joined');
     expect(await engagementStatus(offer)).toBe('active');
     const events = await journey(offer.person.personId);
-    expect(events.map((e) => e.event_type)).toEqual(['offer_accepted', 'joined']);
-    expect(events[1]!.detail_json).toMatchObject({ viaOfferFlow: true });
+    expect(events.map((e) => e.event_type)).toEqual(['offer_made', 'offer_accepted', 'joined']);
+    expect(events[2]!.detail_json).toMatchObject({ viaOfferFlow: true });
   });
 
   it('a no-show closes the engagement and cancels onboarding', async () => {
@@ -468,6 +469,7 @@ describe('closing an offer', () => {
     });
     expect(await engagementStatus(offer)).toBe('withdrawn');
     expect((await journey(offer.person.personId)).map((e) => e.event_type)).toEqual([
+      'offer_made',
       'offer_declined',
     ]);
   });

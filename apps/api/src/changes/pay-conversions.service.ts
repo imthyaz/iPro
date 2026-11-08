@@ -96,6 +96,7 @@ export class PayConversionsService implements OnModuleInit {
 
   onModuleInit(): void {
     this.actions.register('pay.apply', {
+      records: ['compensation_changed'],
       validate: (payload) => this.parse(payPayload, payload),
       describe: (tx, instance) =>
         this.describePay(tx, payPayload.parse(instance.payload), instance.subjectPersonId),
@@ -103,6 +104,7 @@ export class PayConversionsService implements OnModuleInit {
         this.applyPay(tx, payPayload.parse(instance.payload), instance.subjectPersonId),
     });
     this.actions.register('conversion.apply', {
+      records: ['converted', 'conversion_scheduled'],
       validate: (payload) => this.parse(conversionPayload, payload),
       describe: (tx, instance) =>
         this.describeConversion(

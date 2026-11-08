@@ -27,6 +27,7 @@ import type { Tx } from '../db/tenant-context.js';
 import { appUsers } from '../identity/identity.schema.js';
 import { journalEvents } from '../journey/journey.schema.js';
 import { JourneyService } from '../journey/journey.service.js';
+import { probationEnd as plannedProbationEnd } from '../journey/planned-events.js';
 import {
   departmentVersions,
   designations,
@@ -172,6 +173,16 @@ export class PeopleService {
         sourceTable: 'engagement',
         sourceId: engagementId,
       });
+    }
+    if (probationEnd && !options.offer) {
+      await this.journey.record(
+        tx,
+        plannedProbationEnd({
+          engagementId,
+          personId: person!.id,
+          probationEndDate: probationEnd,
+        }),
+      );
     }
     for (const [table, recordId] of [
       ['person', person!.id],

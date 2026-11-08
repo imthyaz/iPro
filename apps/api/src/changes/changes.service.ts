@@ -49,6 +49,7 @@ export class ChangesService implements OnModuleInit {
 
   onModuleInit(): void {
     this.actions.register('change.apply', {
+      records: ['assignment_changed'],
       validate: (payload) => {
         const parsed = payloadSchema.safeParse(payload);
         if (!parsed.success) throw new BadRequestException({ message: 'Invalid change' });

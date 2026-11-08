@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { and, eq } from 'drizzle-orm';
 import { requireContext } from '../context/request-context.js';
 import type { Tx } from '../db/tenant-context.js';
 import { journalEvents } from './journey.schema.js';
@@ -17,7 +18,7 @@ export interface JourneyEvent {
   sourceId: string;
 }
 
-/** The only writer of JournalEvent (ARCHITECTURE.md). Timeline queries arrive with slice 10. */
+/** The only writer of JournalEvent (ARCHITECTURE.md); timelines read it through TimelineService. */
 @Injectable()
 export class JourneyService {
   /**
@@ -47,5 +48,24 @@ export class JourneyService {
       .onConflictDoNothing()
       .returning({ id: journalEvents.id });
     return inserted.length > 0;
+  }
+
+  /** A planned event has happened (the only change the journal allows: is_planned turns false). */
+  async markHappened(tx: Tx, sourceTable: string, sourceId: string, eventType: string) {
+    await tx
+      .update(journalEvents)
+      .set({
+        isPlanned: false,
+        updatedAt: new Date(),
+        updatedBy: requireContext().actor?.userId ?? null,
+      })
+      .where(
+        and(
+          eq(journalEvents.sourceTable, sourceTable),
+          eq(journalEvents.sourceId, sourceId),
+          eq(journalEvents.eventType, eventType),
+          eq(journalEvents.isPlanned, true),
+        ),
+      );
   }
 }

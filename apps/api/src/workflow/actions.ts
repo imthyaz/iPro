@@ -26,6 +26,11 @@ export interface WorkflowAction {
    * #75); null when it can. Rejecting is always possible.
    */
   readyToApprove?(tx: Tx, instance: ActionInstance): Promise<string | null>;
+  /**
+   * The journal events its apply writes (slice 10 done-when #1: every workflow's final step writes
+   * its event). Left out when the definition's own `journey` writes it.
+   */
+  records?: readonly string[];
   /** A page to act on it from the card (e.g. recording a retention note); default: the request. */
   link?(instance: ActionInstance): string;
   /** May anyone who can read the subject's profile start it through POST /api/workflows? */
