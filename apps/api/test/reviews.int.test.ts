@@ -341,6 +341,18 @@ describe('decisions (done-when #2)', () => {
     expect(after).toMatchObject({ status: 'on_notice', last_day: addDays(today, 30) });
     expect(await events(personId)).toContain('probation_terminated');
     expect(await lettersOf(personId)).toEqual([{ type: 'termination', status: 'ready' }]);
+    // Decision #83: the termination runs through the exit workflow, with its checklist.
+    expect(await exitCaseOf(personId)).toEqual({
+      cases: [
+        {
+          kind: 'termination',
+          status: 'serving_notice',
+          lwd: addDays(today, 30),
+          rehire_eligible: null,
+        },
+      ],
+      exitChecklists: 1,
+    });
   });
 
   it('a returned decision goes back to the manager, who sends it again', async () => {
@@ -402,3 +414,17 @@ describe('who sees what', () => {
     await agents.emp!.get('/api/probation/dashboard').expect(403);
   });
 });
+
+async function exitCaseOf(personId: string) {
+  const cases = await pool.query(
+    `select kind, status, last_working_date::text as lwd, rehire_eligible from exit_case
+       where person_id = $1`,
+    [personId],
+  );
+  const runs = await pool.query(
+    `select count(*)::int as n from checklist_run r join checklist_template t on t.id = r.template_id
+       where r.person_id = $1 and t.stage = 'exit'`,
+    [personId],
+  );
+  return { cases: cases.rows, exitChecklists: runs.rows[0].n as number };
+}

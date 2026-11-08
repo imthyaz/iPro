@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import {
   exitReasonSchema,
   exitInterviewQuestions,
+  exitKindWords,
   exitReasonWords,
   type ExitCaseView,
   type ExitReason,
@@ -206,7 +207,7 @@ export function ExitDetail({ id }: { id: string }) {
   const x = data.data;
   if (!x) return <p className="muted">Loading…</p>;
   const rows: [string, string][] = [
-    ['Kind', x.kind === 'resignation' ? 'Resignation' : 'Termination'],
+    ['Kind', exitKindWords[x.kind]],
     [x.kind === 'resignation' ? 'Resigned on' : 'Started on', formatDate(x.resignationDate)],
     ['Notice', `${x.noticeDays} days, to ${formatDate(x.noticeLastDay)}`],
   ];
@@ -250,6 +251,18 @@ export function ExitDetail({ id }: { id: string }) {
     ]);
   }
   if (x.exitedAt) rows.push(['Exited', formatDate(x.exitedAt)]);
+  if (x.settlement) {
+    rows.push([
+      'Full and final',
+      [
+        x.settlement.amountPaise !== null ? settlementWords(x.settlement.amountPaise) : 'Recorded',
+        x.settlement.settledOn ? `settled ${formatDate(x.settlement.settledOn)}` : 'not yet paid',
+        x.settlement.note,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    ]);
+  }
   return (
     <article className="record" aria-label={`Exit: ${x.name}`}>
       <header className="record-header">
@@ -289,7 +302,94 @@ export function ExitDetail({ id }: { id: string }) {
       )}
       {x.can.recordInterview && !x.interview && <Interview exit={x} />}
       {x.can.completeExit && <CompleteExit exit={x} />}
+      {x.can.recordSettlement && <Settlement key={x.settlement?.recordedAt ?? 'new'} exit={x} />}
     </article>
+  );
+}
+
+/** "₹45,250.50 to be paid" or "₹1,200 owed by them", from signed paise. */
+function settlementWords(paise: string): string {
+  const value = BigInt(paise);
+  const abs = value < 0n ? -value : value;
+  const rupees = `₹${new Intl.NumberFormat('en-IN').format(abs / 100n)}${
+    abs % 100n ? `.${String(abs % 100n).padStart(2, '0')}` : ''
+  }`;
+  return value < 0n ? `${rupees} owed by them` : `${rupees} to be paid`;
+}
+
+/** Full and final, entered by hand until payroll (decision #83); HR only, encrypted. */
+function Settlement({ exit: x }: { exit: ExitCaseView }) {
+  const paise = x.settlement?.amountPaise ?? null;
+  const [form, setForm] = useState({
+    amount:
+      paise === null
+        ? ''
+        : (() => {
+            const v = BigInt(paise);
+            const abs = v < 0n ? -v : v;
+            return `${v < 0n ? '-' : ''}${abs / 100n}${abs % 100n ? `.${String(abs % 100n).padStart(2, '0')}` : ''}`;
+          })(),
+    settledOn: x.settlement?.settledOn ?? '',
+    note: x.settlement?.note ?? '',
+  });
+  const save = useExitMutation<object>(x.id, 'settlement');
+  return (
+    <form
+      className="inline-form"
+      aria-label="Full and final"
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        save.mutate({
+          amount: form.amount.trim(),
+          settledOn: form.settledOn || null,
+          ...(form.note.trim() ? { note: form.note.trim() } : {}),
+        });
+      }}
+    >
+      <h3>Full and final</h3>
+      <p className="muted field-hint">
+        Entered by hand until payroll is in iPro. Negative when the person owes the company. Kept
+        encrypted; HR only.
+      </p>
+      <div className="form-grid">
+        <Field label="Amount (₹)" hint="e.g. 45250.50 or -1200">
+          {(id) => (
+            <input
+              id={id}
+              required
+              inputMode="decimal"
+              pattern="-?\d{1,10}(\.\d{1,2})?"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+            />
+          )}
+        </Field>
+        <Field label="Paid on" hint="Leave empty until it is paid">
+          {(id) => (
+            <input
+              id={id}
+              type="date"
+              value={form.settledOn}
+              onChange={(e) => setForm({ ...form, settledOn: e.target.value })}
+            />
+          )}
+        </Field>
+        <Field label="What it covers" hint="Optional">
+          {(id) => (
+            <input
+              id={id}
+              maxLength={1000}
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+            />
+          )}
+        </Field>
+      </div>
+      <button className="button button-primary" disabled={save.isPending}>
+        {x.settlement ? 'Update full and final' : 'Save full and final'}
+      </button>
+      {save.error && <Note kind="error">{errorMessage(save.error)}</Note>}
+    </form>
   );
 }
 
@@ -587,7 +687,7 @@ export function ExitTracker() {
                 </span>
               </span>
               <span className="row-chips">
-                {x.kind === 'termination' && <Chip tone="warn">Termination</Chip>}
+                {x.kind !== 'resignation' && <Chip tone="warn">{exitKindWords[x.kind]}</Chip>}
                 <Chip tone={exitWords[x.status][1]}>{exitWords[x.status][0]}</Chip>
               </span>
             </Link>
@@ -635,8 +735,7 @@ export function PersonExit({ personId, active }: { personId: string; active: boo
             <Link to={`/exits/${x.id}`} className="row">
               <span className="row-main">
                 <strong>
-                  {x.kind === 'resignation' ? 'Resignation' : 'Termination'},{' '}
-                  {formatDate(x.resignationDate)}
+                  {exitKindWords[x.kind]}, {formatDate(x.resignationDate)}
                 </strong>
                 <span className="muted">
                   {x.lastWorkingDate

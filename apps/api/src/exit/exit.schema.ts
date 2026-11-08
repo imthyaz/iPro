@@ -27,7 +27,7 @@ export const exitCases = pgTable(
       .notNull()
       .references(() => engagements.id),
     personId: uuid('person_id').notNull(),
-    kind: text('kind', { enum: ['resignation', 'termination'] }).notNull(),
+    kind: text('kind', { enum: ['resignation', 'termination', 'end_of_term'] }).notNull(),
     status: text('status', {
       enum: ['submitted', 'serving_notice', 'clearance', 'exited', 'withdrawn'],
     }).notNull(),
@@ -68,6 +68,16 @@ export const exitCases = pgTable(
     accessMethod: text('access_method', { enum: ['entra', 'it_task'] }),
     exitedAt: timestamp('exited_at', { withTimezone: true }),
     exitedBy: uuid('exited_by'),
+    /**
+     * Full and final, entered by hand until payroll (decision #83): signed paise, field-encrypted
+     * like pay; read only by those who may read compensation, every read audited.
+     */
+    settlementAmountEncrypted: text('settlement_amount_encrypted'),
+    settlementCurrency: text('settlement_currency'),
+    settledOn: date('settled_on'),
+    settlementNote: text('settlement_note'),
+    settlementRecordedAt: timestamp('settlement_recorded_at', { withTimezone: true }),
+    settlementRecordedBy: uuid('settlement_recorded_by'),
   },
   (t) => [
     // One open exit an engagement.

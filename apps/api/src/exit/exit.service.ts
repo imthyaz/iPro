@@ -10,10 +10,12 @@ import {
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import {
   exitReasonWords,
+  rupeesToPaise,
   type ChangeLine,
   type ExitCaseView,
   type ExitInterviewAnswers,
   type ExitInterviewInput,
+  type SettlementInput,
   type HrAcceptInput,
   type MyExitView,
   type ResignationInput,
@@ -21,7 +23,8 @@ import {
 } from '@ipro/shared';
 import { z } from 'zod';
 import { minutesInIndia } from '../attendance/attendance.service.js';
-import { AuditService } from '../audit/audit.service.js';
+import type { FieldCipher } from '../audit/field-cipher.js';
+import { AuditService, FIELD_CIPHER, SensitiveReads } from '../audit/audit.service.js';
 import { AuthzService } from '../authz/authz.service.js';
 import { businessDate } from '../common/effective-dating.js';
 import { requireContext, type Actor } from '../context/request-context.js';
@@ -84,6 +87,8 @@ export class ExitService implements OnModuleInit {
     @Inject(ChecklistsService) private readonly checklists: ChecklistsService,
     @Inject(LettersService) private readonly letters: LettersService,
     @Inject(DIRECTORY_ACCOUNTS) private readonly directory: DirectoryAccounts,
+    @Inject(FIELD_CIPHER) private readonly cipher: FieldCipher,
+    @Inject(SensitiveReads) private readonly sensitive: SensitiveReads,
   ) {}
 
   onModuleInit(): void {
@@ -388,50 +393,126 @@ export class ExitService implements OnModuleInit {
           message: 'Only someone currently working can be terminated',
         });
       }
-      await this.assertNoOpenCase(tx, engagement.id);
       if (input.lastWorkingDate < today) {
         throw new BadRequestException({ message: 'The last working day can’t be in the past' });
       }
-      const notice = await this.noticeFor(tx, engagement);
-      const [row] = await tx
-        .insert(exitCases)
-        .values({
-          tenantId: requireContext().tenantId,
-          engagementId: engagement.id,
-          personId,
-          kind: 'termination',
-          status: 'serving_notice',
-          resignationDate: today,
-          noticeDays: notice,
-          noticeLastDay: noticeLastDay(today, notice),
-          lastWorkingDate: input.lastWorkingDate,
-          terminationReason: input.reason,
-          acceptedAt: new Date(),
-          createdBy: actor.userId,
-          updatedBy: actor.userId,
-        })
-        .returning();
-      await this.startNotice(tx, row!, 'terminated');
+      const row = await this.beginIn(tx, engagement, {
+        kind: 'termination',
+        lastWorkingDate: input.lastWorkingDate,
+        exitReason: 'terminated',
+        reason: input.reason,
+      });
       await this.letters.generateIn(tx, summary, {
         templateKey: 'termination',
         extra: { lastWorkingDate: longDate(input.lastWorkingDate) },
         approval: false,
       });
-      await this.audit.record(tx, {
-        action: 'create',
-        table: 'exit_case',
-        recordId: row!.id,
-        subjectPersonId: personId,
-        fieldChanges: [{ field: 'kind', to: 'termination' }],
-      });
       await this.record(
         tx,
-        row!,
+        row,
         'terminated',
         `Employment ends; last working day ${longDate(input.lastWorkingDate)}`,
         'hr',
       );
-      return this.view(tx, (await this.load(tx, row!.id))!);
+      return this.view(tx, (await this.load(tx, row.id))!);
+    });
+  }
+
+  /**
+   * Starts an exit that needs no acceptance, in the caller's transaction: HR head's termination, a
+   * probation ended by its review, an internship ending as agreed (decision #83). The person is on
+   * notice to the day given and the exit checklist starts; the caller writes the letter and event.
+   */
+  async beginIn(
+    tx: Tx,
+    engagement: EngagementRow,
+    input: {
+      kind: 'termination' | 'end_of_term';
+      lastWorkingDate: string;
+      /** On the engagement, e.g. probation_terminated, internship_completed. */
+      exitReason: string;
+      reason?: string;
+      rehireEligible?: boolean;
+    },
+  ): Promise<CaseRow> {
+    const actor = requireContext().actor;
+    const today = businessDate(new Date());
+    await this.assertNoOpenCase(tx, engagement.id);
+    const notice = await this.noticeFor(tx, engagement);
+    const start = input.lastWorkingDate < today ? input.lastWorkingDate : today;
+    const [row] = await tx
+      .insert(exitCases)
+      .values({
+        tenantId: requireContext().tenantId,
+        engagementId: engagement.id,
+        personId: engagement.personId,
+        kind: input.kind,
+        status: 'serving_notice',
+        resignationDate: start,
+        noticeDays: notice,
+        noticeLastDay: noticeLastDay(start, notice),
+        lastWorkingDate: input.lastWorkingDate,
+        terminationReason: input.reason ?? null,
+        rehireEligible: input.rehireEligible ?? null,
+        acceptedAt: new Date(),
+        createdBy: actor?.userId ?? null,
+        updatedBy: actor?.userId ?? null,
+      })
+      .returning();
+    await this.startNotice(tx, row!, input.exitReason);
+    await this.audit.record(tx, {
+      action: 'create',
+      table: 'exit_case',
+      recordId: row!.id,
+      subjectPersonId: engagement.personId,
+      fieldChanges: [{ field: 'kind', to: input.kind }],
+    });
+    return row!;
+  }
+
+  /**
+   * Full and final, entered by hand until payroll ships (spec scope note; decision #83): HR records
+   * the amount (negative when the person owes), field-encrypted like pay.
+   */
+  async recordSettlement(id: string, input: SettlementInput): Promise<ExitCaseView> {
+    const actor = requireContext().actor!;
+    return this.db.tx(async (tx) => {
+      const row = await this.mustLoad(tx, id);
+      await this.assertCan(tx, actor, row, 'update');
+      await this.authz.assert(actor, 'update', {
+        ...(await this.resource(row)),
+        area: 'compensation',
+      });
+      if (row.status === 'submitted' || row.status === 'withdrawn') {
+        throw new BadRequestException({ message: 'Settlement is for an accepted exit' });
+      }
+      const paise = rupeesToPaise(input.amount);
+      const encrypted = await this.cipher.encrypt(requireContext().tenantId, paise.toString(), {
+        table: 'exit_case',
+        column: 'settlement_amount_encrypted',
+        recordId: id,
+      });
+      await tx
+        .update(exitCases)
+        .set({
+          settlementAmountEncrypted: encrypted,
+          settlementCurrency: 'INR',
+          settledOn: input.settledOn ?? null,
+          settlementNote: input.note || null,
+          settlementRecordedAt: new Date(),
+          settlementRecordedBy: actor.userId,
+          updatedAt: new Date(),
+          updatedBy: actor.userId,
+        })
+        .where(eq(exitCases.id, id));
+      await this.audit.record(tx, {
+        action: 'update',
+        table: 'exit_case',
+        recordId: id,
+        subjectPersonId: row.personId,
+        fieldChanges: [{ field: 'settlement_amount_encrypted', sensitive: true }],
+      });
+      return this.view(tx, (await this.load(tx, id))!, true);
     });
   }
 
@@ -616,7 +697,7 @@ export class ExitService implements OnModuleInit {
       if (row.personId !== actor.personId && !(await this.canRead(tx, actor, row))) {
         throw new ForbiddenException();
       }
-      return this.view(tx, row);
+      return this.view(tx, row, true);
     });
   }
 
@@ -855,7 +936,7 @@ export class ExitService implements OnModuleInit {
     );
   }
 
-  private async view(tx: Tx, row: CaseRow): Promise<ExitCaseView> {
+  private async view(tx: Tx, row: CaseRow, withSettlement = false): Promise<ExitCaseView> {
     const actor = requireContext().actor!;
     const summary = await this.people.summary(row.personId);
     const waiting = await this.waitingFor(tx, row);
@@ -877,6 +958,32 @@ export class ExitService implements OnModuleInit {
       isHr || (!own && (await this.authz.check(actor, 'terminate', resource)).allowed);
     const blockers = this.blockers(row, checklist, businessDate(new Date()));
     const open = row.status === 'serving_notice' || row.status === 'clearance';
+    let settlement: ExitCaseView['settlement'] = null;
+    if (row.settlementRecordedAt) {
+      let amountPaise: string | null = null;
+      // Pay rules (decision #31): HR, HR head, CXO and the person; each read audited.
+      if (
+        withSettlement &&
+        row.settlementAmountEncrypted &&
+        (await this.authz.check(actor, 'read', { ...resource, area: 'compensation' })).allowed
+      ) {
+        amountPaise = (
+          await this.sensitive.compensation(tx, {
+            table: 'exit_case',
+            column: 'settlement_amount_encrypted',
+            recordId: row.id,
+            stored: row.settlementAmountEncrypted,
+            subjectPersonId: row.personId,
+          })
+        ).toString();
+      }
+      settlement = {
+        recordedAt: row.settlementRecordedAt.toISOString(),
+        amountPaise,
+        settledOn: row.settledOn,
+        note: seesAnswers || own ? row.settlementNote : null,
+      };
+    }
     return {
       id: row.id,
       personId: row.personId,
@@ -912,6 +1019,7 @@ export class ExitService implements OnModuleInit {
           ? { disabledAt: row.accessDisabledAt.toISOString(), method: row.accessMethod }
           : null,
       exitedAt: row.exitedAt?.toISOString() ?? null,
+      settlement,
       blockers: isHr || seesAnswers ? blockers : [],
       can: {
         withdraw:
@@ -925,6 +1033,11 @@ export class ExitService implements OnModuleInit {
         hrAccept: waiting === 'hr' && isHr,
         recordInterview: isHr && open,
         completeExit: isHr && open && blockers.length === 0,
+        recordSettlement:
+          isHr &&
+          row.status !== 'submitted' &&
+          row.status !== 'withdrawn' &&
+          (await this.authz.check(actor, 'update', { ...resource, area: 'compensation' })).allowed,
       },
       createdAt: row.createdAt.toISOString(),
     };
