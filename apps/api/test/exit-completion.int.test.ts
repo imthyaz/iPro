@@ -239,3 +239,48 @@ describe('access ends with the last working day (slice 9 done-when #2)', () => {
     ]);
   });
 });
+
+describe('full and final settlement (spec: entered by hand until payroll; decision #83)', () => {
+  it('HR records the amount; it is encrypted, read only by HR, and each read is audited', async () => {
+    await agents
+      .mgr!.post(`/api/exits/${exitOf.arun}/settlement`, { amount: '45250.50' })
+      .expect(403);
+    await agents.hr!.post(`/api/exits/${exitOf.arun}/settlement`, { amount: '45,250' }).expect(400);
+    const saved = (
+      await agents
+        .hr!.post(`/api/exits/${exitOf.arun}/settlement`, {
+          amount: '45250.50',
+          settledOn: today,
+          note: 'Notice pay and leave encashment, less laptop dues',
+        })
+        .expect(200)
+    ).body as ExitCaseView;
+    expect(saved.settlement).toMatchObject({
+      amountPaise: '4525050',
+      settledOn: today,
+      note: 'Notice pay and leave encashment, less laptop dues',
+    });
+    // Stored encrypted, never as the figure.
+    const stored = await pool.query(
+      `select settlement_amount_encrypted as v from exit_case where id = $1`,
+      [exitOf.arun],
+    );
+    expect(stored.rows[0].v).toMatch(/^v1\./);
+    expect(stored.rows[0].v).not.toContain('4525050');
+    // The manager sees that it is settled, not how much.
+    expect((await view('mgr', exitOf.arun)).settlement).toMatchObject({ amountPaise: null });
+    const audits = await pool.query(
+      `select count(*)::int as n from audit_log where tenant_id = $1 and action = 'view'
+         and table_name = 'exit_case' and record_id = $2`,
+      [tenant, exitOf.arun],
+    );
+    expect(audits.rows[0].n).toBeGreaterThan(0);
+  });
+
+  it('takes an amount the person owes as negative', async () => {
+    const saved = (
+      await agents.hr!.post(`/api/exits/${exitOf.bina}/settlement`, { amount: '-1200' }).expect(200)
+    ).body as ExitCaseView;
+    expect(saved.settlement).toMatchObject({ amountPaise: '-120000', settledOn: null });
+  });
+});

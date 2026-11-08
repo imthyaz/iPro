@@ -98,6 +98,11 @@ test('resign, the manager and HR accept, then withdraw with their approval', asy
   await expect(detail).toContainText('Higher studies abroad');
   await expect(before).not.toContainText('Record the exit interview first');
   await expect(detail.getByRole('button', { name: 'Complete exit' })).toHaveCount(0);
+  // Full and final, entered by hand until payroll (decision #83).
+  const settlement = detail.getByRole('form', { name: 'Full and final' });
+  await settlement.getByLabel('Amount (₹)').fill('12500');
+  await settlement.getByRole('button', { name: 'Save full and final' }).click();
+  await expect(detail).toContainText('₹12,500 to be paid');
 
   await signInAs(page, DEV.employee);
   await page.goto('/resign');

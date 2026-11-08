@@ -15,10 +15,12 @@ import {
   hrAcceptSchema,
   managerAcceptSchema,
   resignationSchema,
+  settlementSchema,
   terminationSchema,
   type ExitInterviewInput,
   type HrAcceptInput,
   type ResignationInput,
+  type SettlementInput,
   type TerminationInput,
 } from '@ipro/shared';
 import { z } from 'zod';
@@ -104,6 +106,17 @@ export class ExitController {
   @HttpCode(200)
   complete(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.exits.complete(id);
+  }
+
+  /** HR enters the full and final amount by hand until payroll (decision #83). */
+  @Authorize('exit', 'update')
+  @Post('exits/:id/settlement')
+  @HttpCode(200)
+  settlement(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body(new ZodPipe(settlementSchema)) body: SettlementInput,
+  ) {
+    return this.exits.recordSettlement(id, body);
   }
 
   @Authorize('exit', 'terminate')

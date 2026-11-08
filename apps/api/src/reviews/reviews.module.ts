@@ -3,6 +3,7 @@ import { APP_CONFIG, type AppConfig } from '../config.js';
 import { runWithContext } from '../context/request-context.js';
 import { ScheduledJobs } from '../jobs/jobs.module.js';
 import { ChangesModule } from '../changes/changes.module.js';
+import { ExitModule } from '../exit/exit.module.js';
 import { LettersModule } from '../letters/letters.module.js';
 import { CheckInsService } from './check-ins.service.js';
 import { ReviewsController } from './reviews.controller.js';
@@ -27,7 +28,7 @@ class ProbationSweepJob implements OnModuleInit {
 }
 
 @Module({
-  imports: [LettersModule, ChangesModule],
+  imports: [LettersModule, ChangesModule, ExitModule],
   controllers: [ReviewsController],
   providers: [ReviewsService, CheckInsService, ProbationSweepJob],
   exports: [ReviewsService],

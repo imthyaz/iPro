@@ -26,6 +26,7 @@ import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
 import { JourneyService } from '../journey/journey.service.js';
 import { letterTemplates } from '../letters/letters.schema.js';
+import { ExitService } from '../exit/exit.service.js';
 import { LettersService } from '../letters/letters.service.js';
 import { designations } from '../org/org.schema.js';
 import { noticePeriodDays } from '../people/hr-settings.js';
@@ -99,6 +100,7 @@ export class ReviewsService implements OnModuleInit {
     @Inject(WorkflowActions) private readonly actions: WorkflowActions,
     @Inject(CheckInsService) private readonly checkIns: CheckInsService,
     @Inject(PayConversionsService) private readonly payConversions: PayConversionsService,
+    @Inject(ExitService) private readonly exits: ExitService,
   ) {}
 
   onModuleInit(): void {
@@ -575,16 +577,13 @@ export class ReviewsService implements OnModuleInit {
         detail: { from: engagement!.probationEndDate, to: review.newEndDate },
       };
     } else {
-      // The exit workflow arrives in slice 9; until then the person is on notice to the agreed day.
-      await tx
-        .update(engagements)
-        .set({
-          status: 'on_notice',
-          lastWorkingDate: review.lastWorkingDate,
-          exitReason: 'probation_terminated',
-          ...by,
-        })
-        .where(eq(engagements.id, engagement!.id));
+      // Decision #83: through the exit workflow, so the exit checklist, access and Exited follow.
+      await this.exits.beginIn(tx, engagement!, {
+        kind: 'termination',
+        lastWorkingDate: review.lastWorkingDate!,
+        exitReason: 'probation_terminated',
+        reason: 'Probation not confirmed',
+      });
       journey = {
         eventType: 'probation_terminated',
         title: 'Employment ended after probation',
@@ -718,15 +717,16 @@ export class ReviewsService implements OnModuleInit {
         .where(eq(engagements.id, engagement.id));
       detail = { from: engagement.contractEndDate, to: review.newEndDate };
     } else {
+      // Decision #83: the internship ends through the exit workflow (checklist, access, Exited).
+      await this.exits.beginIn(tx, engagement, {
+        kind: 'end_of_term',
+        lastWorkingDate: review.lastWorkingDate!,
+        exitReason: outcome === 'break' ? 'internship_break' : 'internship_completed',
+        rehireEligible: true,
+      });
       await tx
         .update(engagements)
-        .set({
-          status: 'on_notice',
-          lastWorkingDate: review.lastWorkingDate,
-          exitReason: outcome === 'break' ? 'internship_break' : 'internship_completed',
-          rehireEligible: true,
-          ...by,
-        })
+        .set({ rehireEligible: true, ...by })
         .where(eq(engagements.id, engagement.id));
       detail = { lastWorkingDate: review.lastWorkingDate, returnBy: review.returnBy };
     }

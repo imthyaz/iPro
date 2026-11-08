@@ -237,6 +237,11 @@ describe('intern assessments (done-when #4, decision #56)', () => {
         exit_reason: reason,
         rehire_eligible: true,
       });
+      // Decision #83: the internship ends through the exit workflow, with its checklist.
+      expect(await exitCaseOf(personId)).toEqual({
+        cases: [{ kind: 'end_of_term', status: 'serving_notice', lwd: end, rehire_eligible: true }],
+        exitChecklists: 1,
+      });
     }
   });
 });
@@ -315,3 +320,17 @@ describe('monthly probation check-ins (decision #63)', () => {
     });
   });
 });
+
+async function exitCaseOf(personId: string) {
+  const cases = await pool.query(
+    `select kind, status, last_working_date::text as lwd, rehire_eligible from exit_case
+       where person_id = $1`,
+    [personId],
+  );
+  const runs = await pool.query(
+    `select count(*)::int as n from checklist_run r join checklist_template t on t.id = r.template_id
+       where r.person_id = $1 and t.stage = 'exit'`,
+    [personId],
+  );
+  return { cases: cases.rows, exitChecklists: runs.rows[0].n as number };
+}

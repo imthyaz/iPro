@@ -75,7 +75,8 @@ export interface ExitCaseView {
   personId: string;
   name: string;
   employeeCode: string;
-  kind: 'resignation' | 'termination';
+  /** end_of_term: an internship (or similar) ends as agreed (decision #83). */
+  kind: ExitKind;
   status: ExitStatus;
   resignationDate: string;
   /** Shown to the person, their manager and HR; never on the timeline for managers. */
@@ -108,6 +109,14 @@ export interface ExitCaseView {
   /** When access ended, and how: Entra and iPro, or iPro with an IT task for Entra. */
   access: { disabledAt: string; method: 'entra' | 'it_task' } | null;
   exitedAt: string | null;
+  /** Full and final, entered by hand until payroll (decision #83). The amount only for HR. */
+  settlement: {
+    recordedAt: string;
+    /** Signed paise as a string: positive is paid to the person, negative is owed by them. */
+    amountPaise: string | null;
+    settledOn: string | null;
+    note: string | null;
+  } | null;
   /** What the viewer can do now. */
   can: {
     withdraw: boolean;
@@ -115,6 +124,7 @@ export interface ExitCaseView {
     hrAccept: boolean;
     recordInterview: boolean;
     completeExit: boolean;
+    recordSettlement: boolean;
   };
   /** Why the exit can't be completed yet, in plain words (empty when it can). */
   blockers: string[];
@@ -156,3 +166,33 @@ export const exitInterviewSchema = z
     path: ['answers'],
   });
 export type ExitInterviewInput = z.input<typeof exitInterviewSchema>;
+
+export const exitKindSchema = z.enum(['resignation', 'termination', 'end_of_term']);
+export type ExitKind = z.infer<typeof exitKindSchema>;
+export const exitKindWords: Record<ExitKind, string> = {
+  resignation: 'Resignation',
+  termination: 'Termination',
+  end_of_term: 'End of internship',
+};
+
+/**
+ * POST /api/exits/:id/settlement (HR): the full and final amount in rupees, entered by hand until
+ * payroll ships (spec scope note); negative when the person owes the company. Stored encrypted.
+ */
+export const settlementSchema = z.object({
+  amount: z
+    .string()
+    .trim()
+    .regex(/^-?\d{1,10}(\.\d{1,2})?$/, 'Rupees, up to two decimals'),
+  settledOn: z.iso.date().nullable().default(null),
+  note: z.string().trim().max(1000).optional(),
+});
+export type SettlementInput = z.input<typeof settlementSchema>;
+
+/** Rupees as typed ("45250.5", "-1200") to paise, with no floating point. */
+export function rupeesToPaise(amount: string): bigint {
+  const negative = amount.startsWith('-');
+  const [whole = '0', fraction = ''] = amount.replace('-', '').split('.');
+  const paise = BigInt(whole) * 100n + BigInt((fraction + '00').slice(0, 2));
+  return negative ? -paise : paise;
+}
