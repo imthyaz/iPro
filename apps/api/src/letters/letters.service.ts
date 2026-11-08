@@ -8,7 +8,7 @@ import {
   NotFoundException,
   type OnModuleInit,
 } from '@nestjs/common';
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import type {
   LetterTemplateInput,
@@ -23,6 +23,7 @@ import { requireContext } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
 import { ESIGN_PROVIDER, FakeEsign, type EsignProvider } from '../esign/esign.js';
+import { exitCases } from '../exit/exit.schema.js';
 import { grades, legalEntities } from '../org/org.schema.js';
 import { documents } from '../people/documents.schema.js';
 import { inForce, personSummaries } from '../people/people.queries.js';
@@ -230,6 +231,27 @@ export class LettersService implements OnModuleInit {
         .where(and(eq(letterTemplates.key, input.templateKey), eq(letterTemplates.active, true)));
       if (!template)
         throw new NotFoundException({ message: `No letter template "${input.templateKey}"` });
+      // Spec workflow 7 (slice 9 done-when #3): relieving and experience letters only once every
+      // clearance task is done, whatever the route.
+      if (template.type === 'relieving' || template.type === 'experience') {
+        const [cleared] = await tx
+          .select({ id: exitCases.id })
+          .from(exitCases)
+          .where(
+            and(
+              eq(exitCases.engagementId, summary.engagementId),
+              isNotNull(exitCases.clearanceDoneAt),
+              ne(exitCases.status, 'withdrawn'),
+            ),
+          )
+          .limit(1);
+        if (!cleared) {
+          throw new BadRequestException({
+            message:
+              'Relieving and experience letters come only after every clearance task is done',
+          });
+        }
+      }
 
       const values = await this.values(
         tx,

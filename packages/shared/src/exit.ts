@@ -96,8 +96,28 @@ export interface ExitCaseView {
   /** A withdrawal asked for after acceptance, waiting for the manager and HR. */
   withdrawal: { status: 'pending' | 'returned'; requestId: string | null } | null;
   checklist: { done: number; total: number } | null;
+  /** Every exit checklist task done (spec: Serving notice → Clearance). */
+  clearanceDoneAt: string | null;
+  /** Recorded by HR (decision #81: required before exit). Answers are HR-only. */
+  interview: {
+    recordedAt: string;
+    declined: boolean;
+    rehireEligible: boolean;
+    answers: ExitInterviewAnswers | null;
+  } | null;
+  /** When access ended, and how: Entra and iPro, or iPro with an IT task for Entra. */
+  access: { disabledAt: string; method: 'entra' | 'it_task' } | null;
+  exitedAt: string | null;
   /** What the viewer can do now. */
-  can: { withdraw: boolean; managerAccept: boolean; hrAccept: boolean };
+  can: {
+    withdraw: boolean;
+    managerAccept: boolean;
+    hrAccept: boolean;
+    recordInterview: boolean;
+    completeExit: boolean;
+  };
+  /** Why the exit can't be completed yet, in plain words (empty when it can). */
+  blockers: string[];
   createdAt: string;
 }
 
@@ -108,3 +128,31 @@ export interface MyExitView {
   noticeLastDay: string;
   onProbation: boolean;
 }
+
+/** The exit interview (decision #81: the proposed questions, confirmed by the owner). */
+export const exitInterviewQuestions = {
+  reason: 'Why are you leaving?',
+  improve: 'What could we improve?',
+  wouldReturn: 'Would you come back to Ideassion?',
+} as const;
+
+export const exitInterviewAnswersSchema = z.object({
+  reason: z.string().trim().min(1).max(4000),
+  improve: z.string().trim().max(4000).default(''),
+  wouldReturn: z.enum(['yes', 'maybe', 'no']),
+});
+export type ExitInterviewAnswers = z.infer<typeof exitInterviewAnswersSchema>;
+
+/** POST /api/exits/:id/interview (HR): answers, or declined by the employee; and the rehire flag. */
+export const exitInterviewSchema = z
+  .object({
+    declined: z.boolean().default(false),
+    answers: exitInterviewAnswersSchema.optional(),
+    rehireEligible: z.boolean(),
+    note: z.string().trim().max(2000).optional(),
+  })
+  .refine((v) => v.declined || v.answers, {
+    message: 'Record the answers, or that the employee declined',
+    path: ['answers'],
+  });
+export type ExitInterviewInput = z.input<typeof exitInterviewSchema>;

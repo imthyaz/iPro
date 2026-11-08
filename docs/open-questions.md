@@ -122,3 +122,5 @@ configurable setting.
 - [x] Exit interview: required before exit, with the rehire flag (9b).
 - [x] Exit checklist: IT and finance tasks go to the designated people, named on the template (decision #81).
 - [x] Exit interview questions: reason for leaving, what we could improve, would you return (decision #81).
+- [ ] Entra account disabling (decision #82): can IT grant the iPro app User.EnableDisableAccount.All and
+      User.RevokeSessions.All? Until then each leaver raises an IT task (DIRECTORY_PROVIDER=none).
