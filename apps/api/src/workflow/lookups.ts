@@ -1,10 +1,10 @@
-import { and, eq, isNull, or, sql } from 'drizzle-orm';
-import type { Role } from '@ipro/shared';
+import { and, arrayContains, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { isRequiredTopic, topicOf, type Role } from '@ipro/shared';
 import { requireContext } from '../context/request-context.js';
 import type { Tx } from '../db/tenant-context.js';
 import { appUsers, roleAssignments } from '../identity/identity.schema.js';
 import { persons } from '../people/people.schema.js';
-import { notifications } from './workflow.schema.js';
+import { notificationPreferences, notifications } from './workflow.schema.js';
 
 /** Shared by the workflow engine and checklists: who manages whom, who holds a role, names, notices. */
 
@@ -96,10 +96,29 @@ export async function personName(tx: Tx, personId: string): Promise<string> {
 }
 
 /** In-app notifications (the outbox Teams and email deliver from in slice 11). */
+/**
+ * Notifies people in-app (Teams and email deliver from these rows, slice 11b). Someone who switched
+ * the kind's topic off gets nothing; approvals and compliance items can't be switched off.
+ */
 export async function notify(tx: Tx, userIds: string[], kind: string, title: string, link: string) {
-  const unique = [...new Set(userIds)];
+  let unique = [...new Set(userIds)];
   if (unique.length === 0) return;
   const { tenantId } = requireContext();
+  const topic = topicOf(kind);
+  if (!isRequiredTopic(topic)) {
+    const muted = await tx
+      .select({ userId: notificationPreferences.userId })
+      .from(notificationPreferences)
+      .where(
+        and(
+          inArray(notificationPreferences.userId, unique),
+          arrayContains(notificationPreferences.offTopics, [topic]),
+        ),
+      );
+    const off = new Set(muted.map((m) => m.userId));
+    unique = unique.filter((id) => !off.has(id));
+    if (unique.length === 0) return;
+  }
   await tx
     .insert(notifications)
     .values(unique.map((recipientUserId) => ({ tenantId, recipientUserId, kind, title, link })));

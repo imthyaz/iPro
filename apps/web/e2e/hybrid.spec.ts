@@ -65,13 +65,15 @@ test('plan a week below policy; the manager approves it on the card', async ({
   await signInAs(page, pair.approver);
   await page.goto('/');
   const card = page
-    .getByRole('list', { name: 'Approvals' })
+    .getByRole('list', { name: 'Waiting on you' })
     .getByRole('listitem')
     .filter({ hasText: `Hybrid week below policy: ${pair.name}` });
   await expect(card).toContainText('office days booked');
   await expect(card).toContainText('Release week with the US team');
   await card.getByRole('button', { name: 'Approve' }).click();
   await expect(card).toHaveCount(0);
+  // Approvals wait out their 10-second undo window before they are sent (decision #86).
+  await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
 
   await signInAs(page, pair.asker);
   await page.goto(`/hybrid?week=${week}`);

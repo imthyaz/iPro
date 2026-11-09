@@ -126,6 +126,25 @@ const people: SeedPerson[] = [
     joiningDate: '2025-03-03',
     type: 'retainer',
   },
+  // A team of ten who can all sign in, so the Action inbox can be tried with a full queue (slice 11).
+  {
+    n: 101,
+    name: 'Dev Lead Three',
+    workEmail: 'lead3@dev.ipro.test',
+    designationId: designation.lead,
+    departmentId: SEED_ORG.engineering,
+    managerN: 1,
+    joiningDate: '2023-06-01',
+  },
+  ...Array.from({ length: 10 }, (_, i) => ({
+    n: 102 + i,
+    name: `Dev Teammate ${i + 1}`,
+    workEmail: `teammate${i + 1}@dev.ipro.test`,
+    designationId: designation.engineer,
+    departmentId: SEED_ORG.engineering,
+    managerN: 101,
+    joiningDate: '2024-01-08',
+  })),
 ];
 
 export async function seedPeople(tx: Tx, tenantId: string): Promise<void> {
@@ -199,9 +218,9 @@ export async function seedPeople(tx: Tx, tenantId: string): Promise<void> {
       })),
     )
     .onConflictDoNothing();
-  // The next code issued after the seed continues the sequence.
+  // The next code issued after the seed continues after the highest seeded one.
   await tx
     .insert(schema.employeeCodeCounters)
-    .values({ tenantId, lastValue: people.length })
+    .values({ tenantId, lastValue: Math.max(...people.map((p) => p.n)) })
     .onConflictDoNothing();
 }

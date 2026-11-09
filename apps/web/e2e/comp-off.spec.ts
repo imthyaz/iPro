@@ -74,7 +74,7 @@ test('ask for comp-off for a weekend worked; the manager sees the day on the car
   await signInAs(page, pair.approver);
   await page.goto('/');
   const card = page
-    .getByRole('list', { name: 'Approvals' })
+    .getByRole('list', { name: 'Waiting on you' })
     .getByRole('listitem')
     .filter({ hasText: `Comp-off: ${pair.name}` });
   await expect(card).toContainText('weekly off');

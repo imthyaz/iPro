@@ -33,6 +33,11 @@ export interface WorkflowAction {
   records?: readonly string[];
   /** A page to act on it from the card (e.g. recording a retention note); default: the request. */
   link?(instance: ActionInstance): string;
+  /**
+   * Routine (leave, comp-off, regularisation, hybrid exceptions): may be approved with others from
+   * the Action inbox (decision #86). Anything else is approved one by one.
+   */
+  bulk?: boolean;
   /** May anyone who can read the subject's profile start it through POST /api/workflows? */
   genericSubmit?: boolean;
   /** Keeps the subject in step when the item is returned, withdrawn or sent again. */

@@ -97,6 +97,7 @@ export class LeaveRequestsService implements OnModuleInit {
 
   onModuleInit(): void {
     this.actions.register('leave.approve', {
+      bulk: true,
       records: ['leave_approved'],
       validate: (payload) => {
         const parsed = payloadSchema.safeParse(payload);

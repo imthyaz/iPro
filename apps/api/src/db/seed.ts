@@ -12,7 +12,10 @@ import { withTenant } from './tenant-context.js';
 
 export const DEV_TENANT_ID = '00000000-0000-4000-8000-000000000001';
 
-/** One dev sign-in user per role, plus a manager who is also an employee. Fixed ids keep links stable. */
+/**
+ * One dev sign-in user per role, a manager who is also an employee, and a team of ten for the Action
+ * inbox. Fixed ids keep links stable.
+ */
 const devUsers: { id: string; displayName: string; email: string; roles: Role[] }[] = [
   {
     id: '00000000-0000-4000-8000-000000000101',
@@ -56,6 +59,19 @@ const devUsers: { id: string; displayName: string; email: string; roles: Role[] 
     email: 'admin@dev.ipro.test',
     roles: ['admin'],
   },
+  {
+    id: '00000000-0000-4000-8000-000000000108',
+    displayName: 'Dev Lead Three',
+    email: 'lead3@dev.ipro.test',
+    roles: ['employee', 'manager'],
+  },
+  // Dev Lead Three's ten reportees: 0111 to 0120.
+  ...Array.from({ length: 10 }, (_, i) => ({
+    id: `00000000-0000-4000-8000-${String(111 + i).padStart(12, '0')}`,
+    displayName: `Dev Teammate ${i + 1}`,
+    email: `teammate${i + 1}@dev.ipro.test`,
+    roles: ['employee'] as Role[],
+  })),
 ];
 
 const config = loadConfig();

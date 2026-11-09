@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MeResponse, Role } from '@ipro/shared';
 import { api, ApiError, errorMessage } from './api.js';
+import { sendPendingApprovals } from './features/inbox/pending-approvals.js';
 
 /** The signed-in user, or null when signed out. */
 export function useMe() {
@@ -88,7 +89,11 @@ export function SignIn() {
 export function useSignOut() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: () => api('/auth/logout', { method: 'POST' }),
+    mutationFn: async () => {
+      // Approvals still in their undo window are sent as the person signing out.
+      await sendPendingApprovals();
+      await api('/auth/logout', { method: 'POST' });
+    },
     onSuccess: () => {
       client.clear();
       window.location.assign('/');

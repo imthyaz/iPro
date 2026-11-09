@@ -1749,3 +1749,117 @@ a.onboarding-link:hover {
   font-size: 0.75rem;
   font-weight: 700;
 }
+
+/* Action inbox (X3, slice 11): select routine cards, swipe right to approve, undo bar. */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.swipe-tip {
+  margin-top: 0;
+}
+
+.card.swipeable {
+  position: relative;
+  touch-action: pan-y;
+}
+
+.card.swiping {
+  user-select: none;
+  box-shadow: -6px 0 0 var(--color-ok);
+}
+
+.card.selected {
+  border-color: var(--color-brand);
+  box-shadow: inset 3px 0 0 var(--color-brand);
+}
+
+.swipe-hint {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  padding: 2px 8px;
+  border-radius: var(--radius);
+  background: var(--color-ok-bg);
+  color: var(--color-ok);
+  font-weight: 600;
+}
+
+.card-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.card-select input {
+  width: 22px;
+  height: 22px;
+}
+
+.failures ul {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+/* Leaves room for the fixed bar so the last card can still be reached. */
+.page.has-bar {
+  padding-bottom: 160px;
+}
+
+.action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  padding: 12px var(--space) calc(12px + env(safe-area-inset-bottom));
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -2px 8px rgb(0 0 0 / 8%);
+}
+
+.action-bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  max-width: 1100px;
+}
+
+.action-bar-row > span:first-child {
+  margin-right: auto;
+  min-width: 0;
+}
+
+/* Notifications (X1). */
+.notification-unread {
+  font-weight: 600;
+}
+
+.preferences {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.preferences label {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.preferences input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin-top: 2px;
+}

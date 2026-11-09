@@ -26,7 +26,8 @@ import { Offers } from './features/offers/Offers.js';
 import { Probation } from './features/reviews/Probation.js';
 import { Reviews } from './features/reviews/Reviews.js';
 import { Onboarding, useOnboarding } from './features/onboarding/Onboarding.js';
-import { Inbox } from './features/inbox/Inbox.js';
+import { Inbox, useNotifications } from './features/inbox/Inbox.js';
+import { NotificationsPage } from './features/inbox/NotificationsPage.js';
 import { OrgSetup } from './features/org/OrgSetup.js';
 import { OrgTree } from './features/org/OrgTree.js';
 import { Directory } from './features/people/Directory.js';
@@ -56,6 +57,7 @@ function Shell() {
 
   const user = me.data;
   const onboarding = useOnboarding(Boolean(user?.personId));
+  const unread = useUnread(Boolean(user));
   const seesPeople = hasRole(user, 'manager', 'hr', 'hr_head', 'cxo');
   const seesOrgSetup = hasRole(user, 'hr', 'hr_head', 'admin');
   const seesChecklists = hasRole(user, 'hr', 'hr_head');
@@ -85,6 +87,9 @@ function Shell() {
         <nav className="shell-nav" aria-label="Main">
           <NavLink to="/" end className="nav-item">
             Action inbox
+          </NavLink>
+          <NavLink to="/notifications" className="nav-item">
+            Notifications{unread > 0 ? ` (${unread})` : ''}
           </NavLink>
           {onboarding.data && (
             <NavLink to="/onboarding" className="nav-item">
@@ -257,6 +262,7 @@ function Shell() {
             <Route path="/" element={<Inbox />} />
             <Route path="/approvals" element={<Inbox />} />
             <Route path="/tasks" element={<Inbox />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/attendance" element={<MyAttendance />} />
             <Route path="/devices" element={<BiometricDevices />} />
             <Route path="/attendance-exceptions" element={<AttendanceExceptions />} />
@@ -322,4 +328,10 @@ function Shell() {
       </div>
     </div>
   );
+}
+
+/** Unread notifications for the nav, once signed in. */
+function useUnread(signedIn: boolean): number {
+  const notes = useNotifications(signedIn);
+  return notes.data?.filter((n) => !n.read).length ?? 0;
 }

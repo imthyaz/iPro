@@ -44,12 +44,14 @@ test('HR asks for a promotion from next month; HR head approves on the card; it 
   await signInAs(page, DEV.hrHead);
   await page.goto('/');
   const card = page
-    .getByRole('list', { name: 'Approvals' })
+    .getByRole('list', { name: 'Waiting on you' })
     .getByRole('listitem')
     .filter({ hasText: reason });
   await expect(card.getByText('Senior Software Engineer')).toBeVisible();
   await card.getByRole('button', { name: 'Approve' }).click();
   await expect(card).toHaveCount(0);
+  // Approvals wait out their 10-second undo window before they are sent (decision #86).
+  await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
 
   await page.goto('/people');
   await page.getByLabel('Search').fill(name);

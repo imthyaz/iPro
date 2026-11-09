@@ -47,6 +47,8 @@ test('resign, the manager and HR accept, then withdraw with their approval', asy
     testInfo.project.name === 'mobile',
     'one person resigns; the form is checked on mobile below',
   );
+  // Two approvals each wait out their 10-second undo window.
+  test.setTimeout(90_000);
   await tidyUp(page);
 
   await signInAs(page, DEV.employee);
@@ -63,7 +65,7 @@ test('resign, the manager and HR accept, then withdraw with their approval', asy
   await signInAs(page, DEV.manager);
   await page.goto('/');
   const card = page
-    .getByRole('list', { name: 'Approvals' })
+    .getByRole('list', { name: 'Waiting on you' })
     .getByRole('listitem')
     .filter({ hasText: 'Resignation: Dev Employee' });
   await expect(card).toContainText('Record the retention conversation on the exit page first');
@@ -115,11 +117,13 @@ test('resign, the manager and HR accept, then withdraw with their approval', asy
     await signInAs(page, who);
     await page.goto('/');
     const w = page
-      .getByRole('list', { name: 'Approvals' })
+      .getByRole('list', { name: 'Waiting on you' })
       .getByRole('listitem')
       .filter({ hasText: 'Withdraw resignation: Dev Employee' });
     await w.getByRole('button', { name: 'Approve' }).click();
     await expect(w).toHaveCount(0);
+    // Approvals wait out their 10-second undo window before they are sent (decision #86).
+    await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
   }
 
   await signInAs(page, DEV.employee);

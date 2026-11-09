@@ -74,6 +74,7 @@ export class CompOffService implements OnModuleInit {
 
   onModuleInit(): void {
     this.actions.register('leave.grant_comp_off', {
+      bulk: true,
       records: ['comp_off_granted'],
       validate: (payload) => {
         const parsed = payloadSchema.safeParse(payload);

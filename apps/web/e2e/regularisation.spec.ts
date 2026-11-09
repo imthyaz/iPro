@@ -77,12 +77,14 @@ test('an employee regularises a missed day; their manager approves it on the car
   await signInAs(page, pair.approver);
   await page.goto('/');
   const card = page
-    .getByRole('list', { name: 'Approvals' })
+    .getByRole('list', { name: 'Waiting on you' })
     .getByRole('listitem')
     .filter({ hasText: `Regularise ${date}` });
   await expect(card.getByText('Forgot to punch')).toBeVisible();
   await card.getByRole('button', { name: 'Approve' }).click();
   await expect(card).toHaveCount(0);
+  // Approvals wait out their 10-second undo window before they are sent (decision #86).
+  await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
 
   await signInAs(page, pair.asker);
   await page.goto('/attendance');
