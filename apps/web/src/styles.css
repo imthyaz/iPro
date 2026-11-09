@@ -1517,3 +1517,235 @@ a.onboarding-link:hover {
   border-radius: 12px;
   background: var(--color-surface);
 }
+
+/* Team journeys (slice 10b): the grid scrolls inside its box; the person column stays put. */
+.page-wide {
+  max-width: 1440px;
+}
+
+.team-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px 20px;
+}
+
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.team-scroll {
+  overflow: auto;
+  max-width: 100%;
+  max-height: 75vh;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-bg);
+}
+
+.team-grid {
+  position: relative;
+}
+
+.team-head,
+.team-row {
+  display: flex;
+  align-items: center;
+}
+
+.team-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 44px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.team-person-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  flex: none;
+  box-sizing: border-box;
+  width: 280px;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  background: var(--color-bg);
+  border-right: 1px solid var(--color-border);
+}
+
+.team-track {
+  position: relative;
+  flex: none;
+  height: 100%;
+  margin: 0 24px;
+}
+
+.team-head .team-track {
+  height: 44px;
+}
+
+.team-head .tick {
+  top: 14px;
+}
+
+.team-body {
+  position: relative;
+}
+
+.team-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-brand);
+  opacity: 0.6;
+  z-index: 1;
+}
+
+.team-today .today-pill {
+  top: -2px;
+}
+
+.team-group {
+  position: sticky;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.team-row {
+  height: 56px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.team-row .team-track {
+  height: 56px;
+}
+
+.team-person-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.team-person-text .muted {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #e6edfb;
+  color: #1e3f99;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.avatar-exited {
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+
+.tenure-bar {
+  position: absolute;
+  top: 25px;
+  height: 6px;
+  border-radius: 3px;
+  background: #c9ced6;
+}
+
+.tenure-exited {
+  background: #d5d9e0;
+}
+
+.tenure-future {
+  position: absolute;
+  top: 27px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, #9aa1ad 0 6px, transparent 6px 11px);
+}
+
+.team-dot {
+  position: absolute;
+  top: 16px;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.team-dot::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: var(--cat);
+  border: 2px solid var(--cat);
+}
+
+.team-dot.dot-upcoming::before {
+  background: var(--color-bg);
+}
+
+.team-dot:hover::before,
+.team-dot:focus-visible::before {
+  inset: 3px;
+}
+
+.team-tip {
+  position: absolute;
+  z-index: 5;
+  width: 240px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #14161b;
+  color: #fff;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.team-tip .cat-label {
+  color: #fff;
+}
+
+.tip-badge {
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fbe8d7;
+  color: #8a440a;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
