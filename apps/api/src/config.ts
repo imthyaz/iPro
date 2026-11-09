@@ -56,6 +56,18 @@ const envSchema = z
     PREJOINER_GROUP_ID: optionalText,
     /** Where an invited guest lands after accepting the invitation. */
     APP_URL: z.url().default('http://localhost:5173'),
+    /**
+     * Teams delivery and approval cards (decision #87): "fake" locally and in tests; "bot" once IT
+     * registers the iPro bot in Azure; "none" until then (everything goes by email).
+     */
+    TEAMS_PROVIDER: z.enum(['fake', 'bot', 'none']).default('fake'),
+    /** The Azure Bot's Microsoft app id and secret (single-tenant, Ideassion's Entra tenant). */
+    TEAMS_BOT_APP_ID: optionalText,
+    TEAMS_BOT_APP_SECRET: optionalText,
+    /** Email via Microsoft Graph sendMail: "fake" locally and in tests; "none" until set up. */
+    MAIL_PROVIDER: z.enum(['fake', 'graph', 'none']).default('fake'),
+    /** The no-reply mailbox iPro sends from (IT limits Mail.Send to this mailbox). */
+    MAIL_FROM: optionalText,
   })
   .transform((env) => ({
     ...env,
@@ -94,6 +106,21 @@ const envSchema = z
         if (!env[key]) fail(key, 'required to disable Entra accounts through Graph');
       }
     }
+    if (env.TEAMS_PROVIDER === 'bot') {
+      for (const key of ['ENTRA_TENANT_ID', 'TEAMS_BOT_APP_ID', 'TEAMS_BOT_APP_SECRET'] as const) {
+        if (!env[key]) fail(key, 'required for the Teams bot');
+      }
+    }
+    if (env.MAIL_PROVIDER === 'graph') {
+      for (const key of [
+        'ENTRA_TENANT_ID',
+        'GRAPH_CLIENT_ID',
+        'GRAPH_CLIENT_SECRET',
+        'MAIL_FROM',
+      ] as const) {
+        if (!env[key]) fail(key, 'required to send email through Microsoft Graph');
+      }
+    }
     if (env.ESIGN_PROVIDER === 'zoho') {
       for (const key of [
         'ZOHO_SIGN_CLIENT_ID',
@@ -120,6 +147,12 @@ const envSchema = z
       }
       if (env.DIRECTORY_PROVIDER === 'fake') {
         fail('DIRECTORY_PROVIDER', 'production uses Microsoft Graph, or "none" for IT tasks');
+      }
+      if (env.TEAMS_PROVIDER === 'fake') {
+        fail('TEAMS_PROVIDER', 'production uses the Teams bot, or "none" until it is registered');
+      }
+      if (env.MAIL_PROVIDER === 'fake') {
+        fail('MAIL_PROVIDER', 'production sends email through Microsoft Graph, or "none"');
       }
     }
   });

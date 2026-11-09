@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { tenantColumns } from '../db/columns.js';
 import { appUsers, roleEnum } from '../identity/identity.schema.js';
 
@@ -133,8 +134,17 @@ export const notifications = pgTable(
     /** In-app route to open, e.g. /approvals/<id>. */
     link: text('link'),
     readAt: timestamp('read_at', { withTimezone: true }),
+    /** The approval it asks for, so Teams can send an actionable card (decision #87). */
+    approvalId: uuid('approval_id').references(() => approvals.id),
+    /** Date-driven notices are sent once: the same key for the same person is skipped. */
+    dedupeKey: text('dedupe_key'),
   },
-  (t) => [index('notification_recipient_idx').on(t.recipientUserId, t.createdAt)],
+  (t) => [
+    index('notification_recipient_idx').on(t.recipientUserId, t.createdAt),
+    uniqueIndex('notification_dedupe_key')
+      .on(t.tenantId, t.recipientUserId, t.dedupeKey)
+      .where(sql`${t.dedupeKey} is not null`),
+  ],
 );
 
 /**
