@@ -58,6 +58,17 @@ test('a manager clears 10 leave requests from the Action inbox on a phone in und
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'Slice 11 done-when #1 is about a phone');
   test.setTimeout(180_000);
+  // A retry starts from an empty inbox: approve anything an earlier attempt left behind.
+  await signInAs(page, LEAD);
+  const left = (await (await page.request.get('/api/approvals')).json()) as {
+    approvalId: string;
+  }[];
+  if (left.length > 0) {
+    const cleared = await page.request.post('/api/approvals/bulk-approve', {
+      data: { approvalIds: left.map((c) => c.approvalId) },
+    });
+    expect(cleared.status()).toBe(200);
+  }
   for (const teammate of TEAM) {
     await signInAs(page, teammate);
     await applyOneDay(page);

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import type {
   NotificationPreferencesInput,
@@ -77,28 +78,32 @@ function Preferences() {
     queryKey: ['notification-preferences'],
     queryFn: () => api<NotificationPreferencesView>('/notification-preferences'),
   });
+  // The change shows in the same click (the box must not spring back) until the save settles; a
+  // refetch still in flight from before the click is cancelled so it can't overwrite it.
+  const [draft, setDraft] = useState<NotificationPreferencesInput | null>(null);
   const save = useMutation({
     mutationFn: (body: NotificationPreferencesInput) =>
       api<NotificationPreferencesView>('/notification-preferences', { method: 'PUT', body }),
-    // The box changes at once; the saved view replaces it, or the old one comes back on an error.
-    onMutate: (body) => {
-      const before = client.getQueryData<NotificationPreferencesView>(['notification-preferences']);
-      if (before) {
-        client.setQueryData<NotificationPreferencesView>(['notification-preferences'], {
-          topics: before.topics.map((t) => ({ ...t, on: t.required || !body.off.includes(t.key) })),
-          emailCopy: body.emailCopy,
-        });
-      }
-      return { before };
-    },
-    onError: (_error, _body, context) =>
-      client.setQueryData(['notification-preferences'], context?.before),
-    onSuccess: (view) => client.setQueryData(['notification-preferences'], view),
+    onMutate: () => client.cancelQueries({ queryKey: ['notification-preferences'] }),
+    onSuccess: (saved) => client.setQueryData(['notification-preferences'], saved),
+    onSettled: () => setDraft(null),
   });
   if (!prefs.data) {
     return prefs.error ? <Note kind="error">{errorMessage(prefs.error)}</Note> : null;
   }
-  const view = prefs.data;
+  const view: NotificationPreferencesView = draft
+    ? {
+        topics: prefs.data.topics.map((t) => ({
+          ...t,
+          on: t.required || !draft.off.includes(t.key),
+        })),
+        emailCopy: draft.emailCopy,
+      }
+    : prefs.data;
+  const change = (body: NotificationPreferencesInput) => {
+    setDraft(body);
+    save.mutate(body);
+  };
   const offTopics = (except?: NotificationTopic, on?: boolean) =>
     view.topics
       .filter((t) => !t.required)
@@ -121,7 +126,7 @@ function Preferences() {
                 checked={t.on}
                 disabled={t.required || save.isPending}
                 onChange={(e) =>
-                  save.mutate({
+                  change({
                     off: offTopics(t.key, e.target.checked),
                     emailCopy: view.emailCopy,
                   })
@@ -144,7 +149,7 @@ function Preferences() {
               type="checkbox"
               checked={view.emailCopy}
               disabled={save.isPending}
-              onChange={(e) => save.mutate({ off: offTopics(), emailCopy: e.target.checked })}
+              onChange={(e) => change({ off: offTopics(), emailCopy: e.target.checked })}
             />
             <span>
               <strong>Also email me</strong>

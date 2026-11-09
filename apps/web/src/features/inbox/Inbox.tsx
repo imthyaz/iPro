@@ -406,7 +406,14 @@ function Approval({
 function useSwipe(enabled: boolean, onSwipe: () => void) {
   const [offset, setOffset] = useState(0);
   const [width, setWidth] = useState(0);
-  const start = useRef<{ x: number; y: number; dragging: boolean } | null>(null);
+  // The drag itself lives in a ref: moves can outrun renders, and release must see the last one.
+  const start = useRef<{
+    x: number;
+    y: number;
+    width: number;
+    dx: number;
+    dragging: boolean;
+  } | null>(null);
   const ready = width > 0 && offset >= width * SWIPE_SHARE;
   const end = (approve: boolean) => {
     start.current = null;
@@ -419,8 +426,9 @@ function useSwipe(enabled: boolean, onSwipe: () => void) {
           if ((e.target as HTMLElement).closest('button, a, input, textarea, select, label')) {
             return;
           }
-          start.current = { x: e.clientX, y: e.clientY, dragging: false };
-          setWidth(e.currentTarget.offsetWidth);
+          const cardWidth = e.currentTarget.offsetWidth;
+          start.current = { x: e.clientX, y: e.clientY, width: cardWidth, dx: 0, dragging: false };
+          setWidth(cardWidth);
         },
         onPointerMove: (e: PointerEvent<HTMLLIElement>) => {
           const s = start.current;
@@ -436,9 +444,13 @@ function useSwipe(enabled: boolean, onSwipe: () => void) {
             s.dragging = true;
             e.currentTarget.setPointerCapture(e.pointerId);
           }
-          setOffset(Math.max(0, dx));
+          s.dx = Math.max(0, dx);
+          setOffset(s.dx);
         },
-        onPointerUp: () => end(Boolean(start.current?.dragging && ready)),
+        onPointerUp: () => {
+          const s = start.current;
+          end(Boolean(s?.dragging && s.dx >= s.width * SWIPE_SHARE));
+        },
         onPointerCancel: () => end(false),
       }
     : {};

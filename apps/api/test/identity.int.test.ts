@@ -138,11 +138,15 @@ describe('audit log', () => {
         .from(schema.auditLog)
         .where(sql`${schema.auditLog.tableName} in ('kyc_record', 'compensation')`),
     );
-    expect(rows.map((row) => [row.tableName, row.action, row.createdBy])).toEqual([
-      ['kyc_record', 'view', HR],
-      ['kyc_record', 'unmask', HR],
-      ['compensation', 'view', HR],
-    ]);
+    // One transaction, one timestamp: the rows come back in no set order.
+    expect(rows.map((row) => [row.tableName, row.action, row.createdBy])).toEqual(
+      expect.arrayContaining([
+        ['kyc_record', 'view', HR],
+        ['kyc_record', 'unmask', HR],
+        ['compensation', 'view', HR],
+      ]),
+    );
+    expect(rows).toHaveLength(3);
     expect(rows.every((row) => row.at instanceof Date)).toBe(true);
   });
 });
