@@ -44,7 +44,10 @@ async function applyOneDay(page: Page) {
 
 /** Drags a card to the right from its middle, as a finger would. */
 async function swipeRight(page: Page, card: Locator) {
-  const box = (await card.locator('.muted').first().boundingBox())!;
+  // The drag must start on screen: on a small phone the card can sit below the fold.
+  const line = card.locator('.muted').first();
+  await line.scrollIntoViewIfNeeded();
+  const box = (await line.boundingBox())!;
   const y = box.y + box.height / 2;
   await page.mouse.move(box.x + 10, y);
   await page.mouse.down();
