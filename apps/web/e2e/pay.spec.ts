@@ -55,13 +55,15 @@ test('an unpaid intern becomes paid: HR asks on the Pay tab; HR head approves on
   await signInAs(page, DEV.hrHead);
   await page.goto('/');
   const card = page
-    .getByRole('list', { name: 'Approvals' })
+    .getByRole('list', { name: 'Waiting on you' })
     .getByRole('listitem')
     .filter({ hasText: name });
   await expect(card.getByText('Unpaid')).toBeVisible();
   await expect(card.getByText('₹15,000 a month')).toBeVisible();
   await card.getByRole('button', { name: 'Approve' }).click();
   await expect(card).toHaveCount(0);
+  // Approvals wait out their 10-second undo window before they are sent (decision #86).
+  await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
 
   await page.goto(`/people/${personId}`);
   await record.getByRole('tab', { name: 'Journey' }).click();

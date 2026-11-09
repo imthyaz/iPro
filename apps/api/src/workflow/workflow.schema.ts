@@ -136,3 +136,20 @@ export const notifications = pgTable(
   },
   (t) => [index('notification_recipient_idx').on(t.recipientUserId, t.createdAt)],
 );
+
+/**
+ * What a person wants to hear about (X1, decision #86): switchable topics they turned off, and
+ * whether every notification is also emailed. No row means every topic on and no email copy.
+ */
+export const notificationPreferences = pgTable(
+  'notification_preference',
+  {
+    ...tenantColumns(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => appUsers.id),
+    offTopics: text('off_topics').array().notNull().default([]),
+    emailCopy: boolean('email_copy').notNull().default(false),
+  },
+  (t) => [uniqueIndex('notification_preference_user_key').on(t.tenantId, t.userId)],
+);

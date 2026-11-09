@@ -13,18 +13,22 @@ import {
 import {
   allocateShiftSchema,
   approveSchema,
+  bulkApproveSchema,
+  notificationPreferencesSchema,
   commentSchema,
   profileChangeSchema,
   rejectSchema,
   submitWorkflowSchema,
   workflowDefinitionSchema,
   type AllocateShiftInput,
+  type NotificationPreferencesInput,
   type ProfileChange,
   type WorkflowDefinition,
 } from '@ipro/shared';
 import { z } from 'zod';
 import { Authorize, SignedIn } from '../authz/decorators.js';
 import { ZodPipe } from '../common/zod.pipe.js';
+import { NotificationsService } from './notifications.service.js';
 import { RequestsService } from './requests.service.js';
 import { WorkflowService } from './workflow.service.js';
 
@@ -44,12 +48,21 @@ export class WorkflowController {
   constructor(
     @Inject(WorkflowService) private readonly workflows: WorkflowService,
     @Inject(RequestsService) private readonly requests: RequestsService,
+    @Inject(NotificationsService) private readonly notifications: NotificationsService,
   ) {}
 
   @SignedIn()
   @Get('approvals')
   myApprovals() {
     return this.workflows.myApprovals();
+  }
+
+  /** Routine approvals decided together from the Action inbox; one result per item (decision #86). */
+  @SignedIn()
+  @Post('approvals/bulk-approve')
+  @HttpCode(200)
+  bulkApprove(@Body(new ZodPipe(bulkApproveSchema)) body: z.infer<typeof bulkApproveSchema>) {
+    return this.workflows.bulkApprove(body.approvalIds);
   }
 
   @SignedIn()
@@ -129,15 +142,36 @@ export class WorkflowController {
 
   @SignedIn()
   @Get('notifications')
-  notifications() {
-    return this.workflows.myNotifications();
+  notificationList() {
+    return this.notifications.mine();
+  }
+
+  @SignedIn()
+  @Post('notifications/read-all')
+  @HttpCode(204)
+  async markAllRead() {
+    await this.notifications.markAllRead();
   }
 
   @SignedIn()
   @Post('notifications/:id/read')
   @HttpCode(204)
   async markRead(@Param('id', uuid) id: string) {
-    await this.workflows.markRead(id);
+    await this.notifications.markRead(id);
+  }
+
+  @SignedIn()
+  @Get('notification-preferences')
+  preferences() {
+    return this.notifications.preferences();
+  }
+
+  @SignedIn()
+  @Put('notification-preferences')
+  savePreferences(
+    @Body(new ZodPipe(notificationPreferencesSchema)) body: NotificationPreferencesInput,
+  ) {
+    return this.notifications.savePreferences(body);
   }
 
   /** HR changes directly; an employee's own change becomes a request for HR. */

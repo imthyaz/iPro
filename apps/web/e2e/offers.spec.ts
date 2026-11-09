@@ -70,13 +70,15 @@ test('HR makes an offer on one screen; the hiring manager approves on the card; 
   await signInAs(page, DEV.manager);
   await page.goto('/');
   const card = page
-    .getByRole('list', { name: 'Approvals' })
+    .getByRole('list', { name: 'Waiting on you' })
     .getByRole('listitem')
     .filter({ hasText: name });
   await expect(card.getByText('Within the grade band')).toBeVisible();
   await expect(card.getByText('9,00,000')).toHaveCount(0);
   await card.getByRole('button', { name: 'Approve' }).click();
   await expect(card).toHaveCount(0);
+  // Approvals wait out their 10-second undo window before they are sent (decision #86).
+  await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
 
   // The candidate signs (development stand-in for Zoho Sign).
   await signInAs(page, DEV.hr);

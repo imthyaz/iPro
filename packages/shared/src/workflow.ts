@@ -109,6 +109,8 @@ export interface ApprovalCard {
   waitingFor: string | null;
   /** Where to act on it when the card alone isn't enough (e.g. an exit page); else the request. */
   link?: string | null;
+  /** Routine (leave, comp-off, regularisation, hybrid exception): may be approved with others. */
+  bulk: boolean;
 }
 
 export interface WorkflowView {
@@ -138,13 +140,4 @@ export interface WorkflowView {
   /** What the signed-in user may do now. */
   canWithdraw: boolean;
   canResubmit: boolean;
-}
-
-export interface NotificationView {
-  id: string;
-  kind: string;
-  title: string;
-  link: string | null;
-  createdAt: string;
-  read: boolean;
 }

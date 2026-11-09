@@ -96,6 +96,7 @@ export class RegularisationService implements OnModuleInit {
 
   onModuleInit(): void {
     this.actions.register('attendance.regularise', {
+      bulk: true,
       validate: (payload) => {
         const parsed = payloadSchema.safeParse(payload);
         if (!parsed.success) throw new BadRequestException({ message: 'Invalid regularisation' });

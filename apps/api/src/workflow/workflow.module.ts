@@ -6,6 +6,7 @@ import { ScheduledJobs } from '../jobs/jobs.module.js';
 import { WorkflowActions } from './actions.js';
 import { ChecklistsController } from './checklists.controller.js';
 import { ChecklistsService } from './checklists.service.js';
+import { NotificationsService } from './notifications.service.js';
 import { RequestsService } from './requests.service.js';
 import { WorkflowController } from './workflow.controller.js';
 import { WorkflowService } from './workflow.service.js';
@@ -46,6 +47,7 @@ class WorkflowSweepJob implements OnModuleInit {
     WorkflowActions,
     WorkflowService,
     RequestsService,
+    NotificationsService,
     ChecklistsService,
     WorkflowSweepJob,
   ],

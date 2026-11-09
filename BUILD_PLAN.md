@@ -163,14 +163,18 @@ compact, team) in the design canvas linked from the product requirements.
 **Notes:** sub-PRs: 10a every workflow's event, planned events, the person timeline (E8, H2 full and compact)
 (decision #84; done); 10b team journeys (M6, H11) with grouping and tiles, and the 150-person load test (decision #85; done).
 
-## [ ] Slice 11 — Action inbox, notifications, Teams
+## [~] Slice 11 — Action inbox, notifications, Teams
 
 **Spec:** Experience for a lean team; Notifications and scheduled jobs; Integrations (Microsoft Teams); Screens X1, X3.
 
 **Done when**
-- [ ] A manager can clear 10 pending leave requests from the Action inbox in under 1 minute on a phone.
-- [ ] Each approval card shows the context listed in the design rules without opening another screen.
+- [x] A manager can clear 10 pending leave requests from the Action inbox in under 1 minute on a phone.
+- [x] Each approval card shows the context listed in the design rules without opening another screen.
 - [ ] Approving from a Teams card is recorded exactly like approving in iPro (same authz check, same audit row).
+
+**Notes:** sub-PRs: 11a the Action inbox (one list by due date, bulk approve for routine items, swipe, 10-second
+undo) and notification settings (X1) (decision #86); 11b delivery to Teams (actionable approval cards) and email, and
+the date-driven notifications (joining in 7 days and tomorrow, last working day in 7 days, work anniversaries).
 
 ## [ ] Slice 12 — Ask iPro
 

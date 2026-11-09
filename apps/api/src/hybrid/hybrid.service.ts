@@ -164,6 +164,7 @@ export class HybridService implements OnModuleInit {
 
   onModuleInit(): void {
     this.actions.register('hybrid.approve_exception', {
+      bulk: true,
       validate: (payload) => {
         const parsed = payloadSchema.safeParse(payload);
         if (!parsed.success) throw new BadRequestException({ message: 'Invalid hybrid exception' });

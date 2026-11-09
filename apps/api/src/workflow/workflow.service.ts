@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -10,7 +11,7 @@ import { and, asc, desc, eq, inArray, isNull, lte, or, sql, type SQL } from 'dri
 import {
   workflowDefinitionSchema,
   type ApprovalCard,
-  type NotificationView,
+  type BulkApproveResult,
   type WorkflowDefinition,
   type WorkflowView,
 } from '@ipro/shared';
@@ -47,7 +48,6 @@ import { builtInDefinitions } from './built-in-definitions.js';
 import { decisionCapacity, nextStepIndex } from './engine-rules.js';
 import {
   approvals,
-  notifications,
   workflowComments,
   workflowDefinitions,
   workflowInstances,
@@ -211,6 +211,39 @@ export class WorkflowService {
   }
 
   /** Returns the item to its submitter; a comment is required (spec: shared workflow rules). */
+  /**
+   * Approves several routine items at once from the Action inbox (decision #86). Each goes through
+   * the same path as a single approval (same checks, same audit row) in its own transaction, so one
+   * that can't be approved doesn't hold up the rest; anything not routine is left for its own card.
+   */
+  async bulkApprove(approvalIds: string[]): Promise<BulkApproveResult> {
+    const results: BulkApproveResult['results'] = [];
+    for (const approvalId of [...new Set(approvalIds)]) {
+      const routine = await this.db.tx(async (tx) => {
+        const [approval] = await tx.select().from(approvals).where(eq(approvals.id, approvalId));
+        if (!approval) return null;
+        const instance = await this.loadInstance(tx, approval.instanceId);
+        const definition = await this.definitionOf(tx, instance);
+        return this.actions.get(definition.onApproved).bulk === true;
+      });
+      if (routine === null) {
+        results.push({ approvalId, ok: false, message: 'You can’t decide this one' });
+        continue;
+      }
+      if (!routine) {
+        results.push({ approvalId, ok: false, message: 'Approve this one on its own' });
+        continue;
+      }
+      try {
+        await this.decide(approvalId, 'approved');
+        results.push({ approvalId, ok: true, message: null });
+      } catch (error) {
+        results.push({ approvalId, ok: false, message: bulkMessage(error) });
+      }
+    }
+    return { results };
+  }
+
   async reject(approvalId: string, comment: string): Promise<WorkflowView> {
     if (!comment.trim()) throw new BadRequestException({ message: 'Say why you are returning it' });
     return this.decide(approvalId, 'rejected', comment);
@@ -355,6 +388,7 @@ export class WorkflowService {
           waitingFor:
             (await this.actions.get(definition.onApproved).readyToApprove?.(tx, instance)) ?? null,
           link: this.actions.get(definition.onApproved).link?.(instance) ?? null,
+          bulk: this.actions.get(definition.onApproved).bulk === true,
         });
       }
       return cards;
@@ -440,41 +474,6 @@ export class WorkflowService {
         canResubmit: mine && instance.status === 'returned',
       };
     });
-  }
-
-  async myNotifications(): Promise<NotificationView[]> {
-    const actor = requireContext().actor!;
-    const rows = await this.db.tx((tx) =>
-      tx
-        .select()
-        .from(notifications)
-        .where(eq(notifications.recipientUserId, actor.userId))
-        .orderBy(desc(notifications.createdAt))
-        .limit(100),
-    );
-    return rows.map((n) => ({
-      id: n.id,
-      kind: n.kind,
-      title: n.title,
-      link: n.link,
-      createdAt: n.createdAt.toISOString(),
-      read: n.readAt !== null,
-    }));
-  }
-
-  async markRead(notificationId: string): Promise<void> {
-    const actor = requireContext().actor!;
-    await this.db.tx((tx) =>
-      tx
-        .update(notifications)
-        .set({ readAt: new Date() })
-        .where(
-          and(
-            eq(notifications.id, notificationId),
-            eq(notifications.recipientUserId, actor.userId),
-          ),
-        ),
-    );
   }
 
   // ---- Daily sweep: reminders and escalations ----
@@ -894,4 +893,19 @@ export class WorkflowService {
       }
     }
   }
+}
+
+/** A short reason for one item of a bulk approval that didn't go through. */
+function bulkMessage(error: unknown): string {
+  if (error instanceof ForbiddenException || error instanceof NotFoundException) {
+    return 'You can’t decide this one';
+  }
+  if (error instanceof HttpException) {
+    const body = error.getResponse();
+    if (typeof body === 'object' && body && 'message' in body && typeof body.message === 'string') {
+      return body.message;
+    }
+    return error.message;
+  }
+  throw error;
 }

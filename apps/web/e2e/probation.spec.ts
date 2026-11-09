@@ -78,7 +78,7 @@ test('the manager writes a probation review on their phone; HR confirms it on th
   await signInAs(page, DEV.hr);
   await page.goto('/');
   const decision = page
-    .getByRole('list', { name: 'Approvals' })
+    .getByRole('list', { name: 'Waiting on you' })
     .getByRole('listitem')
     .filter({ hasText: `Probation: ${name}` });
   await expect(
@@ -86,6 +86,8 @@ test('the manager writes a probation review on their phone; HR confirms it on th
   ).toBeVisible();
   await decision.getByRole('button', { name: 'Approve' }).click();
   await expect(decision).toHaveCount(0);
+  // Approvals wait out their 10-second undo window before they are sent (decision #86).
+  await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
 
   await page.goto('/probation');
   await expect(page.getByRole('heading', { name: 'Probation' })).toBeVisible();

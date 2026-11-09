@@ -29,7 +29,7 @@ const uniquePhone = () =>
 /** The approval card asking for this phone number (the new value, not an old one). */
 const cardFor = (page: Page, phone: string) =>
   page
-    .getByRole('list', { name: 'Approvals' })
+    .getByRole('list', { name: 'Waiting on you' })
     .getByRole('listitem')
     .filter({ has: page.locator('strong', { hasText: phone }) });
 
@@ -56,6 +56,8 @@ test('an employee’s change is approved by HR in one tap from the inbox', async
   await expect(card.getByText(`HR review · for ${who.name}`, { exact: false })).toBeVisible();
   await card.getByRole('button', { name: 'Approve' }).click();
   await expect(card).toHaveCount(0);
+  // Approvals wait out their 10-second undo window before they are sent (decision #86).
+  await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
 
   await signInAs(page, who.id);
   await page.goto('/me');
