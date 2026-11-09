@@ -166,7 +166,7 @@ export class TimelineService {
         .from(journalEvents)
         .where(eq(journalEvents.personId, personId))
         .orderBy(asc(journalEvents.occurredOn), asc(journalEvents.createdAt));
-      const events = this.visibleEvents(rows, sensitive, today);
+      const events = visibleEvents(rows, sensitive, today);
       const lanes = {
         designation: await this.designationLane(tx, engs),
         team: await this.teamLane(tx, engs),
@@ -273,58 +273,6 @@ export class TimelineService {
   }
 
   // ---- Internals ----
-
-  /**
-   * Events in the viewer's sensitivity (public and manager for anyone who may read the journey; HR
-   * and restricted with journey_sensitive), planned ones only while they stand.
-   */
-  private visibleEvents(rows: EventRow[], sensitive: boolean, today: string): TimelineEvent[] {
-    const has = (type: string, engagementId: string) =>
-      rows.some((r) => r.eventType === type && r.engagementId === engagementId && !r.isPlanned);
-    return rows
-      .filter((r) => sensitive || r.sensitivity === 'public' || r.sensitivity === 'manager')
-      .filter((r) => r.eventType !== 'conversion_scheduled' || r.occurredOn > today)
-      .filter((r) => {
-        if (!r.isPlanned) return true;
-        if (r.eventType === 'probation_end') {
-          if (
-            has('probation_confirmed', r.engagementId) ||
-            has('probation_terminated', r.engagementId)
-          ) {
-            return false;
-          }
-          // An extension plans a new end; only the latest stands.
-          return !rows.some(
-            (o) =>
-              o.isPlanned &&
-              o.eventType === 'probation_end' &&
-              o.engagementId === r.engagementId &&
-              o.occurredOn > r.occurredOn,
-          );
-        }
-        if (r.eventType === 'last_working_day') {
-          return !rows.some(
-            (o) =>
-              o.eventType === 'resignation_withdrawn' &&
-              o.sourceTable === r.sourceTable &&
-              o.sourceId === r.sourceId,
-          );
-        }
-        return true;
-      })
-      .map((r) => ({
-        id: r.id,
-        type: r.eventType,
-        category: categoryOf(r),
-        title: r.title,
-        date: r.occurredOn,
-        upcoming: r.occurredOn > today || (r.isPlanned && r.occurredOn >= today),
-        planned: r.isPlanned,
-        overdue: r.isPlanned && r.occurredOn < today,
-        facts: facts(r.detailJson ?? {}),
-        link: linkOf(r),
-      }));
-  }
 
   private async designationLane(tx: Tx, engs: EngagementRow[]): Promise<TimelineSegment[]> {
     if (engs.length === 0) return [];
@@ -440,4 +388,60 @@ export class TimelineService {
     });
     return out;
   }
+}
+
+/**
+ * Events in the viewer's sensitivity (public and manager for anyone who may read the journey; HR
+ * and restricted with journey_sensitive), planned ones only while they stand.
+ */
+export function visibleEvents(
+  rows: EventRow[],
+  sensitive: boolean,
+  today: string,
+): TimelineEvent[] {
+  const has = (type: string, engagementId: string) =>
+    rows.some((r) => r.eventType === type && r.engagementId === engagementId && !r.isPlanned);
+  return rows
+    .filter((r) => sensitive || r.sensitivity === 'public' || r.sensitivity === 'manager')
+    .filter((r) => r.eventType !== 'conversion_scheduled' || r.occurredOn > today)
+    .filter((r) => {
+      if (!r.isPlanned) return true;
+      if (r.eventType === 'probation_end') {
+        if (
+          has('probation_confirmed', r.engagementId) ||
+          has('probation_terminated', r.engagementId)
+        ) {
+          return false;
+        }
+        // An extension plans a new end; only the latest stands.
+        return !rows.some(
+          (o) =>
+            o.isPlanned &&
+            o.eventType === 'probation_end' &&
+            o.engagementId === r.engagementId &&
+            o.occurredOn > r.occurredOn,
+        );
+      }
+      if (r.eventType === 'last_working_day') {
+        return !rows.some(
+          (o) =>
+            o.eventType === 'resignation_withdrawn' &&
+            o.sourceTable === r.sourceTable &&
+            o.sourceId === r.sourceId,
+        );
+      }
+      return true;
+    })
+    .map((r) => ({
+      id: r.id,
+      type: r.eventType,
+      category: categoryOf(r),
+      title: r.title,
+      date: r.occurredOn,
+      upcoming: r.occurredOn > today || (r.isPlanned && r.occurredOn >= today),
+      planned: r.isPlanned,
+      overdue: r.isPlanned && r.occurredOn < today,
+      facts: facts(r.detailJson ?? {}),
+      link: linkOf(r),
+    }));
 }

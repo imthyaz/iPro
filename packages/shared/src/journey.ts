@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /**
  * Journey timelines (slice 10; screens E8, H2, M6, H11; decision #84). Timelines read only from the
  * journal; each event shows in one display category with the design's colour.
@@ -93,5 +95,55 @@ export interface PersonTimelineView {
     designationChanges: number;
     teams: number;
     ctcGrowth: { fromPaise: string; toPaise: string; revisions: number } | null;
+  };
+}
+
+/** GET /api/journeys/team (M6 managers, H11 HR and CXO): parallel timelines for many people. */
+export const teamJourneysQuerySchema = z.object({
+  /** team: the viewer's reports; all: everyone the viewer may see (HR, CXO: their entities). */
+  scope: z.enum(['team', 'all']).default('team'),
+  from: z.iso.date(),
+  to: z.iso.date(),
+  exited: z.enum(['true', 'false']).default('true'),
+});
+
+export interface TeamJourneyEvent {
+  id: string;
+  type: string;
+  category: TimelineCategory;
+  title: string;
+  date: string;
+  upcoming: boolean;
+}
+
+export interface TeamJourneyPerson {
+  personId: string;
+  name: string;
+  employeeCode: string;
+  designation: string | null;
+  band: string | null;
+  department: string | null;
+  manager: { personId: string; name: string } | null;
+  status: 'active' | 'on_notice' | 'exited';
+  onProbation: boolean;
+  joiningDate: string;
+  lastWorkingDate: string | null;
+  /** Years at the company, for the tenure grouping (total experience isn't held in Phase 1). */
+  tenureYears: number;
+  events: TeamJourneyEvent[];
+}
+
+export interface TeamJourneysView {
+  today: string;
+  from: string;
+  to: string;
+  people: TeamJourneyPerson[];
+  tiles: {
+    headcount: number;
+    exitedInView: number;
+    probationDue30: number;
+    onNotice: number;
+    designationChanges12m: number;
+    joiners12m: number;
   };
 }
