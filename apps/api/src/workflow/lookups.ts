@@ -4,6 +4,8 @@ import { requireContext } from '../context/request-context.js';
 import type { Tx } from '../db/tenant-context.js';
 import { appUsers, roleAssignments } from '../identity/identity.schema.js';
 import { persons } from '../people/people.schema.js';
+import { channelsFor } from '../notify/delivery-rules.js';
+import { notificationDeliveries } from '../notify/notify.schema.js';
 import { notificationPreferences, notifications } from './workflow.schema.js';
 
 /** Shared by the workflow engine and checklists: who manages whom, who holds a role, names, notices. */
@@ -97,10 +99,18 @@ export async function personName(tx: Tx, personId: string): Promise<string> {
 
 /** In-app notifications (the outbox Teams and email deliver from in slice 11). */
 /**
- * Notifies people in-app (Teams and email deliver from these rows, slice 11b). Someone who switched
- * the kind's topic off gets nothing; approvals and compliance items can't be switched off.
+ * Notifies people in-app and queues Teams and email delivery (decision #87). Someone who switched
+ * the kind's topic off gets nothing; approvals and compliance items can't be switched off. An
+ * approval id makes the Teams message an actionable card; a dedupe key sends a notice only once.
  */
-export async function notify(tx: Tx, userIds: string[], kind: string, title: string, link: string) {
+export async function notify(
+  tx: Tx,
+  userIds: string[],
+  kind: string,
+  title: string,
+  link: string,
+  options: { approvalId?: string; dedupeKey?: string } = {},
+) {
   let unique = [...new Set(userIds)];
   if (unique.length === 0) return;
   const { tenantId } = requireContext();
@@ -119,9 +129,50 @@ export async function notify(tx: Tx, userIds: string[], kind: string, title: str
     unique = unique.filter((id) => !off.has(id));
     if (unique.length === 0) return;
   }
-  await tx
+  const rows = await tx
     .insert(notifications)
-    .values(unique.map((recipientUserId) => ({ tenantId, recipientUserId, kind, title, link })));
+    .values(
+      unique.map((recipientUserId) => ({
+        tenantId,
+        recipientUserId,
+        kind,
+        title,
+        link,
+        approvalId: options.approvalId ?? null,
+        dedupeKey: options.dedupeKey ?? null,
+      })),
+    )
+    .onConflictDoNothing()
+    .returning({ id: notifications.id, recipientUserId: notifications.recipientUserId });
+  if (rows.length === 0) return;
+  // Teams by default; email for pre-joiners and for anyone who asked for a copy.
+  const people = await tx.execute<{ id: string; email_copy: boolean; pre_joiner: boolean }>(sql`
+    select u.id,
+      coalesce(p.email_copy, false) as email_copy,
+      (exists (select 1 from engagement e where e.person_id = u.person_id
+                and e.status in ('offered', 'pre_joining'))
+       and not exists (select 1 from engagement e where e.person_id = u.person_id
+                and e.status in ('active', 'on_notice'))) as pre_joiner
+    from app_user u
+    left join notification_preference p on p.user_id = u.id
+    where u.id in (${sql.join(
+      rows.map((r) => sql`${r.recipientUserId}`),
+      sql`, `,
+    )})`);
+  const byUser = new Map(people.rows.map((p) => [p.id, p]));
+  const deliveries = rows.flatMap((row) => {
+    const person = byUser.get(row.recipientUserId);
+    return channelsFor({
+      preJoiner: person?.pre_joiner ?? false,
+      emailCopy: person?.email_copy ?? false,
+    }).map((channel) => ({
+      tenantId,
+      notificationId: row.id,
+      recipientUserId: row.recipientUserId,
+      channel,
+    }));
+  });
+  await tx.insert(notificationDeliveries).values(deliveries).onConflictDoNothing();
 }
 
 const roleLabels: Record<string, string> = {

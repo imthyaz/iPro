@@ -16,3 +16,4 @@ export * from '../changes/changes.schema.js';
 export * from '../leave/leave.schema.js';
 export * from '../hybrid/hybrid.schema.js';
 export * from '../exit/exit.schema.js';
+export * from '../notify/notify.schema.js';

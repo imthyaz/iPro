@@ -124,3 +124,8 @@ configurable setting.
 - [x] Exit interview questions: reason for leaving, what we could improve, would you return (decision #81).
 - [ ] Entra account disabling (decision #82): can IT grant the iPro app User.EnableDisableAccount.All and
       User.RevokeSessions.All? Until then each leaver raises an IT task (DIRECTORY_PROVIDER=none).
+- [ ] Teams bot (decision #87): can IT register an Azure Bot (single-tenant, Ideassion's Entra tenant), set its
+      messaging endpoint to https://<ipro host>/api/teams/messages, and install the iPro Teams app for everyone? Until
+      then TEAMS_PROVIDER=none and notifications go by email.
+- [ ] Email (decision #87): which no-reply mailbox (e.g. ipro@ideassion.com)? IT grants Mail.Send to the iPro app and
+      limits it to that mailbox with an application access policy.

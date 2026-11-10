@@ -365,34 +365,64 @@ export class WorkflowService {
         .orderBy(asc(approvals.dueOn));
       const cards: ApprovalCard[] = [];
       for (const { approval, instance } of rows) {
-        const capacity = decisionCapacity(approval, actor, instance.submittedBy, delegators);
-        if (!capacity) continue;
-        const definition = await this.definitionOf(tx, instance);
-        cards.push({
-          approvalId: approval.id,
-          instanceId: instance.id,
-          key: instance.key,
-          title: instance.title,
-          stepLabel: approval.stepLabel,
-          subject: {
-            personId: instance.subjectPersonId,
-            name: await personName(tx, instance.subjectPersonId),
-          },
-          submittedBy: await userName(tx, instance.submittedBy),
-          submittedAt: instance.submittedAt.toISOString(),
-          dueOn: approval.dueOn,
-          overdue: approval.dueOn < today,
-          escalated: approval.escalatedAt !== null,
-          onBehalfOf: capacity.as === 'delegate' ? await userName(tx, capacity.onBehalfOf) : null,
-          changes: await this.actions.get(definition.onApproved).describe(tx, instance),
-          waitingFor:
-            (await this.actions.get(definition.onApproved).readyToApprove?.(tx, instance)) ?? null,
-          link: this.actions.get(definition.onApproved).link?.(instance) ?? null,
-          bulk: this.actions.get(definition.onApproved).bulk === true,
-        });
+        const card = await this.toCard(tx, approval, instance, actor, delegators, today);
+        if (card) cards.push(card);
       }
       return cards;
     });
+  }
+
+  /**
+   * One open approval as the card the given person would see in their inbox, or null when it isn't
+   * theirs to decide (any more). Teams sends this card (decision #87).
+   */
+  async approvalCardFor(tx: Tx, approvalId: string, actor: Actor): Promise<ApprovalCard | null> {
+    const [row] = await tx
+      .select({ approval: approvals, instance: workflowInstances })
+      .from(approvals)
+      .innerJoin(workflowInstances, eq(workflowInstances.id, approvals.instanceId))
+      .where(
+        and(eq(approvals.id, approvalId), isNull(approvals.decision), isNull(approvals.closedAt)),
+      );
+    if (!row) return null;
+    const today = businessDate(new Date());
+    const delegators = await this.delegatorsFor(tx, actor.userId, today);
+    return this.toCard(tx, row.approval, row.instance, actor, delegators, today);
+  }
+
+  private async toCard(
+    tx: Tx,
+    approval: ApprovalRow,
+    instance: Instance,
+    actor: Actor,
+    delegators: string[],
+    today: string,
+  ): Promise<ApprovalCard | null> {
+    const capacity = decisionCapacity(approval, actor, instance.submittedBy, delegators);
+    if (!capacity) return null;
+    const definition = await this.definitionOf(tx, instance);
+    return {
+      approvalId: approval.id,
+      instanceId: instance.id,
+      key: instance.key,
+      title: instance.title,
+      stepLabel: approval.stepLabel,
+      subject: {
+        personId: instance.subjectPersonId,
+        name: await personName(tx, instance.subjectPersonId),
+      },
+      submittedBy: await userName(tx, instance.submittedBy),
+      submittedAt: instance.submittedAt.toISOString(),
+      dueOn: approval.dueOn,
+      overdue: approval.dueOn < today,
+      escalated: approval.escalatedAt !== null,
+      onBehalfOf: capacity.as === 'delegate' ? await userName(tx, capacity.onBehalfOf) : null,
+      changes: await this.actions.get(definition.onApproved).describe(tx, instance),
+      waitingFor:
+        (await this.actions.get(definition.onApproved).readyToApprove?.(tx, instance)) ?? null,
+      link: this.actions.get(definition.onApproved).link?.(instance) ?? null,
+      bulk: this.actions.get(definition.onApproved).bulk === true,
+    };
   }
 
   /** Requests the signed-in user submitted, newest first. */
@@ -509,6 +539,7 @@ export class WorkflowService {
             'approval_reminder',
             `Reminder: ${instance.title}`,
             `/approvals`,
+            { approvalId: approval.id },
           );
           reminded += 1;
         }
@@ -652,6 +683,7 @@ export class WorkflowService {
       'approval_requested',
       `Waiting for you: ${instance.title}`,
       '/approvals',
+      { approvalId: approval!.id },
     );
   }
 
@@ -712,6 +744,7 @@ export class WorkflowService {
       'approval_escalated',
       `Overdue, now with you: ${instance.title}`,
       '/approvals',
+      { approvalId: approval.id },
     );
   }
 
