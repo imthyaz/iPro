@@ -68,6 +68,14 @@ const envSchema = z
     MAIL_PROVIDER: z.enum(['fake', 'graph', 'none']).default('fake'),
     /** The no-reply mailbox iPro sends from (IT limits Mail.Send to this mailbox). */
     MAIL_FROM: optionalText,
+    /**
+     * Ask iPro's model (decision #8, #88): "fake" is the scripted model for local use and tests;
+     * "bedrock" calls Claude on Amazon Bedrock; "none" turns the assistant off.
+     */
+    LLM_PROVIDER: z.enum(['fake', 'bedrock', 'none']).default('fake'),
+    /** India inference-profile ids only (`in.`): lookups (Haiku) and reasoning (Sonnet). */
+    BEDROCK_MODEL_LOOKUP: optionalText,
+    BEDROCK_MODEL_REASONING: optionalText,
   })
   .transform((env) => ({
     ...env,
@@ -105,6 +113,12 @@ const envSchema = z
       for (const key of ['ENTRA_TENANT_ID', 'GRAPH_CLIENT_ID', 'GRAPH_CLIENT_SECRET'] as const) {
         if (!env[key]) fail(key, 'required to disable Entra accounts through Graph');
       }
+    }
+    // India-only routing (CLAUDE.md, decision #8): any other id could send data outside India.
+    for (const key of ['BEDROCK_MODEL_LOOKUP', 'BEDROCK_MODEL_REASONING'] as const) {
+      const id = env[key];
+      if (id && !isIndiaModelId(id)) fail(key, 'must be an India inference profile id (in.)');
+      if (env.LLM_PROVIDER === 'bedrock' && !id) fail(key, 'required for Bedrock');
     }
     if (env.TEAMS_PROVIDER === 'bot') {
       for (const key of ['ENTRA_TENANT_ID', 'TEAMS_BOT_APP_ID', 'TEAMS_BOT_APP_SECRET'] as const) {
@@ -148,6 +162,9 @@ const envSchema = z
       if (env.DIRECTORY_PROVIDER === 'fake') {
         fail('DIRECTORY_PROVIDER', 'production uses Microsoft Graph, or "none" for IT tasks');
       }
+      if (env.LLM_PROVIDER === 'fake') {
+        fail('LLM_PROVIDER', 'production uses Bedrock, or "none" to turn Ask iPro off');
+      }
       if (env.TEAMS_PROVIDER === 'fake') {
         fail('TEAMS_PROVIDER', 'production uses the Teams bot, or "none" until it is registered');
       }
@@ -158,6 +175,11 @@ const envSchema = z
   });
 
 export type AppConfig = z.infer<typeof envSchema>;
+
+/** An Amazon Bedrock India geographic inference-profile id, e.g. `in.anthropic.claude-…`. */
+export function isIndiaModelId(id: string): boolean {
+  return /^in\.[a-z0-9][a-z0-9.:-]*$/.test(id);
+}
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
 

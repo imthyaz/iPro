@@ -59,3 +59,45 @@ describe('loadConfig', () => {
     );
   });
 });
+
+describe('Ask iPro model ids (slice 12 done-when #5: India-only routing)', () => {
+  const india = {
+    LLM_PROVIDER: 'bedrock',
+    BEDROCK_MODEL_LOOKUP: 'in.anthropic.claude-haiku-test',
+    BEDROCK_MODEL_REASONING: 'in.anthropic.claude-sonnet-test',
+  };
+
+  it('accepts only India inference-profile ids (in.)', () => {
+    expect(loadConfig({ ...base, ...india }).BEDROCK_MODEL_LOOKUP).toBe(
+      'in.anthropic.claude-haiku-test',
+    );
+  });
+
+  it.each([
+    ['a global profile', 'global.anthropic.claude-haiku-test'],
+    ['an APAC profile', 'apac.anthropic.claude-haiku-test'],
+    ['a US profile', 'us.anthropic.claude-haiku-test'],
+    ['a base model id', 'anthropic.claude-haiku-test'],
+    ['an ARN', 'arn:aws:bedrock:ap-south-1:123:inference-profile/global.x'],
+  ])('refuses %s, which could route data outside India', (_name, id) => {
+    expect(() => loadConfig({ ...base, ...india, BEDROCK_MODEL_LOOKUP: id })).toThrow(
+      'Invalid configuration: BEDROCK_MODEL_LOOKUP',
+    );
+    expect(() => loadConfig({ ...base, ...india, BEDROCK_MODEL_REASONING: id })).toThrow(
+      'Invalid configuration: BEDROCK_MODEL_REASONING',
+    );
+  });
+
+  it('refuses a non-India id even while Bedrock is off', () => {
+    expect(() =>
+      loadConfig({ ...base, BEDROCK_MODEL_LOOKUP: 'global.anthropic.claude-haiku-test' }),
+    ).toThrow('Invalid configuration: BEDROCK_MODEL_LOOKUP');
+  });
+
+  it('needs both model ids to use Bedrock, and never the scripted model in production', () => {
+    expect(() => loadConfig({ ...base, LLM_PROVIDER: 'bedrock' })).toThrow(
+      'Invalid configuration: BEDROCK_MODEL_LOOKUP, BEDROCK_MODEL_REASONING',
+    );
+    expect(loadConfig(base).LLM_PROVIDER).toBe('fake');
+  });
+});

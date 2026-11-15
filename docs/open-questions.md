@@ -129,3 +129,8 @@ configurable setting.
       then TEAMS_PROVIDER=none and notifications go by email.
 - [ ] Email (decision #87): which no-reply mailbox (e.g. ipro@ideassion.com)? IT grants Mail.Send to the iPro app and
       limits it to that mailbox with an application access policy.
+- [ ] Ask iPro routing (decision #8, #88): Anthropic's Bedrock documentation lists geographic inference profiles
+      for the US, EU, Japan, Australia and Asia-Pacific, and ap-south-1 (Mumbai) with a global endpoint only; it
+      names no India (in.) profile. Can AWS confirm an India-only route for Claude Haiku and Sonnet (an in. profile
+      or a Mumbai/Hyderabad in-region endpoint) and enable the models in the account? Until then LLM_PROVIDER=none in
+      AWS, and iPro accepts only in. ids, so nothing can route data outside India.

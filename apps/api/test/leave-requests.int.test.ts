@@ -62,8 +62,9 @@ const dayOf = async (who: Hire, date: string) =>
         .expect(200)
     ).body as AttendanceDayView[]
   ).find((x) => x.date === date)!;
-const mine = async (who: string) =>
-  (await agents[who]!.get(`/api/leave/requests/mine?year=${today.slice(0, 4)}`).expect(200))
+/** A person's requests in the year of `on` (default: this year). */
+const mine = async (who: string, on = today) =>
+  (await agents[who]!.get(`/api/leave/requests/mine?year=${on.slice(0, 4)}`).expect(200))
     .body as LeaveRequestView[];
 
 async function hire(name: string, userId: string, managerEngagementId?: string): Promise<Hire> {
@@ -338,6 +339,10 @@ describe('started leave: unplanned, revoked by HR', () => {
 
 describe('certificates and who sees requests', () => {
   it('sick leave over 2 days waits for a certificate (decision #75); it is kept confidential', async () => {
+    // Late in the year these days fall in the next one: give Esha the same sick leave there.
+    if (d(50).slice(0, 4) !== today.slice(0, 4)) {
+      await setBalances([[p.emp, 'SL', 5]], `${d(50).slice(0, 4)}-01-01`);
+    }
     const sent = (
       await apply('emp', { leaveTypeId: typeId('SL'), from: d(50), to: d(52) }).expect(201)
     ).body as LeaveRequestView;
@@ -352,7 +357,7 @@ describe('certificates and who sees requests', () => {
       .mgr!.post(`/api/approvals/${card.approvalId}/approve`, {})
       .expect(409);
     expect(refused.body.message).toBe('Waiting for the medical certificate');
-    expect((await mine('emp')).find((r) => r.id === sent.id)!.status).toBe('applied');
+    expect((await mine('emp', d(50))).find((r) => r.id === sent.id)!.status).toBe('applied');
     const attached = await agents
       .emp!.post(`/api/leave/requests/${sent.id}/certificate`)
       .attach('file', Buffer.from('%PDF-1.4\n% synthetic certificate\n'), {
@@ -367,7 +372,7 @@ describe('certificates and who sees requests', () => {
     );
     expect(card.waitingFor).toBeNull();
     await agents.mgr!.post(`/api/approvals/${card.approvalId}/approve`, {}).expect(201);
-    expect((await mine('emp')).find((r) => r.id === sent.id)!.status).toBe('approved');
+    expect((await mine('emp', d(50))).find((r) => r.id === sent.id)!.status).toBe('approved');
     const docs = await pool.query(
       `select type, confidential from document where person_id = $1 and type = 'certificate'`,
       [p.emp.personId],

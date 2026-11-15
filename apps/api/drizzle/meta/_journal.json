@@ -435,6 +435,20 @@
       "when": 1794241684849,
       "tag": "0061_notification_delivery_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1794733882966,
+      "tag": "0062_assistant_conversations",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1794733889993,
+      "tag": "0063_assistant_checks",
+      "breakpoints": true
     }
   ]
 }

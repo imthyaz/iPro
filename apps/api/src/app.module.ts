@@ -1,4 +1,5 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
+import { AssistantModule } from './assistant/assistant.module.js';
 import { AttendanceModule } from './attendance/attendance.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthzModule } from './authz/authz.module.js';
@@ -45,6 +46,7 @@ import { WorkflowModule } from './workflow/workflow.module.js';
     HybridModule,
     ExitModule,
     NotifyModule,
+    AssistantModule,
   ],
 })
 export class AppModule implements NestModule {

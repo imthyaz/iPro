@@ -1863,3 +1863,112 @@ a.onboarding-link:hover {
   flex: none;
   margin-top: 2px;
 }
+
+/* X2 Ask iPro (slice 12): a side panel on desktop, full screen on a phone. */
+.ask-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  width: min(420px, 100vw);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: var(--color-bg);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -4px 0 16px rgb(0 0 0 / 12%);
+}
+
+@media (max-width: 599px) {
+  .ask-panel {
+    width: 100vw;
+    border-left: none;
+  }
+}
+
+.ask-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 12px var(--space);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ask-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.ask-head-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.ask-thread {
+  overflow-y: auto;
+  padding: 12px var(--space);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ask-examples {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.ask-examples .button {
+  text-align: left;
+  white-space: normal;
+}
+
+.ask-message {
+  max-width: 90%;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+
+.ask-message p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.ask-user {
+  align-self: flex-end;
+  background: var(--color-info-bg);
+}
+
+.ask-assistant {
+  align-self: flex-start;
+  background: var(--color-surface);
+}
+
+.ask-sources {
+  margin-top: 6px !important;
+  font-size: 0.875rem;
+}
+
+.ask-open {
+  margin-top: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ask-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 12px var(--space) calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--color-border);
+}
+
+.ask-form textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+}
