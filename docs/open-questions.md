@@ -134,3 +134,5 @@ configurable setting.
       names no India (in.) profile. Can AWS confirm an India-only route for Claude Haiku and Sonnet (an in. profile
       or a Mumbai/Hyderabad in-region endpoint) and enable the models in the account? Until then LLM_PROVIDER=none in
       AWS, and iPro accepts only in. ids, so nothing can route data outside India.
+- [ ] Ask iPro's link to HR (decision #89): where should a policy question no policy answers send people (an HR
+      mailbox, a Teams chat, a page)? Until set, it links to the policies page as "Contact HR".

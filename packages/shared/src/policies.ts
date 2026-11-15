@@ -33,6 +33,9 @@ export interface PolicyVersionView {
   fileName: string;
   contentHash: string;
   publishedAt: string;
+  /** Ask iPro's reading of the file (decision #89): clauses found, none (no text), or not yet. */
+  textStatus: 'pending' | 'ready' | 'empty' | 'failed';
+  clauseCount: number;
 }
 
 /** A policy as an employee sees it (E11 policy sign-offs, E1 pending items). */
@@ -58,4 +61,15 @@ export interface PolicyStatusView {
   versions: PolicyVersionView[];
   accepted: { personId: string; name: string; acceptedAt: string }[];
   pending: { personId: string; name: string; employeeCode: string }[];
+}
+
+/** GET /api/policies/:id/clauses: the current version's text, clause by clause (decision #89). */
+export interface PolicyClausesView {
+  policyId: string;
+  title: string;
+  version: number;
+  effectiveFrom: string;
+  fileName: string;
+  textStatus: PolicyVersionView['textStatus'];
+  clauses: { position: number; number: string | null; heading: string; body: string }[];
 }

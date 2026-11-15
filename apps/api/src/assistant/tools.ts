@@ -19,6 +19,7 @@ import { TimelineService } from '../journey/timeline.service.js';
 import { LeaveService } from '../leave/leave.service.js';
 import { LeaveRequestsService } from '../leave/requests.service.js';
 import { PeopleService } from '../people/people.service.js';
+import { PoliciesService } from '../policies/policies.service.js';
 import { ReviewsService } from '../reviews/reviews.service.js';
 import { WorkflowService } from '../workflow/workflow.service.js';
 import type { LinkedRecord } from './assistant.schema.js';
@@ -29,6 +30,8 @@ export interface ToolResult {
   sources: AssistantSource[];
   records?: LinkedRecord[];
   open?: AssistantOpen;
+  /** The lookup ran but found nothing (e.g. no policy clause matches). */
+  empty?: boolean;
 }
 
 interface ToolDef<S extends z.ZodType> {
@@ -86,6 +89,7 @@ export class AssistantTools {
     @Inject(TimelineService) private readonly timelines: TimelineService,
     @Inject(TeamJourneysService) private readonly teams: TeamJourneysService,
     @Inject(WorkflowService) private readonly workflows: WorkflowService,
+    @Inject(PoliciesService) private readonly policies: PoliciesService,
   ) {
     this.defs = this.build() as ToolDef<z.ZodType>[];
   }
@@ -414,6 +418,41 @@ export class AssistantTools {
               leaverNames: leavers.map((p) => p.name),
             },
             sources: [{ label: 'Team journeys', link: '/team-journeys' }],
+          };
+        },
+      }),
+      def({
+        name: 'policy_search',
+        description:
+          'Searches the clauses of the policies that apply to the user (leave, notice, hybrid, conduct and so on). Use for any question about rules or policy, and answer only from the clauses returned, naming the clause.',
+        input: z.object({
+          question: z
+            .string()
+            .trim()
+            .min(2)
+            .max(300)
+            .describe('The policy question, in plain words'),
+        }),
+        grants: 'signed-in',
+        run: async ({ question }) => {
+          const hits = await this.policies.searchClauses(question);
+          return {
+            data: {
+              found: hits.length,
+              clauses: hits.map((h) => ({
+                policy: h.policyTitle,
+                version: h.version,
+                clause: h.number,
+                heading: h.heading,
+                text: h.body,
+              })),
+            },
+            sources: hits.map((h) => ({
+              label: `${h.policyTitle}${h.number ? ` ${h.number}` : ''}: ${h.heading}`,
+              link: `/policies?policy=${h.policyId}&clause=${h.position}`,
+            })),
+            records: hits.map((h) => ({ type: 'policy' as const, id: h.policyId })),
+            empty: hits.length === 0,
           };
         },
       }),

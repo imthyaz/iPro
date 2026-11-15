@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import type { MyPolicyView } from '@ipro/shared';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
+import type { MyPolicyView, PolicyClausesView } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
 import { Chip, Empty, formatDate, Note } from '../../design-system/index.js';
 
@@ -15,10 +16,20 @@ export function MyPolicies() {
   });
   const pending = policies.data?.filter((p) => p.pending) ?? [];
   const others = policies.data?.filter((p) => !p.pending) ?? [];
+  const [params, setParams] = useSearchParams();
+  const reading = params.get('policy');
 
   return (
     <main className="page">
       <h1>Policies</h1>
+      {reading && (
+        <Clauses
+          key={`${reading}-${params.get('clause') ?? ''}`}
+          policyId={reading}
+          clause={Number(params.get('clause')) || null}
+          onClose={() => setParams({})}
+        />
+      )}
       {policies.error && <Note kind="error">{errorMessage(policies.error)}</Note>}
       {policies.data?.length === 0 && <Empty>No policies apply to you yet.</Empty>}
       {pending.length > 0 && (
@@ -87,6 +98,11 @@ export function Policy({ policy }: { policy: MyPolicyView }) {
         <button className="button" disabled={open.isPending} onClick={() => open.mutate()}>
           Open {v.fileName}
         </button>
+        {v.textStatus === 'ready' && (
+          <Link className="button button-quiet" to={`/policies?policy=${policy.policyId}`}>
+            Read as text
+          </Link>
+        )}
       </div>
       {policy.pending && (
         <>
@@ -114,5 +130,61 @@ export function Policy({ policy }: { policy: MyPolicyView }) {
       {open.error && <Note kind="error">{errorMessage(open.error)}</Note>}
       {accept.error && <Note kind="error">{errorMessage(accept.error)}</Note>}
     </li>
+  );
+}
+
+/**
+ * A policy's text, clause by clause (decision #89): where Ask iPro's answers link to. The clause an
+ * answer came from is highlighted and scrolled into view.
+ */
+function Clauses({
+  policyId,
+  clause,
+  onClose,
+}: {
+  policyId: string;
+  clause: number | null;
+  onClose: () => void;
+}) {
+  const view = useQuery({
+    queryKey: ['policy-clauses', policyId],
+    queryFn: () => api<PolicyClausesView>(`/policies/${policyId}/clauses`),
+  });
+  const target = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    target.current?.scrollIntoView?.({ block: 'center' });
+  }, [view.data]);
+  const v = view.data;
+  return (
+    <section className="card policy-text" aria-label={v ? `${v.title}, as text` : 'Policy text'}>
+      <div className="card-head">
+        <strong>{v ? `${v.title} · version ${v.version}` : 'Policy'}</strong>
+        <button className="button button-quiet" onClick={onClose}>
+          Close
+        </button>
+      </div>
+      {view.error && <Note kind="error">{errorMessage(view.error)}</Note>}
+      {v && v.clauses.length === 0 && (
+        <Empty>No text could be read from {v.fileName}; open the file instead.</Empty>
+      )}
+      {v && v.clauses.length > 0 && (
+        <ol className="clauses" aria-label="Clauses">
+          {v.clauses.map((c) => (
+            <li
+              key={c.position}
+              ref={c.position === clause ? target : undefined}
+              className={c.position === clause ? 'clause clause-target' : 'clause'}
+              aria-current={c.position === clause ? 'true' : undefined}
+            >
+              <strong>
+                {c.number ? `${c.number} ` : ''}
+                {c.heading}
+              </strong>
+              {c.body && <p>{c.body}</p>}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }

@@ -1972,3 +1972,31 @@ a.onboarding-link:hover {
   min-width: 0;
   resize: none;
 }
+
+/* Policy text (decision #89): where Ask iPro's clause links land. */
+.policy-text {
+  margin-bottom: 24px;
+}
+
+.clauses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.clause {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+}
+
+.clause p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+
+.clause-target {
+  background: var(--color-info-bg);
+  box-shadow: inset 3px 0 0 var(--color-brand);
+}

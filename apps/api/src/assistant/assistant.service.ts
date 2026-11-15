@@ -20,6 +20,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { businessDate } from '../common/effective-dating.js';
 import { requireContext } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
+import { SettingsService } from '../people/settings.service.js';
 import {
   assistantConversations,
   assistantMessages,
@@ -39,6 +40,9 @@ export const NO_DATA_ANSWER =
 export const NO_ACCESS_ANSWER = 'You don’t have access to that in iPro, so I can’t show it.';
 export const UNAVAILABLE_ANSWER = 'Ask iPro isn’t available right now. Please try again later.';
 export const REFUSED_ANSWER = 'I can’t help with that one.';
+/** Spec: a policy question with no source gets "I don't know" and a link to HR (decision #89). */
+export const DONT_KNOW_ANSWER =
+  'I don’t know: none of the policies that apply to you answers that. HR can help.';
 
 const SYSTEM = `You are Ask iPro, the assistant inside iPro, Ideassion's workforce management app.
 You answer questions about people, the org, attendance, leave, hybrid (office/WFH) planning and
@@ -51,6 +55,9 @@ Rules:
 - If a tool says the user doesn't have access, say so plainly and don't guess or hint at the data.
 - To ask about a named person, call find_people first and use the personId it returns.
 - Keep answers short: a sentence or two, or a short list. Use plain words; no tables unless asked.
+- For any question about policy or rules, call policy_search and answer only from the clauses it
+  returns, naming the policy and clause (e.g. "Leave policy 4.2"). If none answers it, say you
+  don't know.
 - You can't change anything yet; if asked to apply, approve or draft something, say it's coming soon
   and point to the screen in iPro.
 Today is {today} (India time). Weeks start on Monday.`;
@@ -70,6 +77,7 @@ export class AssistantService {
     @Inject(LLM) private readonly llm: Llm,
     @Inject(AssistantTools) private readonly tools: AssistantTools,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(SettingsService) private readonly settings: SettingsService,
   ) {}
 
   async ask(input: AskInput): Promise<AskResponse> {
@@ -200,7 +208,10 @@ export class AssistantService {
     records: LinkedRecord[];
     open: AssistantOpen | null;
   }> {
-    const tier: ModelTier = 'lookup';
+    // Lookups run on the fast model; once a policy is involved, the reasoning model answers.
+    let tier: ModelTier = 'lookup';
+    let found = false;
+    let policyAsked = false;
     const toolCalls: ToolCallRecord[] = [];
     const sources: AssistantSource[] = [];
     const records: LinkedRecord[] = [];
@@ -208,6 +219,12 @@ export class AssistantService {
     const system = SYSTEM.replace('{today}', businessDate(new Date()));
     const tools = this.tools.definitions();
     const done = (text: string) => ({ text, tier, toolCalls, sources, records, open });
+    const dontKnow = async () => {
+      const hr = await this.db.tx((tx) => this.settings.get(tx, 'hr_contact'));
+      sources.length = 0;
+      sources.push(hr);
+      return done(DONT_KNOW_ANSWER);
+    };
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       let response: Anthropic.Message;
@@ -228,7 +245,8 @@ export class AssistantService {
           .map((b) => b.text)
           .join('\n')
           .trim();
-        return done(this.checked(text, toolCalls));
+        if (policyAsked && !found) return dontKnow();
+        return done(this.checked(text, toolCalls, found));
       }
       messages.push({ role: 'assistant', content: response.content });
       const results: Anthropic.ToolResultBlockParam[] = [];
@@ -236,7 +254,12 @@ export class AssistantService {
         const input = (use.input ?? {}) as Record<string, unknown>;
         const outcome = await this.tools.run(use.name, input);
         toolCalls.push({ tool: use.name, input, outcome: outcome.outcome });
+        if (use.name === 'policy_search') {
+          policyAsked = true;
+          tier = 'reasoning';
+        }
         if (outcome.outcome === 'ok') {
+          if (!outcome.result.empty) found = true;
           for (const s of outcome.result.sources) {
             if (!sources.some((x) => x.link === s.link)) sources.push(s);
           }
@@ -266,13 +289,13 @@ export class AssistantService {
    * figures with no successful lookup behind them are not shown, and when every lookup was refused
    * the answer says so and nothing else.
    */
-  private checked(text: string, calls: ToolCallRecord[]): string {
+  private checked(text: string, calls: ToolCallRecord[], found: boolean): string {
     const ok = calls.some((c) => c.outcome === 'ok');
     if (calls.length > 0 && !ok && calls.some((c) => c.outcome === 'refused')) {
       return NO_ACCESS_ANSWER;
     }
     if (!text) return NO_DATA_ANSWER;
-    if (!ok && /\d/.test(text)) return NO_DATA_ANSWER;
+    if (!found && /\d/.test(text)) return NO_DATA_ANSWER;
     return text;
   }
 

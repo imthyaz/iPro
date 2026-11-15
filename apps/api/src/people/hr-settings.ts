@@ -32,6 +32,18 @@ export const settingSchemas = {
   leave_second_approval_over_days: z.number().int().min(1).max(365),
   /** Comp-off (decision #76): how many days after the day worked it can be asked for. */
   comp_off_request_window_days: z.number().int().min(0).max(365),
+  /**
+   * Where Ask iPro sends a question no policy answers (decision #89): a label and a link (an in-app
+   * page, a mailto: address or a Teams chat link). Set by HR.
+   */
+  hr_contact: z.object({
+    label: z.string().trim().min(1).max(60),
+    link: z
+      .string()
+      .trim()
+      .max(500)
+      .regex(/^(\/|mailto:|https:\/\/)/),
+  }),
   notice_days: z.object({
     on_probation: z.number().int().min(0),
     confirmed: z.number().int().min(0),
@@ -58,6 +70,7 @@ export const settingDefaults: { [K in SettingKey]: SettingValue<K> } = {
   leave_backdate_days: 5,
   leave_second_approval_over_days: 5,
   comp_off_request_window_days: 30,
+  hr_contact: { label: 'Contact HR', link: '/policies' },
 };
 
 export function formatEmployeeCode(value: number, format: SettingValue<'employee_code'>): string {

@@ -221,6 +221,7 @@ function PolicyDetail({ policyId, canEdit }: { policyId: string; canEdit: boolea
                 Published {formatDate(v.publishedAt)}
                 {v.summary ? ` · ${v.summary}` : ''}
               </div>
+              <div className="muted">{readingWords(v.textStatus, v.clauseCount)}</div>
             </li>
           ))}
         </ol>
@@ -267,12 +268,12 @@ function Publish({ policyId, nextVersion }: { policyId: string; nextVersion: num
     >
       <h3>Publish version {nextVersion}</h3>
       <div className="form-grid">
-        <Field label="PDF">
+        <Field label="File" hint="PDF or Word (.docx). Ask iPro answers from its text.">
           {(id) => (
             <input
               id={id}
               type="file"
-              accept="application/pdf"
+              accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               required
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
@@ -301,4 +302,18 @@ function Publish({ policyId, nextVersion }: { policyId: string; nextVersion: num
       {publish.error && <Note kind="error">{errorMessage(publish.error)}</Note>}
     </form>
   );
+}
+
+/** What Ask iPro made of a version's file (decision #89). */
+function readingWords(status: PolicyStatusView['versions'][number]['textStatus'], clauses: number) {
+  switch (status) {
+    case 'ready':
+      return `Ask iPro: ${clauses} clause${clauses === 1 ? '' : 's'} read`;
+    case 'empty':
+      return 'Ask iPro: no text found (a scanned file?), so it can’t answer from this version';
+    case 'failed':
+      return 'Ask iPro couldn’t read this file; publish it again as a text PDF or Word file';
+    default:
+      return 'Ask iPro: reading the text…';
+  }
 }

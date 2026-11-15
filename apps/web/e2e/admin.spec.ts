@@ -84,7 +84,7 @@ test('admin publishes a policy; HR sees who is pending', async ({ page }, testIn
   const detail = page.getByRole('complementary', { name: 'Policy' });
   await expect(detail.getByRole('heading', { name: title })).toBeVisible();
   await expect(detail.getByText(/applies to permanent/)).toBeVisible();
-  await detail.getByLabel('PDF').setInputFiles({
+  await detail.getByLabel('File').setInputFiles({
     name: 'Travel.pdf',
     mimeType: 'application/pdf',
     buffer: Buffer.from(`%PDF-1.4\n% synthetic ${code}\n`),

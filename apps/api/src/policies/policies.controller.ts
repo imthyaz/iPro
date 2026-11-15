@@ -71,7 +71,14 @@ export class PoliciesController {
     return this.policies.status(id);
   }
 
-  /** Multipart: `file` (PDF) plus `effectiveFrom` and an optional `summary`. */
+  /** The current version clause by clause (Ask iPro's clause links; decision #89). */
+  @SignedIn()
+  @Get(':id/clauses')
+  clauses(@Param('id', uuid) id: string) {
+    return this.policies.clauses(id);
+  }
+
+  /** Multipart: `file` (PDF or Word .docx) plus `effectiveFrom` and an optional `summary`. */
   @Authorize('org_config', 'update')
   @Post(':id/versions')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } }))
