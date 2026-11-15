@@ -66,7 +66,11 @@ export class NoLlm implements Llm {
 
 /** What a scripted turn says: a tool call, or a final answer (which may quote earlier results). */
 export type ScriptStep =
-  | { tool: string; input: Record<string, unknown> }
+  | {
+      tool: string;
+      /** The tool input, or a function of the question. */
+      input: Record<string, unknown> | ((question: string) => Record<string, unknown>);
+    }
   | { text: string | ((results: unknown[]) => string) };
 
 /**
@@ -105,7 +109,7 @@ export class ScriptedLlm implements Llm {
             type: 'tool_use',
             id: `toolu_fake_${results.length + 1}`,
             name: step.tool,
-            input: step.input,
+            input: typeof step.input === 'function' ? step.input(question) : step.input,
             caller: { type: 'direct' },
           } as Anthropic.ToolUseBlock,
         ],
@@ -126,6 +130,19 @@ export class ScriptedLlm implements Llm {
  * end-to-end tests) without AWS. Each calls the real tool and states only what it returned.
  */
 const DEV_SCRIPTS: { match: RegExp; steps: ScriptStep[] }[] = [
+  {
+    match: /polic|carry forward|notice period/i,
+    steps: [
+      { tool: 'policy_search', input: (question) => ({ question }) },
+      {
+        text: ([r]) => {
+          const top = (r as { clauses: { policy: string; clause: string | null; text: string }[] })
+            .clauses[0];
+          return top ? `${top.policy}${top.clause ? ` ${top.clause}` : ''}: ${top.text}` : '';
+        },
+      },
+    ],
+  },
   {
     match: /approvals? (are )?waiting/i,
     steps: [

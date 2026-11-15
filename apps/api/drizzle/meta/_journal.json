@@ -449,6 +449,20 @@
       "when": 1794733889993,
       "tag": "0063_assistant_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1794781485737,
+      "tag": "0064_policy_clauses",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1794781493196,
+      "tag": "0065_policy_clause_search",
+      "breakpoints": true
     }
   ]
 }

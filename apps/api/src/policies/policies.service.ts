@@ -5,13 +5,15 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   appliesToSchema,
   type AppliesTo,
   type MyPolicyView,
+  type PolicyClausesView,
   type PolicyInput,
   type PolicyStatusView,
   type PolicyVersionView,
@@ -22,7 +24,7 @@ import { businessDate } from '../common/effective-dating.js';
 import { requireContext } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
 import type { Tx } from '../db/tenant-context.js';
-import { detectContentType, type IncomingFile } from '../people/documents.service.js';
+import type { IncomingFile } from '../people/documents.service.js';
 import { assignments, engagements, persons } from '../people/people.schema.js';
 import {
   DOWNLOAD_LINK_SECONDS,
@@ -31,7 +33,25 @@ import {
 } from '../storage/object-storage.js';
 import { appliesToMatches } from '../workflow/checklist-rules.js';
 import { notify, userOfPerson } from '../workflow/lookups.js';
-import { policies, policyAcknowledgements, policyVersions } from './policies.schema.js';
+import { anyWordQuery, policyFileType, splitClauses, WORD_DOCX } from './clause-rules.js';
+import {
+  policies,
+  policyAcknowledgements,
+  policyClauses,
+  policyVersions,
+} from './policies.schema.js';
+import { readPolicyText } from './policy-text.js';
+
+/** A clause Ask iPro found for a question, with the policy it belongs to. */
+export interface ClauseHit {
+  policyId: string;
+  policyTitle: string;
+  version: number;
+  position: number;
+  number: string | null;
+  heading: string;
+  body: string;
+}
 
 type VersionRow = typeof policyVersions.$inferSelect;
 
@@ -46,6 +66,8 @@ const versionView = (v: VersionRow): PolicyVersionView => ({
   fileName: v.fileName,
   contentHash: v.contentHash,
   publishedAt: v.publishedAt.toISOString(),
+  textStatus: v.textStatus,
+  clauseCount: v.clauseCount,
 });
 
 interface Applicable {
@@ -61,6 +83,8 @@ interface Applicable {
  */
 @Injectable()
 export class PoliciesService {
+  private readonly log = new Logger('Policies');
+
   constructor(
     @Inject(TenantDb) private readonly db: TenantDb,
     @Inject(AuthzService) private readonly authz: AuthzService,
@@ -87,7 +111,10 @@ export class PoliciesService {
     return this.status(id);
   }
 
-  /** Publishes a PDF as the next version and asks everyone it applies to for acceptance. */
+  /**
+   * Publishes a PDF or Word file as the next version and asks everyone it applies to for acceptance.
+   * Its text is then read into clauses for Ask iPro (decision #89).
+   */
   async publish(
     policyId: string,
     file: IncomingFile | undefined,
@@ -96,11 +123,14 @@ export class PoliciesService {
     const { actor, tenantId } = requireContext();
     await this.authz.assert(actor!, 'update', { area: 'org_config' });
     if (!file) throw new BadRequestException({ message: 'No file' });
-    if (detectContentType(file.buffer) !== 'application/pdf') {
-      throw new BadRequestException({ message: 'Policies are published as PDF' });
+    const fileName = file.originalname.split(/[\\/]/).pop() ?? '';
+    const type = policyFileType(file.buffer, fileName);
+    if (!type) {
+      throw new BadRequestException({ message: 'Policies are published as PDF or Word (.docx)' });
     }
+    const contentType = type === 'pdf' ? 'application/pdf' : WORD_DOCX;
     const today = businessDate(new Date());
-    await this.db.tx(async (tx) => {
+    const versionId = await this.db.tx(async (tx) => {
       const policy = await this.load(tx, policyId);
       const [latest] = await tx
         .select({ version: policyVersions.version })
@@ -110,7 +140,7 @@ export class PoliciesService {
         .limit(1);
       const id = randomUUID();
       const storageKey = `${tenantId}/policies/${policyId}/${id}`;
-      await this.storage.put(storageKey, file.buffer, 'application/pdf');
+      await this.storage.put(storageKey, file.buffer, contentType);
       const version = (latest?.version ?? 0) + 1;
       await tx.insert(policyVersions).values({
         id,
@@ -120,8 +150,8 @@ export class PoliciesService {
         effectiveFrom: meta.effectiveFrom,
         summary: meta.summary ?? null,
         storageKey,
-        fileName: file.originalname.split(/[\\/]/).pop() || `${policy.code}.pdf`,
-        contentType: 'application/pdf',
+        fileName: fileName || `${policy.code}.${type}`,
+        contentType,
         sizeBytes: file.size,
         contentHash: createHash('sha256').update(file.buffer).digest('hex'),
         createdBy: actor!.userId,
@@ -146,8 +176,152 @@ export class PoliciesService {
           '/policies',
         );
       }
+      return id;
     });
+    await this.readText(versionId, file.buffer, type);
     return this.status(policyId);
+  }
+
+  /**
+   * Reads a version's text into clauses (decision #89). A file with no text (a scanned PDF) is
+   * marked empty; one that can't be read is marked failed. Never throws: publishing has happened.
+   */
+  async readText(versionId: string, body: Buffer, type: 'pdf' | 'docx'): Promise<void> {
+    const { tenantId } = requireContext();
+    let status: 'ready' | 'empty' | 'failed';
+    let clauses: ReturnType<typeof splitClauses> = [];
+    try {
+      clauses = splitClauses(await readPolicyText(body, type));
+      status = clauses.length > 0 ? 'ready' : 'empty';
+    } catch (error) {
+      status = 'failed';
+      this.log.warn(
+        `Couldn't read policy version ${versionId}: ${error instanceof Error ? error.name : 'unknown'}`,
+      );
+    }
+    await this.db.tx(async (tx) => {
+      if (clauses.length > 0) {
+        await tx.insert(policyClauses).values(
+          clauses.map((c, i) => ({
+            tenantId,
+            policyVersionId: versionId,
+            position: i + 1,
+            number: c.number,
+            heading: c.heading.slice(0, 300),
+            body: c.body,
+          })),
+        );
+      }
+      await tx
+        .update(policyVersions)
+        .set({ textStatus: status, clauseCount: clauses.length, updatedAt: new Date() })
+        .where(eq(policyVersions.id, versionId));
+    });
+  }
+
+  /** Hourly: reads versions published before Ask iPro, or whose reading was interrupted. */
+  async readPending(): Promise<number> {
+    const pending = await this.db.tx((tx) =>
+      tx
+        .select({
+          id: policyVersions.id,
+          storageKey: policyVersions.storageKey,
+          contentType: policyVersions.contentType,
+        })
+        .from(policyVersions)
+        .where(eq(policyVersions.textStatus, 'pending'))
+        .limit(50),
+    );
+    for (const v of pending) {
+      try {
+        const body = await this.storage.get(v.storageKey);
+        await this.readText(v.id, body, v.contentType === WORD_DOCX ? 'docx' : 'pdf');
+      } catch (error) {
+        this.log.warn(
+          `Couldn't load policy version ${v.id}: ${error instanceof Error ? error.name : 'unknown'}`,
+        );
+      }
+    }
+    return pending.length;
+  }
+
+  /**
+   * Clauses of the policies that apply to the signed-in person (current versions only) that match
+   * any word of the question, best first (Ask iPro's policy_search; decision #89).
+   */
+  async searchClauses(question: string, limit = 4): Promise<ClauseHit[]> {
+    const query = anyWordQuery(question);
+    if (!query) return [];
+    const mine = await this.mine();
+    const versionIds = mine.map((p) => p.current.id);
+    if (versionIds.length === 0) return [];
+    const titles = new Map(mine.map((p) => [p.current.id, p]));
+    const rows = await this.db.tx((tx) =>
+      tx
+        .select({
+          policyVersionId: policyClauses.policyVersionId,
+          position: policyClauses.position,
+          number: policyClauses.number,
+          heading: policyClauses.heading,
+          body: policyClauses.body,
+          rank: sql<number>`ts_rank_cd(search, to_tsquery('english', ${query}))`,
+        })
+        .from(policyClauses)
+        .where(
+          and(
+            inArray(policyClauses.policyVersionId, versionIds),
+            sql`search @@ to_tsquery('english', ${query})`,
+          ),
+        )
+        .orderBy(
+          sql`ts_rank_cd(search, to_tsquery('english', ${query})) desc`,
+          asc(policyClauses.position),
+        )
+        .limit(limit),
+    );
+    return rows.map((r) => {
+      const p = titles.get(r.policyVersionId)!;
+      return {
+        policyId: p.policyId,
+        policyTitle: p.title,
+        version: p.current.version,
+        position: r.position,
+        number: r.number,
+        heading: r.heading,
+        body: r.body,
+      };
+    });
+  }
+
+  /** The current version's clauses, for people it applies to and for HR and admins. */
+  async clauses(policyId: string): Promise<PolicyClausesView> {
+    const actor = requireContext().actor!;
+    const applies = (await this.mine()).some((p) => p.policyId === policyId);
+    if (!applies && !this.authz.can(actor, 'org_config', 'read')) throw new ForbiddenException();
+    return this.db.tx(async (tx) => {
+      const policy = await this.load(tx, policyId);
+      const current = await this.current(tx, policyId);
+      if (!current) throw new NotFoundException();
+      const rows = await tx
+        .select()
+        .from(policyClauses)
+        .where(eq(policyClauses.policyVersionId, current.id))
+        .orderBy(asc(policyClauses.position));
+      return {
+        policyId,
+        title: policy.title,
+        version: current.version,
+        effectiveFrom: current.effectiveFrom,
+        fileName: current.fileName,
+        textStatus: current.textStatus,
+        clauses: rows.map((c) => ({
+          position: c.position,
+          number: c.number,
+          heading: c.heading,
+          body: c.body,
+        })),
+      };
+    });
   }
 
   /** Policies that apply to the signed-in person, newest version, and whether they have accepted it. */
