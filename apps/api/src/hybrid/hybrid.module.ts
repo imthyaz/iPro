@@ -43,6 +43,6 @@ class HybridJobs implements OnModuleInit {
   imports: [AttendanceModule],
   controllers: [HybridController],
   providers: [HybridService, ComplianceService, HybridJobs],
-  exports: [HybridService],
+  exports: [HybridService, ComplianceService],
 })
 export class HybridModule {}

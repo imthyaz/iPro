@@ -50,6 +50,6 @@ class LeaveJobs implements OnModuleInit {
     PayrollExportController,
   ],
   providers: [LeaveService, LeaveRequestsService, CompOffService, PayrollExportService, LeaveJobs],
-  exports: [LeaveService],
+  exports: [LeaveService, LeaveRequestsService],
 })
 export class LeaveModule {}

@@ -6,6 +6,7 @@ import { apiStatusLabel, fetchApiStatus, type ApiStatus } from './api-status.js'
 import { hasRole, SignIn, useMe, useSignOut } from './auth.js';
 import { Note } from './design-system/index.js';
 import { PolicyAdmin } from './features/admin/PolicyAdmin.js';
+import { AskIproPanel } from './features/assistant/AskIpro.js';
 import { Templates } from './features/admin/Templates.js';
 import { MyAttendance } from './features/attendance/Attendance.js';
 import { BiometricDevices } from './features/attendance/Devices.js';
@@ -58,6 +59,7 @@ function Shell() {
   const user = me.data;
   const onboarding = useOnboarding(Boolean(user?.personId));
   const unread = useUnread(Boolean(user));
+  const [asking, setAsking] = useState(false);
   const seesPeople = hasRole(user, 'manager', 'hr', 'hr_head', 'cxo');
   const seesOrgSetup = hasRole(user, 'hr', 'hr_head', 'admin');
   const seesChecklists = hasRole(user, 'hr', 'hr_head');
@@ -75,6 +77,13 @@ function Shell() {
           </span>
           {user && (
             <>
+              <button
+                className="button ask-button"
+                aria-expanded={asking}
+                onClick={() => setAsking((open) => !open)}
+              >
+                Ask iPro
+              </button>
               <span className="muted user-name">{user.displayName}</span>
               <button className="button button-quiet" onClick={() => signOut.mutate()}>
                 Sign out
@@ -326,6 +335,7 @@ function Shell() {
           </Routes>
         )}
       </div>
+      {user && asking && <AskIproPanel onClose={() => setAsking(false)} />}
     </div>
   );
 }

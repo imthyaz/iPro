@@ -18,3 +18,4 @@ export * from './hybrid.js';
 export * from './exit.js';
 export * from './journey.js';
 export * from './notifications.js';
+export * from './assistant.js';

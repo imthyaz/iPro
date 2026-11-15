@@ -31,6 +31,14 @@ import { SettingsService } from './settings.service.js';
     TimelineJobs,
     { provide: SCOPE_RESOLVER, useClass: PeopleScopeResolver },
   ],
-  exports: [PeopleService, SettingsService, JourneyService, DocumentsService, SCOPE_RESOLVER],
+  exports: [
+    PeopleService,
+    SettingsService,
+    JourneyService,
+    DocumentsService,
+    SCOPE_RESOLVER,
+    TimelineService,
+    TeamJourneysService,
+  ],
 })
 export class PeopleModule {}
