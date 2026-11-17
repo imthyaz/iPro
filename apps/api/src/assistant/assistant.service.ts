@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type Anthropic from '@anthropic-ai/sdk';
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type {
   AskInput,
   AskResponse,
@@ -20,7 +20,11 @@ import { AuditService } from '../audit/audit.service.js';
 import { businessDate } from '../common/effective-dating.js';
 import { requireContext } from '../context/request-context.js';
 import { TenantDb } from '../db/tenant-db.js';
+import { engagements } from '../people/people.schema.js';
 import { SettingsService } from '../people/settings.service.js';
+import { appUsers } from '../identity/identity.schema.js';
+import { roleHolders } from '../workflow/lookups.js';
+import { TEAMS_HR, teamsChatLink } from './hr-contact.js';
 import {
   assistantConversations,
   assistantMessages,
@@ -102,7 +106,7 @@ export class AssistantService {
     const history = await this.history(conversation.id);
     const messages: Anthropic.MessageParam[] = [...history, { role: 'user', content: input.text }];
 
-    const answer = await this.answer(messages);
+    const answer = await this.answer(messages, input.text);
 
     return this.db.tx(async (tx) => {
       const [question] = await tx
@@ -200,7 +204,10 @@ export class AssistantService {
   }
 
   /** The model's loop: call tools until it answers, then apply the two checks. */
-  private async answer(messages: Anthropic.MessageParam[]): Promise<{
+  private async answer(
+    messages: Anthropic.MessageParam[],
+    question: string,
+  ): Promise<{
     text: string;
     tier: ModelTier;
     toolCalls: ToolCallRecord[];
@@ -220,9 +227,8 @@ export class AssistantService {
     const tools = this.tools.definitions();
     const done = (text: string) => ({ text, tier, toolCalls, sources, records, open });
     const dontKnow = async () => {
-      const hr = await this.db.tx((tx) => this.settings.get(tx, 'hr_contact'));
       sources.length = 0;
-      sources.push(hr);
+      sources.push(await this.hrContact(question));
       return done(DONT_KNOW_ANSWER);
     };
 
@@ -297,6 +303,38 @@ export class AssistantService {
     if (!text) return NO_DATA_ANSWER;
     if (!found && /\d/.test(text)) return NO_DATA_ANSWER;
     return text;
+  }
+
+  /**
+   * Where to ask HR (decisions #89, #90): HR's own link when set, otherwise a Teams chat with the HR
+   * people of the asker's company (any company when they have none), the question typed in. With
+   * no HR person to chat with, the policies page.
+   */
+  private async hrContact(question: string): Promise<AssistantSource> {
+    const actor = requireContext().actor!;
+    return this.db.tx(async (tx) => {
+      const setting = await this.settings.get(tx, 'hr_contact');
+      if (setting.link !== TEAMS_HR) return setting;
+      const [engagement] = actor.personId
+        ? await tx
+            .select({ legalEntityId: engagements.legalEntityId })
+            .from(engagements)
+            .where(eq(engagements.personId, actor.personId))
+            .orderBy(desc(engagements.joiningDate))
+            .limit(1)
+        : [];
+      const hr = await roleHolders(tx, 'hr', engagement?.legalEntityId ?? null);
+      const others = hr.filter((id) => id !== actor.userId);
+      if (others.length === 0) return { label: 'Contact HR', link: '/policies' };
+      const people = await tx
+        .select({ email: appUsers.email })
+        .from(appUsers)
+        .where(inArray(appUsers.id, others));
+      return {
+        label: setting.label,
+        link: teamsChatLink(people.map((p) => p.email).sort(), question),
+      };
+    });
   }
 
   /** Earlier questions and answers of this conversation, as plain text. */

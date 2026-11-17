@@ -116,7 +116,14 @@ export function AskIproPanel({ onClose }: { onClose: () => void }) {
                 {m.sources.map((s, i) => (
                   <span key={s.link}>
                     {i > 0 && ', '}
-                    <Link to={s.link}>{s.label}</Link>
+                    {/^(https?:|mailto:)/.test(s.link) ? (
+                      // Outside iPro (e.g. a Teams chat with HR): a new tab, not the app's router.
+                      <a href={s.link} target="_blank" rel="noopener noreferrer">
+                        {s.label}
+                      </a>
+                    ) : (
+                      <Link to={s.link}>{s.label}</Link>
+                    )}
                   </span>
                 ))}
               </p>
