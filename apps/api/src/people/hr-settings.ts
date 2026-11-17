@@ -33,8 +33,9 @@ export const settingSchemas = {
   /** Comp-off (decision #76): how many days after the day worked it can be asked for. */
   comp_off_request_window_days: z.number().int().min(0).max(365),
   /**
-   * Where Ask iPro sends a question no policy answers (decision #89): a label and a link (an in-app
-   * page, a mailto: address or a Teams chat link). Set by HR.
+   * Where Ask iPro sends a question no policy answers (decisions #89, #90): a label and a link. The
+   * default, "teams:hr", opens a Teams chat with the HR people of the asker's company with the
+   * question typed in; HR can set a fixed link instead (a Teams channel, a mailbox or a page).
    */
   hr_contact: z.object({
     label: z.string().trim().min(1).max(60),
@@ -42,7 +43,7 @@ export const settingSchemas = {
       .string()
       .trim()
       .max(500)
-      .regex(/^(\/|mailto:|https:\/\/)/),
+      .regex(/^(\/|mailto:|https:\/\/|teams:hr$)/),
   }),
   notice_days: z.object({
     on_probation: z.number().int().min(0),
@@ -70,7 +71,7 @@ export const settingDefaults: { [K in SettingKey]: SettingValue<K> } = {
   leave_backdate_days: 5,
   leave_second_approval_over_days: 5,
   comp_off_request_window_days: 30,
-  hr_contact: { label: 'Contact HR', link: '/policies' },
+  hr_contact: { label: 'Chat with HR in Teams', link: 'teams:hr' },
 };
 
 export function formatEmployeeCode(value: number, format: SettingValue<'employee_code'>): string {

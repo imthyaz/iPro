@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { AskResponse, PolicyClausesView, PolicyStatusView } from '@ipro/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DONT_KNOW_ANSWER } from '../src/assistant/assistant.service.js';
+import { teamsChatLink } from '../src/assistant/hr-contact.js';
 import { LLM, type ScriptedLlm } from '../src/assistant/llm.js';
 import { runWithContext } from '../src/context/request-context.js';
 import { seedOrg, seedOrgIds } from '../src/db/seed-org.js';
@@ -223,14 +224,20 @@ describe('policy answers (slice 12 done-when #4)', () => {
     expect(reply.answer.sources[0]!.label).toBe('Notice policy 2: Notice period');
   });
 
-  it('a question no policy answers gets “I don’t know” and a link to HR', async () => {
+  it('a question no policy answers gets “I don’t know” and a Teams chat with HR', async () => {
     llm.script(/^What is the dress code\?$/, [
       { tool: 'policy_search', input: { question: 'dress code' } },
       { text: 'Smart casual, 5 days a week.' },
     ]);
     const reply = await ask('ezhil', 'What is the dress code?');
     expect(reply.answer.text).toBe(DONT_KNOW_ANSWER);
-    expect(reply.answer.sources).toEqual([{ label: 'Contact HR', link: '/policies' }]);
+    // By default: a Teams chat with the company's HR people, the question typed in (decision #90).
+    expect(reply.answer.sources).toEqual([
+      {
+        label: 'Chat with HR in Teams',
+        link: teamsChatLink([email(U.hr)], 'What is the dress code?'),
+      },
+    ]);
   });
 
   it('the HR link is HR’s to set', async () => {
