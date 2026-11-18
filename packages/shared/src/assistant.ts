@@ -22,7 +22,25 @@ export interface AssistantMessageView {
   text: string;
   sources: AssistantSource[];
   open: AssistantOpen | null;
+  /** A change the answer prepared; nothing happens until the user confirms it (decision #91). */
+  action: AssistantActionView | null;
   createdAt: string;
+}
+
+/**
+ * A confirmation card (spec: drafts, never silent actions): the exact effect, and what confirming
+ * does. Confirmed only by the user's tap, through the same API checks as the screen it stands for.
+ */
+export interface AssistantActionView {
+  id: string;
+  kind: 'apply_leave' | 'approve_leave' | 'draft_letter';
+  title: string;
+  lines: { label: string; value: string }[];
+  confirmLabel: string;
+  status: 'proposed' | 'confirmed' | 'cancelled' | 'expired' | 'failed';
+  /** What happened once confirmed (or why it couldn't be), with where to see it. */
+  result: { text: string; link: string | null } | null;
+  expiresAt: string;
 }
 
 export interface AssistantConversationView {

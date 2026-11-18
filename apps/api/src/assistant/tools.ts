@@ -20,6 +20,7 @@ import { LeaveService } from '../leave/leave.service.js';
 import { LeaveRequestsService } from '../leave/requests.service.js';
 import { PeopleService } from '../people/people.service.js';
 import { PoliciesService } from '../policies/policies.service.js';
+import { LettersService } from '../letters/letters.service.js';
 import { ReviewsService } from '../reviews/reviews.service.js';
 import { WorkflowService } from '../workflow/workflow.service.js';
 import type { LinkedRecord } from './assistant.schema.js';
@@ -32,7 +33,21 @@ export interface ToolResult {
   open?: AssistantOpen;
   /** The lookup ran but found nothing (e.g. no policy clause matches). */
   empty?: boolean;
+  /** A change prepared for the user to confirm (decision #91); tools themselves never change data. */
+  proposal?: Proposal;
 }
+
+export interface Proposal {
+  kind: 'apply_leave' | 'approve_leave' | 'draft_letter';
+  payload: Record<string, unknown>;
+  card: { title: string; lines: { label: string; value: string }[]; confirmLabel: string };
+}
+
+/**
+ * Letters Ask iPro may draft. Offers and letters of intent carry pay, and relieving and termination
+ * letters belong to an exit: those are done on their own screens (spec: drafts, never silent actions).
+ */
+export const DRAFTABLE_LETTERS = ['confirmation', 'extension', 'transfer', 'experience', 'other'];
 
 interface ToolDef<S extends z.ZodType> {
   name: string;
@@ -90,6 +105,7 @@ export class AssistantTools {
     @Inject(TeamJourneysService) private readonly teams: TeamJourneysService,
     @Inject(WorkflowService) private readonly workflows: WorkflowService,
     @Inject(PoliciesService) private readonly policies: PoliciesService,
+    @Inject(LettersService) private readonly letters: LettersService,
   ) {
     this.defs = this.build() as ToolDef<z.ZodType>[];
   }
@@ -453,6 +469,160 @@ export class AssistantTools {
             })),
             records: hits.map((h) => ({ type: 'policy' as const, id: h.policyId })),
             empty: hits.length === 0,
+          };
+        },
+      }),
+      def({
+        name: 'propose_leave',
+        description:
+          'Prepares a leave application for the signed-in user as a card they confirm; nothing is applied until they do. Give the leave type (code or name, e.g. CL or casual), dates and optional half days and reason.',
+        input: z.object({
+          leaveType: z.string().trim().min(1).max(40),
+          from: isoDate,
+          to: isoDate,
+          startHalf: z.enum(['full', 'second']).default('full'),
+          endHalf: z.enum(['full', 'first']).default('full'),
+          reason: z.string().trim().max(500).optional(),
+        }),
+        grants: [['leave', 'create']],
+        run: async (input, actor) => {
+          const self = me(actor);
+          const wanted = input.leaveType.toLowerCase();
+          const type = (await this.leave.types()).find(
+            (t) =>
+              t.active !== false &&
+              (t.code.toLowerCase() === wanted ||
+                t.name.toLowerCase() === wanted ||
+                t.name.toLowerCase().startsWith(wanted)),
+          );
+          if (!type)
+            throw new BadRequestException({ message: `No leave type called ${input.leaveType}` });
+          const request = {
+            leaveTypeId: type.id,
+            from: input.from,
+            to: input.to,
+            startHalf: input.startHalf,
+            endHalf: input.endHalf,
+            ...(input.reason ? { reason: input.reason } : {}),
+          };
+          const preview = await this.leaveRequests.preview(request);
+          if (preview.problems.length > 0) {
+            return { data: { canApply: false, problems: preview.problems }, sources: [] };
+          }
+          const lop = preview.shortfall > 0;
+          const manager = (await this.people.summary(self)).manager?.name ?? 'HR';
+          const range = input.from === input.to ? input.from : `${input.from} to ${input.to}`;
+          const lines = [
+            { label: 'Leave', value: `${type.name}, ${range}` },
+            { label: 'Days', value: String(days(preview.days)) },
+            ...(preview.balanceBefore !== null
+              ? [
+                  {
+                    label: `${type.name} balance`,
+                    value: `${days(preview.balanceBefore)} → ${days(preview.balanceAfter ?? 0)}`,
+                  },
+                ]
+              : []),
+            ...(lop || preview.lop > 0
+              ? [{ label: 'Loss of pay', value: `${days(preview.lop || preview.shortfall)} days` }]
+              : []),
+            ...(preview.needsCertificate
+              ? [{ label: 'Certificate', value: 'A medical certificate is needed before approval' }]
+              : []),
+            { label: 'Goes to', value: `${manager} for approval` },
+          ];
+          return {
+            data: { canApply: true, ...preview },
+            sources: [{ label: 'My leave', link: '/leave' }],
+            proposal: {
+              kind: 'apply_leave' as const,
+              payload: { ...request, lopForShortfall: lop },
+              card: { title: `Apply ${type.name}`, lines, confirmLabel: 'Apply' },
+            },
+          };
+        },
+      }),
+      def({
+        name: 'propose_approvals',
+        description:
+          'Prepares approving the leave requests waiting for the signed-in user, optionally only those covering a date, as a card they confirm. Nothing is approved until they do.',
+        input: z.object({ date: isoDate.optional() }),
+        grants: 'signed-in',
+        run: async ({ date }) => {
+          const cards = (await this.workflows.myApprovals()).filter(
+            (c) =>
+              c.key === 'leave_request' &&
+              c.bulk &&
+              !c.waitingFor &&
+              (!date || (c.period && c.period.from <= date && c.period.to >= date)),
+          );
+          if (cards.length === 0) {
+            return {
+              data: { count: 0 },
+              sources: [{ label: 'Action inbox', link: '/' }],
+              empty: true,
+            };
+          }
+          const span = (p: { from: string; to: string } | null | undefined) =>
+            !p ? '' : p.from === p.to ? p.from : `${p.from} to ${p.to}`;
+          return {
+            data: {
+              count: cards.length,
+              items: cards.map((c) => ({ for: c.subject.name, dates: span(c.period) })),
+            },
+            sources: [{ label: 'Action inbox', link: '/' }],
+            proposal: {
+              kind: 'approve_leave' as const,
+              payload: { approvalIds: cards.map((c) => c.approvalId) },
+              card: {
+                title: `Approve ${cards.length} leave request${cards.length === 1 ? '' : 's'}${date ? ` for ${date}` : ''}`,
+                lines: cards.map((c) => ({ label: c.subject.name, value: span(c.period) })),
+                confirmLabel: 'Approve',
+              },
+            },
+          };
+        },
+      }),
+      def({
+        name: 'propose_letter',
+        description:
+          'Prepares a letter for a person from a letter template (e.g. confirmation), as a card the user confirms. Offers, relieving and termination letters are made on their own screens.',
+        input: z.object({ personId, templateKey: z.string().trim().min(1).max(60) }),
+        grants: [['documents', 'create']],
+        run: async ({ personId: id, templateKey }) => {
+          const template = await this.letters.activeTemplate(templateKey);
+          if (!template)
+            throw new BadRequestException({ message: `No letter template ${templateKey}` });
+          if (!DRAFTABLE_LETTERS.includes(template.type)) {
+            throw new BadRequestException({
+              message: `${template.name} letters are made on their own screen in iPro`,
+            });
+          }
+          // As the screen does: the person must be someone the user may see.
+          const person = await this.people.get(id);
+          const name = person.preferredName ?? person.legalName;
+          return {
+            data: { template: template.name, for: name },
+            sources: [{ label: `${name}’s letters`, link: `/people/${id}?tab=letters` }],
+            records: [{ type: 'person' as const, id }],
+            proposal: {
+              kind: 'draft_letter' as const,
+              payload: { personId: id, templateKey },
+              card: {
+                title: `Draft a ${template.name.toLowerCase()} for ${name}`,
+                lines: [
+                  { label: 'Template', value: template.name },
+                  { label: 'For', value: name },
+                  {
+                    label: 'Next',
+                    value: template.approverRole
+                      ? `Goes to ${template.approverRole === 'hr_head' ? 'HR head' : 'HR'} for approval, then can be sent`
+                      : 'Ready to review and send from their record',
+                  },
+                ],
+                confirmLabel: 'Draft letter',
+              },
+            },
           };
         },
       }),

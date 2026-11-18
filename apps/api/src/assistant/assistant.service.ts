@@ -1,4 +1,6 @@
 import {
+  ConflictException,
+  HttpException,
   Inject,
   Injectable,
   Logger,
@@ -10,6 +12,7 @@ import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type {
   AskInput,
   AskResponse,
+  AssistantActionView,
   AssistantConversationSummary,
   AssistantConversationView,
   AssistantMessageView,
@@ -25,14 +28,22 @@ import { SettingsService } from '../people/settings.service.js';
 import { appUsers } from '../identity/identity.schema.js';
 import { roleHolders } from '../workflow/lookups.js';
 import { TEAMS_HR, teamsChatLink } from './hr-contact.js';
+import { LettersService } from '../letters/letters.service.js';
+import { LeaveRequestsService } from '../leave/requests.service.js';
+import { WorkflowService } from '../workflow/workflow.service.js';
 import {
+  assistantActions,
   assistantConversations,
   assistantMessages,
   type LinkedRecord,
   type ToolCallRecord,
 } from './assistant.schema.js';
 import { LLM, LlmUnavailable, type Llm, type ModelTier } from './llm.js';
-import { AssistantTools } from './tools.js';
+import { AssistantTools, type Proposal } from './tools.js';
+
+/** How long a confirmation card can be confirmed (decision #91). */
+export const ACTION_MINUTES = 30;
+type ActionRow = typeof assistantActions.$inferSelect;
 
 /** Tool rounds per question before giving up (a loop guard; real questions take one to three). */
 const MAX_ROUNDS = 6;
@@ -62,8 +73,11 @@ Rules:
 - For any question about policy or rules, call policy_search and answer only from the clauses it
   returns, naming the policy and clause (e.g. "Leave policy 4.2"). If none answers it, say you
   don't know.
-- You can't change anything yet; if asked to apply, approve or draft something, say it's coming soon
-  and point to the screen in iPro.
+- To apply for leave, approve waiting leave requests or draft a letter, use the propose_ tools: they
+  prepare a card the user confirms; nothing changes until they tap it. Say in a sentence what the card
+  will do. Never say something was done: only the user's tap does it.
+- Exits, resignations, terminations and pay or role changes can't be done from chat: point to the
+  screen in iPro instead.
 Today is {today} (India time). Weeks start on Monday.`;
 
 /**
@@ -82,6 +96,9 @@ export class AssistantService {
     @Inject(AssistantTools) private readonly tools: AssistantTools,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(SettingsService) private readonly settings: SettingsService,
+    @Inject(LeaveRequestsService) private readonly leaveRequests: LeaveRequestsService,
+    @Inject(WorkflowService) private readonly workflows: WorkflowService,
+    @Inject(LettersService) private readonly letters: LettersService,
   ) {}
 
   async ask(input: AskInput): Promise<AskResponse> {
@@ -109,6 +126,23 @@ export class AssistantService {
     const answer = await this.answer(messages, input.text);
 
     return this.db.tx(async (tx) => {
+      // The card the answer offers; nothing changes until the user confirms it.
+      const [action] = answer.proposal
+        ? await tx
+            .insert(assistantActions)
+            .values({
+              tenantId,
+              userId: actor!.userId,
+              conversationId: conversation.id,
+              kind: answer.proposal.kind,
+              payload: answer.proposal.payload,
+              card: answer.proposal.card,
+              expiresAt: new Date(Date.now() + ACTION_MINUTES * 60_000),
+              createdBy: actor!.userId,
+              updatedBy: actor!.userId,
+            })
+            .returning()
+        : [];
       const [question] = await tx
         .insert(assistantMessages)
         .values({
@@ -132,6 +166,7 @@ export class AssistantService {
           open: answer.open,
           linkedRecords: answer.records,
           model: answer.tier,
+          proposedActionId: action?.id ?? null,
           createdBy: actor!.userId,
           updatedBy: actor!.userId,
         })
@@ -158,7 +193,7 @@ export class AssistantService {
           },
         ],
       });
-      return { conversationId: conversation.id, answer: view(reply!) };
+      return { conversationId: conversation.id, answer: view(reply!, action ?? null) };
     });
   }
 
@@ -195,12 +230,153 @@ export class AssistantService {
         // A question and its answer share a timestamp: 'user' sorts after 'assistant', so descending role.
         .orderBy(asc(assistantMessages.createdAt), desc(assistantMessages.role)),
     );
+    const ids = rows.map((r) => r.proposedActionId).filter((x): x is string => x !== null);
+    const actions = ids.length
+      ? await this.db.tx((tx) =>
+          tx.select().from(assistantActions).where(inArray(assistantActions.id, ids)),
+        )
+      : [];
     return {
       id: conversation.id,
       title: conversation.title,
       startedAt: conversation.startedAt.toISOString(),
-      messages: rows.map(view),
+      messages: rows.map((r) => view(r, actions.find((a) => a.id === r.proposedActionId) ?? null)),
     };
+  }
+
+  /**
+   * Confirms a card (spec: nothing changes until the user taps Confirm; decision #91). Only its own
+   * user, once, within 30 minutes. It runs the same service call as the screen it stands for, as
+   * that user, so the same permission checks and audit rows apply; the confirmation is audited too.
+   */
+  async confirm(actionId: string): Promise<AssistantActionView> {
+    const action = await this.ownAction(actionId);
+    if (action.status !== 'proposed') {
+      throw new ConflictException({ message: 'This card has already been used' });
+    }
+    if (action.expiresAt < new Date()) {
+      throw new ConflictException({ message: 'This card has expired; ask again' });
+    }
+    // Claims the card, so a second tap or tab can't run it twice.
+    const [claimed] = await this.db.tx((tx) =>
+      tx
+        .update(assistantActions)
+        .set({ status: 'confirming', updatedAt: new Date() })
+        .where(and(eq(assistantActions.id, actionId), eq(assistantActions.status, 'proposed')))
+        .returning(),
+    );
+    if (!claimed) throw new ConflictException({ message: 'This card has already been used' });
+
+    let result: { text: string; link: string | null };
+    let status: 'confirmed' | 'failed' = 'confirmed';
+    try {
+      result = await this.execute(claimed);
+    } catch (error) {
+      if (!(error instanceof HttpException)) throw error;
+      status = 'failed';
+      const body = error.getResponse();
+      const message =
+        typeof body === 'object' && body && 'message' in body && typeof body.message === 'string'
+          ? body.message
+          : error.message;
+      result = {
+        text: error.getStatus() === 403 ? 'You don’t have access to do this.' : message,
+        link: null,
+      };
+    }
+    return this.db.tx(async (tx) => {
+      const [done] = await tx
+        .update(assistantActions)
+        .set({ status, result, decidedAt: new Date(), updatedAt: new Date() })
+        .where(eq(assistantActions.id, actionId))
+        .returning();
+      if (status === 'confirmed') {
+        await tx
+          .update(assistantMessages)
+          .set({ confirmedActionId: actionId })
+          .where(eq(assistantMessages.proposedActionId, actionId));
+      }
+      await this.audit.record(tx, {
+        action: 'update',
+        table: 'assistant_action',
+        recordId: actionId,
+        fieldChanges: [
+          { field: 'kind', from: null, to: action.kind },
+          { field: 'status', from: 'proposed', to: status },
+        ],
+      });
+      return actionView(done!);
+    });
+  }
+
+  async cancel(actionId: string): Promise<AssistantActionView> {
+    const action = await this.ownAction(actionId);
+    if (action.status !== 'proposed') {
+      throw new ConflictException({ message: 'This card has already been used' });
+    }
+    return this.db.tx(async (tx) => {
+      const [done] = await tx
+        .update(assistantActions)
+        .set({ status: 'cancelled', decidedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(assistantActions.id, actionId), eq(assistantActions.status, 'proposed')))
+        .returning();
+      if (!done) throw new ConflictException({ message: 'This card has already been used' });
+      await this.audit.record(tx, {
+        action: 'update',
+        table: 'assistant_action',
+        recordId: actionId,
+        fieldChanges: [{ field: 'status', from: 'proposed', to: 'cancelled' }],
+      });
+      return actionView(done);
+    });
+  }
+
+  /** The normal API's service call for each kind of card, as the signed-in user. */
+  private async execute(action: ActionRow): Promise<{ text: string; link: string | null }> {
+    const p = action.payload;
+    switch (action.kind) {
+      case 'apply_leave': {
+        const request = await this.leaveRequests.apply(p as never);
+        return {
+          text: `Applied: ${request.leaveType.name}, ${request.from}${request.to !== request.from ? ` to ${request.to}` : ''}. It's with your approver now.`,
+          link: '/leave',
+        };
+      }
+      case 'approve_leave': {
+        const { results } = await this.workflows.bulkApprove(p.approvalIds as string[]);
+        const ok = results.filter((r) => r.ok).length;
+        const failed = results.length - ok;
+        return {
+          text: `Approved ${ok} of ${results.length}.${failed ? ` ${failed} couldn't be approved; see the Action inbox.` : ''}`,
+          link: '/',
+        };
+      }
+      case 'draft_letter': {
+        const letter = await this.letters.generate(p.personId as string, {
+          templateKey: p.templateKey as string,
+          extra: {},
+        });
+        return {
+          text:
+            letter.status === 'pending_approval'
+              ? 'Drafted; it is waiting for approval.'
+              : 'Drafted; review and send it from their record.',
+          link: `/people/${p.personId as string}?tab=letters`,
+        };
+      }
+    }
+  }
+
+  private async ownAction(id: string): Promise<ActionRow> {
+    const actor = requireContext().actor!;
+    const [row] = await this.db.tx((tx) =>
+      tx
+        .select()
+        .from(assistantActions)
+        .where(and(eq(assistantActions.id, id), eq(assistantActions.userId, actor.userId))),
+    );
+    if (!row) throw new NotFoundException();
+    return row;
   }
 
   /** The model's loop: call tools until it answers, then apply the two checks. */
@@ -214,6 +390,7 @@ export class AssistantService {
     sources: AssistantSource[];
     records: LinkedRecord[];
     open: AssistantOpen | null;
+    proposal: Proposal | null;
   }> {
     // Lookups run on the fast model; once a policy is involved, the reasoning model answers.
     let tier: ModelTier = 'lookup';
@@ -225,7 +402,8 @@ export class AssistantService {
     let open: AssistantOpen | null = null;
     const system = SYSTEM.replace('{today}', businessDate(new Date()));
     const tools = this.tools.definitions();
-    const done = (text: string) => ({ text, tier, toolCalls, sources, records, open });
+    let proposal: Proposal | null = null;
+    const done = (text: string) => ({ text, tier, toolCalls, sources, records, open, proposal });
     const dontKnow = async () => {
       sources.length = 0;
       sources.push(await this.hrContact(question));
@@ -270,6 +448,8 @@ export class AssistantService {
             if (!sources.some((x) => x.link === s.link)) sources.push(s);
           }
           records.push(...(outcome.result.records ?? []));
+          // The latest card wins: an answer offers at most one change to confirm.
+          if (outcome.result.proposal) proposal = outcome.result.proposal;
           if (outcome.result.open) open = outcome.result.open;
           results.push({
             type: 'tool_result',
@@ -370,13 +550,31 @@ export class AssistantService {
   }
 }
 
-function view(row: typeof assistantMessages.$inferSelect): AssistantMessageView {
+function view(
+  row: typeof assistantMessages.$inferSelect,
+  action: ActionRow | null,
+): AssistantMessageView {
   return {
     id: row.id,
     role: row.role,
     text: row.text,
     sources: row.sources,
     open: row.open ?? null,
+    action: action ? actionView(action) : null,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function actionView(row: ActionRow): AssistantActionView {
+  const expired = row.status === 'proposed' && row.expiresAt < new Date();
+  return {
+    id: row.id,
+    kind: row.kind,
+    title: row.card.title,
+    lines: row.card.lines,
+    confirmLabel: row.card.confirmLabel,
+    status: expired ? 'expired' : row.status === 'confirming' ? 'proposed' : row.status,
+    result: row.result ?? null,
+    expiresAt: row.expiresAt.toISOString(),
   };
 }

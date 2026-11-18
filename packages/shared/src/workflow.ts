@@ -111,6 +111,8 @@ export interface ApprovalCard {
   link?: string | null;
   /** Routine (leave, comp-off, regularisation, hybrid exception): may be approved with others. */
   bulk: boolean;
+  /** The dates the request covers, where it has them (leave), e.g. to find "leave for tomorrow". */
+  period?: { from: string; to: string } | null;
 }
 
 export interface WorkflowView {

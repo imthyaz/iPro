@@ -193,6 +193,25 @@ export class LettersService implements OnModuleInit {
     });
   }
 
+  /** An active template's name, type and approver (Ask iPro's letter drafts; decision #91). */
+  async activeTemplate(
+    key: string,
+  ): Promise<{ name: string; type: string; approverRole: 'hr' | 'hr_head' | null } | null> {
+    const [row] = await this.db.tx((tx) =>
+      tx
+        .select({
+          name: letterTemplates.name,
+          type: letterTemplates.type,
+          approverRole: letterTemplates.approverRole,
+        })
+        .from(letterTemplates)
+        .where(and(eq(letterTemplates.key, key), eq(letterTemplates.active, true)))
+        .orderBy(desc(letterTemplates.version))
+        .limit(1),
+    );
+    return row ?? null;
+  }
+
   async listTemplates(): Promise<LetterTemplateView[]> {
     await this.authz.assert(requireContext().actor!, 'read', { area: 'org_config' });
     const rows = await this.db.tx((tx) =>

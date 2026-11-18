@@ -422,6 +422,7 @@ export class WorkflowService {
         (await this.actions.get(definition.onApproved).readyToApprove?.(tx, instance)) ?? null,
       link: this.actions.get(definition.onApproved).link?.(instance) ?? null,
       bulk: this.actions.get(definition.onApproved).bulk === true,
+      period: (await this.actions.get(definition.onApproved).period?.(tx, instance)) ?? null,
     };
   }
 

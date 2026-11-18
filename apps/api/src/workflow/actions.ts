@@ -31,6 +31,8 @@ export interface WorkflowAction {
    * its event). Left out when the definition's own `journey` writes it.
    */
   records?: readonly string[];
+  /** The dates the request covers (leave), shown and used to find approvals by date. */
+  period?(tx: Tx, instance: ActionInstance): Promise<{ from: string; to: string } | null>;
   /** A page to act on it from the card (e.g. recording a retention note); default: the request. */
   link?(instance: ActionInstance): string;
   /**
