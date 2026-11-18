@@ -1,7 +1,7 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import type { AskResponse, AssistantMessageView } from '@ipro/shared';
+import type { AskResponse, AssistantActionView, AssistantMessageView } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
 import { Note } from '../../design-system/index.js';
 import { CompactJourney } from '../journey/Journey.js';
@@ -37,6 +37,7 @@ export function AskIproPanel({ onClose }: { onClose: () => void }) {
           text: question,
           sources: [],
           open: null,
+          action: null,
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -128,6 +129,14 @@ export function AskIproPanel({ onClose }: { onClose: () => void }) {
                 ))}
               </p>
             )}
+            {m.action && (
+              <ActionCard
+                action={m.action}
+                onChange={(action) =>
+                  setMessages((all) => all.map((x) => (x.id === m.id ? { ...x, action } : x)))
+                }
+              />
+            )}
             {m.open?.kind === 'timeline' && (
               <div className="ask-open">
                 <CompactJourney
@@ -177,5 +186,72 @@ export function AskIproPanel({ onClose }: { onClose: () => void }) {
         </button>
       </form>
     </aside>
+  );
+}
+
+/**
+ * A confirmation card (spec: drafts, never silent actions; decision #91): the exact effect, and
+ * nothing changes until the user taps the button. Exits, terminations and pay are never offered.
+ */
+function ActionCard({
+  action,
+  onChange,
+}: {
+  action: AssistantActionView;
+  onChange: (action: AssistantActionView) => void;
+}) {
+  const client = useQueryClient();
+  const decide = useMutation({
+    mutationFn: (verb: 'confirm' | 'cancel') =>
+      api<AssistantActionView>(`/assistant/actions/${action.id}/${verb}`, { method: 'POST' }),
+    onSuccess: (next) => {
+      onChange(next);
+      // What the card changed shows everywhere else straight away.
+      void client.invalidateQueries();
+    },
+  });
+  const open = action.status === 'proposed';
+  return (
+    <section className="ask-action" aria-label={action.title}>
+      <strong>{action.title}</strong>
+      <dl className="ask-action-lines">
+        {action.lines.map((l, i) => (
+          <div key={`${l.label}-${i}`}>
+            <dt>{l.label}</dt>
+            <dd>{l.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {open ? (
+        <div className="form-actions">
+          <button
+            className="button button-primary"
+            disabled={decide.isPending}
+            onClick={() => decide.mutate('confirm')}
+          >
+            {action.confirmLabel}
+          </button>
+          <button
+            className="button button-quiet"
+            disabled={decide.isPending}
+            onClick={() => decide.mutate('cancel')}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <p className="muted" role="status">
+          {action.status === 'confirmed'
+            ? 'Done.'
+            : action.status === 'cancelled'
+              ? 'Cancelled; nothing was changed.'
+              : action.status === 'expired'
+                ? 'This card expired; nothing was changed. Ask again.'
+                : 'Not done.'}{' '}
+          {action.result?.text} {action.result?.link && <Link to={action.result.link}>See it</Link>}
+        </p>
+      )}
+      {decide.error && <Note kind="error">{errorMessage(decide.error)}</Note>}
+    </section>
   );
 }

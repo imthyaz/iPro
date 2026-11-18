@@ -28,6 +28,21 @@ export class AssistantController {
     return this.assistant.ask(body);
   }
 
+  /** The user's tap on a confirmation card (decision #91): the only way an answer changes anything. */
+  @SignedIn()
+  @Post('actions/:id/confirm')
+  @HttpCode(200)
+  confirm(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.assistant.confirm(id);
+  }
+
+  @SignedIn()
+  @Post('actions/:id/cancel')
+  @HttpCode(200)
+  cancel(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.assistant.cancel(id);
+  }
+
   @SignedIn()
   @Get('conversations')
   conversations() {

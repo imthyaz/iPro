@@ -463,6 +463,20 @@
       "when": 1794781493196,
       "tag": "0065_policy_clause_search",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1795017003985,
+      "tag": "0066_assistant_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1795017009170,
+      "tag": "0067_assistant_action_checks",
+      "breakpoints": true
     }
   ]
 }

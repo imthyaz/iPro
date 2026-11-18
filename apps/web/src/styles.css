@@ -2000,3 +2000,33 @@ a.onboarding-link:hover {
   background: var(--color-info-bg);
   box-shadow: inset 3px 0 0 var(--color-brand);
 }
+
+/* Ask iPro confirmation cards (decision #91): the exact effect, then one tap. */
+.ask-action {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+
+.ask-action-lines {
+  margin: 6px 0;
+  display: grid;
+  gap: 2px;
+}
+
+.ask-action-lines > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ask-action-lines dt {
+  color: var(--color-muted);
+  min-width: 7em;
+}
+
+.ask-action-lines dd {
+  margin: 0;
+}

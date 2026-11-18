@@ -3,6 +3,7 @@ import { AttendanceModule } from '../attendance/attendance.module.js';
 import { APP_CONFIG, type AppConfig } from '../config.js';
 import { HybridModule } from '../hybrid/hybrid.module.js';
 import { LeaveModule } from '../leave/leave.module.js';
+import { LettersModule } from '../letters/letters.module.js';
 import { PeopleModule } from '../people/people.module.js';
 import { PoliciesModule } from '../policies/policies.module.js';
 import { ReviewsModule } from '../reviews/reviews.module.js';
@@ -17,6 +18,7 @@ import { AssistantTools } from './tools.js';
     AttendanceModule,
     HybridModule,
     LeaveModule,
+    LettersModule,
     PeopleModule,
     PoliciesModule,
     ReviewsModule,

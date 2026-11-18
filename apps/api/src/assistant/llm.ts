@@ -131,6 +131,21 @@ export class ScriptedLlm implements Llm {
  */
 const DEV_SCRIPTS: { match: RegExp; steps: ScriptStep[] }[] = [
   {
+    // "Apply LOP leave on 2026-12-02": the code and date are read from the question.
+    match: /^apply .*leave/i,
+    steps: [
+      {
+        tool: 'propose_leave',
+        input: (question) => {
+          const date = /\d{4}-\d{2}-\d{2}/.exec(question)?.[0] ?? '';
+          const code = /\b(CL|EL|SL|LOP)\b/i.exec(question)?.[1] ?? 'CL';
+          return { leaveType: code, from: date, to: date };
+        },
+      },
+      { text: 'Here is the leave to apply. Nothing is sent until you tap Apply.' },
+    ],
+  },
+  {
     match: /polic|carry forward|notice period/i,
     steps: [
       { tool: 'policy_search', input: (question) => ({ question }) },

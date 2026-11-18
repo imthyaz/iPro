@@ -106,6 +106,10 @@ export class LeaveRequestsService implements OnModuleInit {
       },
       describe: (tx, instance) =>
         this.describe(tx, payloadSchema.parse(instance.payload).leaveRequestId),
+      period: async (tx, instance) => {
+        const row = await this.load(tx, payloadSchema.parse(instance.payload).leaveRequestId);
+        return row ? { from: row.fromDate, to: row.toDate } : null;
+      },
       apply: (tx, instance) =>
         this.approve(tx, payloadSchema.parse(instance.payload).leaveRequestId),
       // Decision #75: leave that needs a medical certificate waits for it at every step.
