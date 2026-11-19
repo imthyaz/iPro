@@ -1,9 +1,16 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import type { AskResponse, AssistantActionView, AssistantMessageView } from '@ipro/shared';
+import type {
+  AskResponse,
+  AssistantActionView,
+  AssistantArchiveView,
+  AssistantConversationSummary,
+  AssistantConversationView,
+  AssistantMessageView,
+} from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
-import { Note } from '../../design-system/index.js';
+import { Empty, formatDate, Note } from '../../design-system/index.js';
 import { CompactJourney } from '../journey/Journey.js';
 
 const EXAMPLES = [
@@ -20,6 +27,15 @@ export function AskIproPanel({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AssistantMessageView[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const reopen = useMutation({
+    mutationFn: (id: string) => api<AssistantConversationView>(`/assistant/conversations/${id}`),
+    onSuccess: (view) => {
+      setConversationId(view.id);
+      setMessages(view.messages);
+      setShowHistory(false);
+    },
+  });
   const [text, setText] = useState('');
   const end = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -71,12 +87,20 @@ export function AskIproPanel({ onClose }: { onClose: () => void }) {
       <div className="ask-head">
         <h2>Ask iPro</h2>
         <span className="ask-head-actions">
+          <button
+            className="button button-quiet"
+            aria-pressed={showHistory}
+            onClick={() => setShowHistory((open) => !open)}
+          >
+            History
+          </button>
           {messages.length > 0 && (
             <button
               className="button button-quiet"
               onClick={() => {
                 setConversationId(null);
                 setMessages([]);
+                setShowHistory(false);
                 ask.reset();
               }}
             >
@@ -89,7 +113,14 @@ export function AskIproPanel({ onClose }: { onClose: () => void }) {
         </span>
       </div>
 
-      <div className="ask-thread" role="log" aria-live="polite" aria-label="Conversation">
+      {showHistory && <History onOpen={(id) => reopen.mutate(id)} error={reopen.error} />}
+      <div
+        className="ask-thread"
+        role="log"
+        aria-live="polite"
+        aria-label="Conversation"
+        hidden={showHistory}
+      >
         {messages.length === 0 && (
           <div className="ask-intro">
             <p className="muted">
@@ -253,5 +284,67 @@ function ActionCard({
       )}
       {decide.error && <Note kind="error">{errorMessage(decide.error)}</Note>}
     </section>
+  );
+}
+
+/**
+ * Past conversations (X2): the last 30 days or so to pick up again, and the archived ones, kept as
+ * summaries after 180 days and searchable by topic or person (decision #92). The user's own only.
+ */
+function History({ onOpen, error }: { onOpen: (id: string) => void; error: unknown }) {
+  const [q, setQ] = useState('');
+  const recent = useQuery({
+    queryKey: ['assistant-conversations'],
+    queryFn: () => api<AssistantConversationSummary[]>('/assistant/conversations'),
+  });
+  const archived = useQuery({
+    queryKey: ['assistant-archive', q],
+    queryFn: () =>
+      api<AssistantArchiveView[]>(
+        `/assistant/archive${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`,
+      ),
+  });
+  return (
+    <div className="ask-thread ask-history" aria-label="History">
+      <h3>Recent</h3>
+      {recent.data?.length === 0 && <Empty>No conversations yet.</Empty>}
+      <ul className="rows" aria-label="Recent conversations">
+        {recent.data?.map((c) => (
+          <li key={c.id} className="row">
+            <button className="button button-quiet ask-history-open" onClick={() => onOpen(c.id)}>
+              {c.title}
+            </button>
+            <span className="muted">{formatDate(c.lastAt)}</span>
+          </li>
+        ))}
+      </ul>
+      {error ? <Note kind="error">{errorMessage(error)}</Note> : null}
+      <h3>Archived</h3>
+      <p className="muted">After 180 days a conversation is kept only as a summary.</p>
+      <label className="visually-hidden" htmlFor="ask-archive-q">
+        Search archived conversations
+      </label>
+      <input
+        id="ask-archive-q"
+        type="search"
+        placeholder="Search by topic or person"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {archived.data?.length === 0 && <Empty>Nothing archived{q ? ' matches' : ' yet'}.</Empty>}
+      <ul className="rows" aria-label="Archived conversations">
+        {archived.data?.map((a) => (
+          <li key={a.id} className="row">
+            <span className="row-main">
+              <span>{a.summary}</span>
+              <span className="muted">
+                {formatDate(a.startedAt)} to {formatDate(a.lastAt)}
+                {a.people.length ? ` · ${a.people.map((p) => p.name).join(', ')}` : ''}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

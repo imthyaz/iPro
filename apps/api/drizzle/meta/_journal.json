@@ -477,6 +477,20 @@
       "when": 1795017009170,
       "tag": "0067_assistant_action_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1795077196681,
+      "tag": "0068_assistant_summaries",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1795077201707,
+      "tag": "0069_assistant_retention",
+      "breakpoints": true
     }
   ]
 }

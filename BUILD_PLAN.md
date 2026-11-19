@@ -177,7 +177,7 @@ undo) and notification settings (X1) (decision #86; done); 11b delivery to Teams
 the date-driven notifications (joining in 7 days and tomorrow, last working day in 7 days, work anniversaries)
 (decision #87; done, verified against a simulated Teams service until IT registers the bot).
 
-## [~] Slice 12 — Ask iPro
+## [x] Slice 12 — Ask iPro
 
 **Spec:** AI assistant — Ask iPro; Technical decisions (AI assistant stack); Screen X2.
 
@@ -187,11 +187,11 @@ the date-driven notifications (joining in 7 days and tomorrow, last working day 
 - [x] No assistant action changes data without a confirmation tap; every confirmed action is in the audit log.
 - [x] Policy answers link to the clause they came from; questions with no source get "I don't know" and a link to HR.
 - [x] Only `in.` model IDs can be configured (startup check + CI test).
-- [ ] Conversations older than 180 days are summarised and archived by the retention job.
+- [x] Conversations older than 180 days are summarised and archived by the retention job.
 
 **Notes:** sub-PRs: 12a the core (Bedrock, the in. check, lookups as the user, the side panel, the 50-question set)
 (decision #88; done); 12b policy answers from PDF and Word policies with clause links (decision #89; done); 12c actions as confirmation cards
-(decision #91); 12d the 180-day summaries and the 09:00 daily brief. The 50-question figures are checked with a scripted model in CI; the
+(decision #91; done); 12d the 180-day summaries and the 09:00 daily brief (decision #92; done). The 50-question figures are checked with a scripted model in CI; the
 real-model selection test runs before go-live.
 
 ## [ ] Slice 13 — Reports, import and migration

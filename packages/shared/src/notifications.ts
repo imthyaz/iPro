@@ -35,6 +35,12 @@ export const notificationTopics = [
     description: 'Offers, joinings, exits, changes to records and milestones.',
     required: false,
   },
+  {
+    key: 'brief',
+    label: 'Daily brief',
+    description: 'At 09:00 for managers and HR: approvals waiting and what is due this week.',
+    required: false,
+  },
 ] as const;
 
 export type NotificationTopic = (typeof notificationTopics)[number]['key'];
@@ -55,6 +61,7 @@ const exact: Record<string, NotificationTopic> = {
   workflow_approved: 'requests',
   workflow_returned: 'requests',
   workflow_comment: 'requests',
+  daily_brief: 'brief',
 };
 
 /** The topic a notification kind belongs to; anything not listed is a people update. */

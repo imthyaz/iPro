@@ -50,4 +50,11 @@ test('an employee asking for their balances gets each leave type', async ({ page
   const panel = page.getByRole('complementary', { name: 'Ask iPro' });
   await panel.getByRole('button', { name: 'How many casual leaves do I have?' }).click();
   await expect(panel.getByRole('log', { name: 'Conversation' })).toContainText('Casual leave:');
+
+  // History lists the conversation; reopening it shows the answer again (decision #92).
+  await panel.getByRole('button', { name: 'New conversation' }).click();
+  await panel.getByRole('button', { name: 'History' }).click();
+  const recent = panel.getByRole('list', { name: 'Recent conversations' });
+  await recent.getByRole('button', { name: 'How many casual leaves do I have?' }).first().click();
+  await expect(panel.getByRole('log', { name: 'Conversation' })).toContainText('Casual leave:');
 });
