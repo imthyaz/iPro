@@ -29,6 +29,7 @@ describe('notification topics (X1; decision #86)', () => {
     ['internship_convert', 'people'],
     ['pay_change', 'people'],
     ['checklist_complete', 'people'],
+    ['daily_brief', 'brief'],
   ])('%s is a %s notification', (kind, topic) => {
     expect(topicOf(kind)).toBe(topic);
   });
@@ -39,5 +40,6 @@ describe('notification topics (X1; decision #86)', () => {
     expect(isRequiredTopic('compliance')).toBe(true);
     expect(isRequiredTopic('requests')).toBe(false);
     expect(isRequiredTopic('people')).toBe(false);
+    expect(isRequiredTopic('brief')).toBe(false);
   });
 });

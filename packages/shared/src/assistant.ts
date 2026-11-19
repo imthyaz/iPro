@@ -50,6 +50,25 @@ export interface AssistantConversationView {
   messages: AssistantMessageView[];
 }
 
+/**
+ * A conversation older than 180 days, as kept after its text is deleted (spec: AssistantSummary;
+ * decision #92): what it was about, who it referred to and what was confirmed. Its owner's only.
+ */
+export interface AssistantArchiveView {
+  id: string;
+  summary: string;
+  topics: string[];
+  /** People it referred to, by name as now recorded. */
+  people: { personId: string; name: string }[];
+  actions: {
+    kind: AssistantActionView['kind'];
+    status: 'confirmed' | 'cancelled' | 'failed' | 'expired';
+  }[];
+  startedAt: string;
+  lastAt: string;
+  archivedAt: string;
+}
+
 export interface AssistantConversationSummary {
   id: string;
   title: string;

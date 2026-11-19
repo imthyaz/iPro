@@ -7,11 +7,13 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { askSchema, type AskInput } from '@ipro/shared';
 import { SignedIn } from '../authz/decorators.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { AssistantService } from './assistant.service.js';
+import { AssistantRetentionService } from './retention.service.js';
 
 /**
  * X2 Ask iPro, for every signed-in user. What the answer may contain is decided by each tool's own
@@ -19,7 +21,10 @@ import { AssistantService } from './assistant.service.js';
  */
 @Controller('assistant')
 export class AssistantController {
-  constructor(@Inject(AssistantService) private readonly assistant: AssistantService) {}
+  constructor(
+    @Inject(AssistantService) private readonly assistant: AssistantService,
+    @Inject(AssistantRetentionService) private readonly retention: AssistantRetentionService,
+  ) {}
 
   @SignedIn()
   @Post('ask')
@@ -41,6 +46,13 @@ export class AssistantController {
   @HttpCode(200)
   cancel(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.assistant.cancel(id);
+  }
+
+  /** Conversations older than 180 days, as summaries (decision #92); q matches topics or people. */
+  @SignedIn()
+  @Get('archive')
+  archive(@Query('q') q?: string) {
+    return this.retention.archived(typeof q === 'string' ? q.slice(0, 100) : undefined);
   }
 
   @SignedIn()

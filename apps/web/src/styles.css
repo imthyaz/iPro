@@ -2030,3 +2030,15 @@ a.onboarding-link:hover {
 .ask-action-lines dd {
   margin: 0;
 }
+
+/* Ask iPro history (decision #92). */
+.ask-history h3 {
+  margin: 4px 0 0;
+  font-size: 1rem;
+}
+
+.ask-history-open {
+  text-align: left;
+  white-space: normal;
+  padding-left: 0;
+}

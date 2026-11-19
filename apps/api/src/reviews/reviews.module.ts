@@ -31,6 +31,6 @@ class ProbationSweepJob implements OnModuleInit {
   imports: [LettersModule, ChangesModule, ExitModule],
   controllers: [ReviewsController],
   providers: [ReviewsService, CheckInsService, ProbationSweepJob],
-  exports: [ReviewsService],
+  exports: [ReviewsService, CheckInsService],
 })
 export class ReviewsModule {}
