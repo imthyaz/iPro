@@ -2042,3 +2042,50 @@ a.onboarding-link:hover {
   white-space: normal;
   padding-left: 0;
 }
+
+/* H12 reports (decision #93). */
+.report-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.report-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.report-tile strong {
+  font-size: 1.5rem;
+}
+
+.report-why {
+  font-size: 0.8125rem;
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.report-table {
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+
+.report-table th,
+.report-table td {
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--color-surface);
+}
+
+.report-table td {
+  font-variant-numeric: tabular-nums;
+}

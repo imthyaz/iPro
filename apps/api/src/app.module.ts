@@ -19,6 +19,7 @@ import { PeopleModule } from './people/people.module.js';
 import { OffersModule } from './offers/offers.module.js';
 import { ChangesModule } from './changes/changes.module.js';
 import { PoliciesModule } from './policies/policies.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { WorkflowModule } from './workflow/workflow.module.js';
@@ -47,6 +48,7 @@ import { WorkflowModule } from './workflow/workflow.module.js';
     ExitModule,
     NotifyModule,
     AssistantModule,
+    ReportsModule,
   ],
 })
 export class AppModule implements NestModule {

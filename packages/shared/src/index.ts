@@ -19,3 +19,4 @@ export * from './exit.js';
 export * from './journey.js';
 export * from './notifications.js';
 export * from './assistant.js';
+export * from './reports.js';

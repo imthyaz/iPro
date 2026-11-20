@@ -35,6 +35,7 @@ import { Directory } from './features/people/Directory.js';
 import { NewPerson } from './features/people/NewPerson.js';
 import { PersonRecord } from './features/people/PersonRecord.js';
 import { MyPolicies } from './features/policies/MyPolicies.js';
+import { Reports } from './features/reports/Reports.js';
 import { Requests } from './features/requests/Requests.js';
 import { Shifts } from './features/shifts/Shifts.js';
 
@@ -65,6 +66,7 @@ function Shell() {
   const seesChecklists = hasRole(user, 'hr', 'hr_head');
   const seesOffers = hasRole(user, 'hr', 'hr_head', 'manager');
   const seesProbation = hasRole(user, 'hr', 'hr_head');
+  const seesReports = hasRole(user, 'hr', 'hr_head', 'cxo');
   const seesShifts = hasRole(user, 'hr', 'hr_head', 'admin', 'manager');
 
   return (
@@ -183,6 +185,11 @@ function Shell() {
               Reviews
             </NavLink>
           )}
+          {seesReports && (
+            <NavLink to="/reports" className="nav-item">
+              Reports
+            </NavLink>
+          )}
           {seesProbation && (
             <NavLink to="/probation" className="nav-item">
               Probation
@@ -272,6 +279,7 @@ function Shell() {
             <Route path="/approvals" element={<Inbox />} />
             <Route path="/tasks" element={<Inbox />} />
             <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/reports" element={<Reports />} />
             <Route path="/attendance" element={<MyAttendance />} />
             <Route path="/devices" element={<BiometricDevices />} />
             <Route path="/attendance-exceptions" element={<AttendanceExceptions />} />

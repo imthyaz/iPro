@@ -146,95 +146,126 @@ export class ComplianceService {
     if (addDays(from, 7 * (MAX_WEEKS - 1)) < to) {
       throw new BadRequestException({ message: `Choose up to ${MAX_WEEKS} weeks` });
     }
-    return this.db.tx(async (tx) => {
-      const people = await this.visible(tx, await this.employedOn(tx, from, addDays(to, 6)), scope);
-      const ids = people.map((e) => e.id);
-      const days = ids.length
-        ? await tx
-            .select({ row: hybridComplianceDays, policyName: workPolicies.name })
-            .from(hybridComplianceDays)
-            .innerJoin(workPolicies, eq(workPolicies.id, hybridComplianceDays.policyId))
-            .where(
-              and(
-                inArray(hybridComplianceDays.engagementId, ids),
-                gte(hybridComplianceDays.weekStart, from),
-                lte(hybridComplianceDays.weekStart, to),
-              ),
-            )
-            .orderBy(asc(hybridComplianceDays.date))
-        : [];
-      const approved = ids.length
-        ? await tx
-            .select({
-              engagementId: hybridExceptions.engagementId,
-              weekStart: hybridExceptions.weekStart,
-            })
-            .from(hybridExceptions)
-            .where(
-              and(
-                inArray(hybridExceptions.engagementId, ids),
-                eq(hybridExceptions.status, 'approved'),
-                gte(hybridExceptions.weekStart, from),
-                lte(hybridExceptions.weekStart, to),
-              ),
-            )
-        : [];
-      const approvedSet = new Set(approved.map((a) => `${a.engagementId}:${a.weekStart}`));
-      const names = await this.names(tx, people);
-      const out: ComplianceView['people'] = [];
-      for (const e of people) {
-        const mine = days.filter((d) => d.row.engagementId === e.id);
-        if (mine.length === 0) continue;
-        const weeks: ComplianceWeek[] = [];
-        for (const weekStart of [...new Set(mine.map((d) => d.row.weekStart))].sort()) {
-          const inWeek = mine.filter((d) => d.row.weekStart === weekStart);
-          const last = inWeek.at(-1)!;
-          const result = weekCompliance(
-            last.row.requiredMode,
-            last.row.requiredDays,
-            inWeek.map((d): ComplianceDay => ({
-              date: d.row.date,
-              working: d.row.working,
-              onLeave: d.row.onLeave,
-              planned: d.row.plannedMode,
-              actualStatus: d.row.actualStatus as AttendanceStatus | null,
-              actualMode: d.row.actualMode,
-            })),
-          );
-          weeks.push({
-            weekStart,
-            policyName: last.policyName,
-            requiredMode: last.row.requiredMode,
-            ...result,
-            approvedBelow: !result.met && approvedSet.has(`${e.id}:${weekStart}`),
-          });
-        }
-        out.push({
-          personId: e.personId,
-          name: names.get(e.personId) ?? '',
-          employeeCode: e.employeeCode,
-          weeks,
-        });
-      }
-      // Exceptions first: anyone who missed a week without approval, then by name.
-      const missed = (p: (typeof out)[number]) => p.weeks.some((w) => !w.met && !w.approvedBelow);
-      out.sort((a, b) => Number(missed(b)) - Number(missed(a)) || a.name.localeCompare(b.name));
-      const weekStarts = [...new Set(out.flatMap((p) => p.weeks.map((w) => w.weekStart)))].sort();
-      return {
+    return this.db.tx(async (tx) =>
+      this.build(
+        tx,
+        await this.visible(tx, await this.employedOn(tx, from, addDays(to, 6)), scope),
         from,
         to,
-        people: out,
-        summary: weekStarts.map((weekStart) => {
-          const weeks = out.flatMap((p) => p.weeks.filter((w) => w.weekStart === weekStart));
-          return {
-            weekStart,
-            people: weeks.length,
-            met: weeks.filter((w) => w.met).length,
-            approvedBelow: weeks.filter((w) => w.approvedBelow).length,
-          };
-        }),
-      };
+      ),
+    );
+  }
+
+  /**
+   * H12's hybrid compliance (decision #93): the same weekly results for everyone employed in the
+   * range whom `include` lets through (the report's own entity check, aggregates allowed).
+   */
+  async forReport(
+    from: string,
+    to: string,
+    include: (e: { personId: string; legalEntityId: string }) => Promise<boolean>,
+  ): Promise<ComplianceView> {
+    return this.db.tx(async (tx) => {
+      const people: EngagementRow[] = [];
+      for (const e of await this.employedOn(tx, from, addDays(to, 6))) {
+        if (await include(e)) people.push(e);
+      }
+      return this.build(tx, people, from, to);
     });
+  }
+
+  private async build(
+    tx: Tx,
+    people: EngagementRow[],
+    from: string,
+    to: string,
+  ): Promise<ComplianceView> {
+    const ids = people.map((e) => e.id);
+    const days = ids.length
+      ? await tx
+          .select({ row: hybridComplianceDays, policyName: workPolicies.name })
+          .from(hybridComplianceDays)
+          .innerJoin(workPolicies, eq(workPolicies.id, hybridComplianceDays.policyId))
+          .where(
+            and(
+              inArray(hybridComplianceDays.engagementId, ids),
+              gte(hybridComplianceDays.weekStart, from),
+              lte(hybridComplianceDays.weekStart, to),
+            ),
+          )
+          .orderBy(asc(hybridComplianceDays.date))
+      : [];
+    const approved = ids.length
+      ? await tx
+          .select({
+            engagementId: hybridExceptions.engagementId,
+            weekStart: hybridExceptions.weekStart,
+          })
+          .from(hybridExceptions)
+          .where(
+            and(
+              inArray(hybridExceptions.engagementId, ids),
+              eq(hybridExceptions.status, 'approved'),
+              gte(hybridExceptions.weekStart, from),
+              lte(hybridExceptions.weekStart, to),
+            ),
+          )
+      : [];
+    const approvedSet = new Set(approved.map((a) => `${a.engagementId}:${a.weekStart}`));
+    const names = await this.names(tx, people);
+    const out: ComplianceView['people'] = [];
+    for (const e of people) {
+      const mine = days.filter((d) => d.row.engagementId === e.id);
+      if (mine.length === 0) continue;
+      const weeks: ComplianceWeek[] = [];
+      for (const weekStart of [...new Set(mine.map((d) => d.row.weekStart))].sort()) {
+        const inWeek = mine.filter((d) => d.row.weekStart === weekStart);
+        const last = inWeek.at(-1)!;
+        const result = weekCompliance(
+          last.row.requiredMode,
+          last.row.requiredDays,
+          inWeek.map((d): ComplianceDay => ({
+            date: d.row.date,
+            working: d.row.working,
+            onLeave: d.row.onLeave,
+            planned: d.row.plannedMode,
+            actualStatus: d.row.actualStatus as AttendanceStatus | null,
+            actualMode: d.row.actualMode,
+          })),
+        );
+        weeks.push({
+          weekStart,
+          policyName: last.policyName,
+          requiredMode: last.row.requiredMode,
+          ...result,
+          approvedBelow: !result.met && approvedSet.has(`${e.id}:${weekStart}`),
+        });
+      }
+      out.push({
+        personId: e.personId,
+        name: names.get(e.personId) ?? '',
+        employeeCode: e.employeeCode,
+        weeks,
+      });
+    }
+    // Exceptions first: anyone who missed a week without approval, then by name.
+    const missed = (p: (typeof out)[number]) => p.weeks.some((w) => !w.met && !w.approvedBelow);
+    out.sort((a, b) => Number(missed(b)) - Number(missed(a)) || a.name.localeCompare(b.name));
+    const weekStarts = [...new Set(out.flatMap((p) => p.weeks.map((w) => w.weekStart)))].sort();
+    return {
+      from,
+      to,
+      people: out,
+      summary: weekStarts.map((weekStart) => {
+        const weeks = out.flatMap((p) => p.weeks.filter((w) => w.weekStart === weekStart));
+        return {
+          weekStart,
+          people: weeks.length,
+          met: weeks.filter((w) => w.met).length,
+          approvedBelow: weeks.filter((w) => w.approvedBelow).length,
+        };
+      }),
+    };
   }
 
   // ---- M2: Team today ----

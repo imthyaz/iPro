@@ -194,16 +194,19 @@ the date-driven notifications (joining in 7 days and tomorrow, last working day 
 (decision #91; done); 12d the 180-day summaries and the 09:00 daily brief (decision #92; done). The 50-question figures are checked with a scripted model in CI; the
 real-model selection test runs before go-live.
 
-## [ ] Slice 13 — Reports, import and migration
+## [~] Slice 13 — Reports, import and migration
 
 **Spec:** Screen H12, A6; Integrations and data migration.
 
 **Done when**
-- [ ] Phase 1 reports (headcount, joiners/leavers, attrition, absenteeism, leave liability, hybrid compliance, seat
+- [x] Phase 1 reports (headcount, joiners/leavers, attrition, absenteeism, leave liability, hybrid compliance, seat
       occupancy) match hand-calculated values on the synthetic data set.
 - [ ] The import tool rejects files with duplicates, missing managers, invalid dates or inconsistent balances, and
       loads nothing until the error count is zero.
 - [ ] History back-fill creates journey events marked `migrated`.
+
+**Notes:** sub-PRs: 13a the H12 reports with the definitions in decision #93; 13b the A6 import (people with
+engagement, assignment and manager, CTC, KYC, leave balances) and the journey back-fill.
 
 ## [ ] Slice 14 — Hardening and go-live readiness
 
