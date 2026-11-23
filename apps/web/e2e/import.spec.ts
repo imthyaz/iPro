@@ -64,4 +64,33 @@ test('HR head checks a file, fixes it, then loads it; nothing loads while errors
   expect(people.map((p) => [p.employeeCode, p.manager?.name])).toEqual([
     ['MIG-7002', 'Migrated MIG-7001'],
   ]);
+
+  // Their past, from the old system, on the journey (decision #95).
+  await page.getByRole('tab', { name: 'History' }).click();
+  await page.getByLabel('History recorded from').fill('2024-02-01');
+  await page.getByLabel('CSV file').setInputFiles({
+    name: 'history.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(
+      [
+        'employee_code,date,event,detail',
+        'MIG-7001,2024-07-01,designation_changed,Senior Software Engineer',
+      ].join('\n'),
+    ),
+  });
+  await page.getByRole('button', { name: 'Check' }).click();
+  await expect(result).toContainText('1 of 1 rows are ready to load');
+  await page.getByRole('button', { name: 'Load 1 rows' }).click();
+  await expect(result).toContainText('Loaded 1 of 1 rows');
+  const [lead] = (await (await page.request.get('/api/people?q=Migrated MIG-7001')).json()) as {
+    personId: string;
+  }[];
+  const timeline = (await (
+    await page.request.get(`/api/people/${lead!.personId}/timeline`)
+  ).json()) as {
+    historyFrom: string | null;
+    events: { title: string }[];
+  };
+  expect(timeline.historyFrom).toBe('2024-02-01');
+  expect(timeline.events.map((e) => e.title)).toContain('Became Senior Software Engineer');
 });

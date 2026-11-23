@@ -29,6 +29,7 @@ import { personSummaries } from '../people/people.queries.js';
 import { assignments, engagements } from '../people/people.schema.js';
 import { PeopleService } from '../people/people.service.js';
 import { appliesToMatches } from '../workflow/checklist-rules.js';
+import { balanceMismatch } from '../imports/history-rules.js';
 import { parseCsv } from './csv.js';
 import { heldByGrant, type LiveGrant } from './comp-off-rules.js';
 import { defaultLeaveTypes, monthlyAccrual, yearEnd } from './leave-rules.js';
@@ -408,6 +409,11 @@ export class LeaveService {
             line,
             message: `Balance "${record.balance}" isn’t a whole or half day`,
           });
+          continue;
+        }
+        const mismatch = balanceMismatch(record);
+        if (mismatch) {
+          result.errors.push({ line, message: mismatch });
           continue;
         }
         if (balance < 0 && !type.allowNegative) {

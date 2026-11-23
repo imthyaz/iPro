@@ -10,6 +10,10 @@ export const importFileSchema = z.object({
 });
 export type ImportFileInput = z.infer<typeof importFileSchema>;
 
+/** The history file (decision #95): with the date from which the old system's history is complete. */
+export const historyImportSchema = importFileSchema.extend({ recordedFrom: z.iso.date() });
+export type HistoryImportInput = z.infer<typeof historyImportSchema>;
+
 export interface ImportResult {
   committed: boolean;
   rows: number;

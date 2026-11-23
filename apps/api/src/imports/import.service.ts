@@ -1,6 +1,14 @@
 import { HttpException, Inject, Injectable } from '@nestjs/common';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { kycSubmitSchema, type ImportFileInput, type ImportResult } from '@ipro/shared';
+import { createHash } from 'node:crypto';
+import {
+  kycSubmitSchema,
+  type HistoryImportInput,
+  type ImportFileInput,
+  type ImportResult,
+} from '@ipro/shared';
+import { JourneyService } from '../journey/journey.service.js';
+import { checkHistoryFile, HISTORY_EVENTS, type HistoryPerson } from './history-rules.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthzService } from '../authz/authz.service.js';
 import { businessDate } from '../common/effective-dating.js';
@@ -23,6 +31,12 @@ import { PeopleService } from '../people/people.service.js';
 import { SettingsService } from '../people/settings.service.js';
 import { checkPeopleFile, type ImportError, type PersonRow } from './people-import-rules.js';
 
+/** A stable id per migrated event, so loading the same history twice adds nothing. */
+function migrationId(tenantId: string, code: string, event: string, date: string): string {
+  const h = createHash('sha256').update(`${tenantId}:${code}:${event}:${date}`).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
 /** Thrown inside the import transaction to roll everything back after a check. */
 class RollBack extends Error {}
 
@@ -41,7 +55,92 @@ export class ImportService {
     @Inject(PeopleService) private readonly people: PeopleService,
     @Inject(KycService) private readonly kyc: KycService,
     @Inject(SettingsService) private readonly settings: SettingsService,
+    @Inject(JourneyService) private readonly journey: JourneyService,
   ) {}
+
+  /**
+   * Migration step 5 (spec; decision #95): past confirmations, designation changes, team moves and
+   * exits become journey events marked migrated, and `recordedFrom` is kept so each journey says
+   * history before it isn't recorded. Loaded once: the same event can't be added twice.
+   */
+  async historyFile(input: HistoryImportInput): Promise<ImportResult> {
+    const actor = requireContext().actor!;
+    const records = this.parse(input.csv);
+    if ('error' in records) return records.error;
+    let outcome: ImportResult = { committed: false, rows: records.length, ready: 0, errors: [] };
+    try {
+      await this.db.tx(async (tx) => {
+        const people = await this.historyPeople(tx);
+        const { rows, errors } = checkHistoryFile(records, people, businessDate(new Date()));
+        for (const entity of new Set(rows.map((r) => people.get(r.employeeCode)!.legalEntityId))) {
+          await this.authz.assert(actor, 'create', {
+            area: 'assignment_history',
+            legalEntityId: entity,
+          });
+        }
+        let ready = 0;
+        if (errors.length === 0) {
+          for (const row of rows) {
+            const person = people.get(row.employeeCode)!;
+            const kind = HISTORY_EVENTS[row.event];
+            const added = await this.journey.record(tx, {
+              engagementId: person.engagementId,
+              personId: person.personId,
+              eventType: kind.eventType,
+              category: kind.category,
+              occurredOn: row.date,
+              title: kind.title(row.detail),
+              detail: row.detail ? { note: row.detail } : {},
+              // Why someone left stays with HR, as for exits recorded in iPro.
+              sensitivity: row.event === 'exited' ? 'hr' : 'public',
+              sourceTable: 'migration',
+              sourceId: migrationId(
+                requireContext().tenantId,
+                row.employeeCode,
+                row.event,
+                row.date,
+              ),
+              migrated: true,
+            });
+            if (added) ready += 1;
+            else errors.push({ line: row.line, message: 'This event is already in the journey' });
+          }
+          if (errors.length === 0) {
+            await this.settings.set(tx, 'history_recorded_from', input.recordedFrom);
+          }
+        }
+        errors.sort((a, b) => a.line - b.line);
+        outcome = { committed: false, rows: records.length, ready, errors };
+        if (!input.commit || errors.length > 0) throw new RollBack();
+        await this.audit.record(tx, {
+          action: 'create',
+          table: 'import',
+          fieldChanges: [{ field: 'history', from: null, to: ready }],
+        });
+        outcome = { ...outcome, committed: true };
+      });
+    } catch (error) {
+      if (!(error instanceof RollBack)) throw error;
+    }
+    return outcome;
+  }
+
+  private async historyPeople(
+    tx: Tx,
+  ): Promise<Map<string, HistoryPerson & { legalEntityId: string }>> {
+    const rows = await tx
+      .select({
+        code: engagements.employeeCode,
+        personId: engagements.personId,
+        engagementId: engagements.id,
+        joiningDate: engagements.joiningDate,
+        status: engagements.status,
+        lastWorkingDate: engagements.lastWorkingDate,
+        legalEntityId: engagements.legalEntityId,
+      })
+      .from(engagements);
+    return new Map(rows.map((r) => [r.code, r]));
+  }
 
   /**
    * People with their engagement, first assignment, manager and current CTC, keeping the old

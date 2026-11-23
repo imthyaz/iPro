@@ -1,5 +1,10 @@
 import { Body, Controller, HttpCode, Inject, Post } from '@nestjs/common';
-import { importFileSchema, type ImportFileInput } from '@ipro/shared';
+import {
+  historyImportSchema,
+  importFileSchema,
+  type HistoryImportInput,
+  type ImportFileInput,
+} from '@ipro/shared';
 import { AuthorizeAny } from '../authz/decorators.js';
 import { ZodPipe } from '../common/zod.pipe.js';
 import { ImportService } from './import.service.js';
@@ -17,6 +22,13 @@ export class ImportsController {
   @HttpCode(200)
   people(@Body(new ZodPipe(importFileSchema)) body: ImportFileInput) {
     return this.imports.peopleFile(body);
+  }
+
+  @AuthorizeAny(['assignment_history', 'create'])
+  @Post('history')
+  @HttpCode(200)
+  history(@Body(new ZodPipe(historyImportSchema)) body: HistoryImportInput) {
+    return this.imports.historyFile(body);
   }
 
   @AuthorizeAny(['kyc', 'update'])

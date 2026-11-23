@@ -108,7 +108,7 @@ beforeAll(async () => {
     })
     .expect(201);
   types = (await agents.ezhil!.get('/api/leave-types').expect(200)).body;
-  for (const year of new Set([today.slice(0, 4), d(30).slice(0, 4)])) {
+  for (const year of new Set([today.slice(0, 4), d(30).slice(0, 4), d(45).slice(0, 4)])) {
     const asOf = year === today.slice(0, 4) ? d(-1) : `${year}-01-01`;
     await agents
       .hr!.post('/api/leave/balances/import', {

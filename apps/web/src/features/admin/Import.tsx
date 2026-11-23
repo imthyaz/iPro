@@ -5,7 +5,7 @@ import type { ImportResult } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
 import { Field, Note, Tabs } from '../../design-system/index.js';
 
-type Kind = 'people' | 'kyc';
+type Kind = 'people' | 'kyc' | 'history';
 
 const TEMPLATES: Record<Kind, { columns: string; example: string; notes: string[] }> = {
   people: {
@@ -19,6 +19,15 @@ const TEMPLATES: Record<Kind, { columns: string; example: string; notes: string[
       'manager_code is the manager’s employee_code, in this file or already in iPro.',
       'designation, department, location and legal_entity use the names (or codes) set up in iPro.',
       'ctc_amount is the current CTC in rupees, with ctc_rate_unit year, month, day or hour.',
+    ],
+  },
+  history: {
+    columns: 'employee_code,date,event,detail',
+    example: 'IDS-0100,2024-04-01,designation_changed,Senior Software Engineer',
+    notes: [
+      'Past events for people already loaded: confirmed, designation_changed (detail: the new designation), team_changed (detail: the new team) and exited (on their last working day).',
+      'They appear on each journey marked as migrated. Leave out what can’t be sourced reliably.',
+      'History recorded from: journeys of people who joined earlier say history before it isn’t recorded.',
     ],
   },
   kyc: {
@@ -49,6 +58,7 @@ export function Import() {
         tabs={[
           { id: 'people', label: 'People' },
           { id: 'kyc', label: 'KYC' },
+          { id: 'history', label: 'History' },
         ]}
         active={kind}
         onChange={setKind}
@@ -60,10 +70,13 @@ export function Import() {
 
 function ImportFile({ kind }: { kind: Kind }) {
   const [csv, setCsv] = useState('');
+  const [recordedFrom, setRecordedFrom] = useState('');
   const [checked, setChecked] = useState<ImportResult | null>(null);
   const run = useMutation({
     mutationFn: (commit: boolean) =>
-      api<ImportResult>(`/imports/${kind}`, { body: { csv, commit } }),
+      api<ImportResult>(`/imports/${kind}`, {
+        body: kind === 'history' ? { csv, commit, recordedFrom } : { csv, commit },
+      }),
     onSuccess: setChecked,
   });
   const template = TEMPLATES[kind];
@@ -71,9 +84,10 @@ function ImportFile({ kind }: { kind: Kind }) {
     `${template.columns}\n${template.example}\n`,
   )}`;
   const canLoad = checked !== null && !checked.committed && checked.errors.length === 0 && csv;
+  const ready = Boolean(csv) && (kind !== 'history' || Boolean(recordedFrom));
 
   return (
-    <section aria-label={`${kind === 'people' ? 'People' : 'KYC'} file`}>
+    <section aria-label={`${{ people: 'People', kyc: 'KYC', history: 'History' }[kind]} file`}>
       <ul className="muted">
         {template.notes.map((n) => (
           <li key={n}>{n}</li>
@@ -98,10 +112,28 @@ function ImportFile({ kind }: { kind: Kind }) {
           />
         )}
       </Field>
+      {kind === 'history' && (
+        <Field
+          label="History recorded from"
+          hint="The date from which the old system’s history is complete."
+        >
+          {(id) => (
+            <input
+              id={id}
+              type="date"
+              value={recordedFrom}
+              onChange={(e) => {
+                setChecked(null);
+                setRecordedFrom(e.target.value);
+              }}
+            />
+          )}
+        </Field>
+      )}
       <div className="form-actions">
         <button
           className="button"
-          disabled={!csv || run.isPending}
+          disabled={!ready || run.isPending}
           onClick={() => run.mutate(false)}
         >
           Check

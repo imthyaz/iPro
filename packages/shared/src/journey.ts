@@ -69,6 +69,11 @@ export interface CtcSegment {
 
 export interface PersonTimelineView {
   today: string;
+  /**
+   * Set when the person joined before the old system's history was complete (decision #95): the
+   * journey shows "history before this date not recorded" instead of guessing.
+   */
+  historyFrom: string | null;
   person: {
     personId: string;
     name: string;
