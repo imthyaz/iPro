@@ -26,6 +26,24 @@ export class SettingsService {
   }
 
   /** Issues the next employee code. The counter only goes up, so codes are never reused. */
+  /** Sets a tenant value (for settings iPro itself writes, e.g. on a data migration). */
+  async set<K extends SettingKey>(tx: Tx, key: K, value: SettingValue<K>): Promise<void> {
+    const { tenantId, actor } = requireContext();
+    await tx
+      .insert(tenantSettings)
+      .values({
+        tenantId,
+        key,
+        value,
+        createdBy: actor?.userId ?? null,
+        updatedBy: actor?.userId ?? null,
+      })
+      .onConflictDoUpdate({
+        target: [tenantSettings.tenantId, tenantSettings.key],
+        set: { value, updatedAt: new Date(), updatedBy: actor?.userId ?? null },
+      });
+  }
+
   async nextEmployeeCode(tx: Tx): Promise<string> {
     const tenantId = requireContext().tenantId;
     const [counter] = await tx

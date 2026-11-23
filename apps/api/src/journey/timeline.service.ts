@@ -18,6 +18,7 @@ import { departmentVersions, designations } from '../org/org.schema.js';
 import { inForce } from '../people/people.queries.js';
 import { assignments, compensations, engagements } from '../people/people.schema.js';
 import { PeopleService } from '../people/people.service.js';
+import { SettingsService } from '../people/settings.service.js';
 import { JourneyService } from './journey.service.js';
 import { probationEnd } from './planned-events.js';
 import { journalEvents } from './journey.schema.js';
@@ -53,6 +54,8 @@ export function categoryOf(
     return 'leave';
   }
   if (RECORD_TYPES.has(event.eventType)) return 'records';
+  // Migrated history says its own category (decision #95).
+  if (event.category === 'career' || event.category === 'team') return event.category;
   return 'lifecycle';
 }
 
@@ -141,6 +144,7 @@ export class TimelineService {
     @Inject(FIELD_CIPHER) private readonly cipher: FieldCipher,
     @Inject(PeopleService) private readonly people: PeopleService,
     @Inject(JourneyService) private readonly journey: JourneyService,
+    @Inject(SettingsService) private readonly settings: SettingsService,
   ) {}
 
   async personTimeline(personId: string, now = new Date()): Promise<PersonTimelineView> {
@@ -178,8 +182,10 @@ export class TimelineService {
       const end =
         current.status === 'exited' && current.lastWorkingDate ? current.lastWorkingDate : today;
       const ctc = lanes.ctc;
+      const recordedFrom = await this.settings.get(tx, 'history_recorded_from');
       return {
         today,
+        historyFrom: recordedFrom && first < recordedFrom ? recordedFrom : null,
         person: {
           personId,
           name: summary.preferredName ?? summary.legalName,

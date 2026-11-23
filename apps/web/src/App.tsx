@@ -5,6 +5,7 @@ import { queryClient } from './api.js';
 import { apiStatusLabel, fetchApiStatus, type ApiStatus } from './api-status.js';
 import { hasRole, SignIn, useMe, useSignOut } from './auth.js';
 import { Note } from './design-system/index.js';
+import { Import } from './features/admin/Import.js';
 import { PolicyAdmin } from './features/admin/PolicyAdmin.js';
 import { AskIproPanel } from './features/assistant/AskIpro.js';
 import { Templates } from './features/admin/Templates.js';
@@ -255,6 +256,11 @@ function Shell() {
               Import leave
             </NavLink>
           )}
+          {hasRole(user, 'hr', 'hr_head') && (
+            <NavLink to="/import" className="nav-item">
+              Import people
+            </NavLink>
+          )}
           {seesOrgSetup && (
             <NavLink to="/templates" className="nav-item">
               Templates
@@ -299,6 +305,7 @@ function Shell() {
             <Route path="/leave-types" element={<LeaveTypes />} />
             <Route path="/leave-types/:typeId" element={<LeaveTypes />} />
             <Route path="/leave-import" element={<LeaveImport />} />
+            <Route path="/import" element={<Import />} />
             <Route path="/leave-balances" element={<AllLeaveBalances />} />
             <Route path="/payroll-export" element={<PayrollExport />} />
             <Route path="/requests" element={<Requests />} />

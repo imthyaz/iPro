@@ -107,6 +107,11 @@ export function FullJourney({ personId }: { personId: string }) {
   return (
     <section className="journey" aria-label="Journey">
       <JourneyHeader view={v} />
+      {v.historyFrom && (
+        <p className="muted journey-gap">
+          History before {formatDate(v.historyFrom)} not recorded.
+        </p>
+      )}
       {exited ? (
         <Tiles view={v} />
       ) : (
@@ -498,6 +503,7 @@ export function CompactJourney({ personId, onOpen }: { personId: string; onOpen:
         <strong>Journey</strong>
         <span className="muted">
           {events.length} events{upcoming ? ` · ${upcoming} upcoming` : ''}
+          {v.historyFrom ? ` · history before ${formatDate(v.historyFrom)} not recorded` : ''}
         </span>
         <button type="button" className="button button-quiet" onClick={onOpen}>
           View full journey →

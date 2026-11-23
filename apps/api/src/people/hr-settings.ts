@@ -45,6 +45,8 @@ export const settingSchemas = {
       .max(500)
       .regex(/^(\/|mailto:|https:\/\/|teams:hr$)/),
   }),
+  /** The date from which migrated history is complete (decision #95); null before migration. */
+  history_recorded_from: z.iso.date().nullable(),
   notice_days: z.object({
     on_probation: z.number().int().min(0),
     confirmed: z.number().int().min(0),
@@ -72,6 +74,7 @@ export const settingDefaults: { [K in SettingKey]: SettingValue<K> } = {
   leave_second_approval_over_days: 5,
   comp_off_request_window_days: 30,
   hr_contact: { label: 'Chat with HR in Teams', link: 'teams:hr' },
+  history_recorded_from: null,
 };
 
 export function formatEmployeeCode(value: number, format: SettingValue<'employee_code'>): string {

@@ -218,7 +218,9 @@ export function LeaveImport() {
       <p className="muted">
         A CSV with the columns <code>employee_code</code>, <code>leave_type</code> (e.g. CL, SL, EL)
         and <code>balance</code> in days. Each balance is set to the file’s value as of the date;
-        months up to then aren’t credited again. Check first; nothing changes until you apply.
+        months up to then aren’t credited again. Optional <code>opening</code>, <code>accrued</code>
+        , <code>taken</code>, <code>lapsed</code> and <code>encashed</code> columns must add up to
+        the balance. Check first; nothing changes until you apply.
       </p>
       <form
         className="inline-form"

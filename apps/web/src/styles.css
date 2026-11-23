@@ -2089,3 +2089,8 @@ a.onboarding-link:hover {
 .report-table td {
   font-variant-numeric: tabular-nums;
 }
+
+/* Migrated journeys (decision #95): where the old system's history stops. */
+.journey-gap {
+  font-style: italic;
+}

@@ -89,7 +89,12 @@ export class PeopleService {
     tx: Tx,
     input: CreatePersonInput & { engagement: { contractEndDate?: string | null } },
     now: Date,
-    options: { offer?: boolean } = {},
+    options: {
+      offer?: boolean;
+      /** Data migration (decision #94): keep the old system's code, and mark the history migrated. */
+      employeeCode?: string;
+      migrated?: boolean;
+    } = {},
   ): Promise<{ personId: string; engagementId: string; designationTitle: string }> {
     const { actor, tenantId } = requireContext();
     const legalEntityId = input.engagement.legalEntityId;
@@ -115,7 +120,7 @@ export class PeopleService {
       .insert(persons)
       .values({ tenantId, ...input.person, ...by })
       .returning({ id: persons.id });
-    const employeeCode = await this.settings.nextEmployeeCode(tx);
+    const employeeCode = options.employeeCode ?? (await this.settings.nextEmployeeCode(tx));
     const joined = input.engagement.joiningDate <= today;
     const engagementId = randomUUID();
     await this.insertEngagement(tx, {
@@ -172,6 +177,7 @@ export class PeopleService {
         sensitivity: 'public',
         sourceTable: 'engagement',
         sourceId: engagementId,
+        migrated: options.migrated ?? false,
       });
     }
     if (probationEnd && !options.offer) {

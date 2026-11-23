@@ -39,6 +39,7 @@ import { SettingsService } from './settings.service.js';
     SCOPE_RESOLVER,
     TimelineService,
     TeamJourneysService,
+    KycService,
   ],
 })
 export class PeopleModule {}
