@@ -10,6 +10,7 @@ import { ExitModule } from './exit/exit.module.js';
 import { HealthModule } from './health/health.module.js';
 import { HybridModule } from './hybrid/hybrid.module.js';
 import { IdentityModule } from './identity/identity.module.js';
+import { ImportsModule } from './imports/imports.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { LeaveModule } from './leave/leave.module.js';
 import { LettersModule } from './letters/letters.module.js';
@@ -49,6 +50,7 @@ import { WorkflowModule } from './workflow/workflow.module.js';
     NotifyModule,
     AssistantModule,
     ReportsModule,
+    ImportsModule,
   ],
 })
 export class AppModule implements NestModule {

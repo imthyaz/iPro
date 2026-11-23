@@ -205,8 +205,9 @@ real-model selection test runs before go-live.
       loads nothing until the error count is zero.
 - [ ] History back-fill creates journey events marked `migrated`.
 
-**Notes:** sub-PRs: 13a the H12 reports with the definitions in decision #93; 13b the A6 import (people with
-engagement, assignment and manager, CTC, KYC, leave balances) and the journey back-fill.
+**Notes:** sub-PRs: 13a the H12 reports with the definitions in decision #93; 13b the A6 import of people (with
+engagement, assignment, manager and CTC) and KYC (decision #94); 13c leave balances that must add up and the journey
+back-fill.
 
 ## [ ] Slice 14 — Hardening and go-live readiness
 

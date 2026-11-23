@@ -16,6 +16,8 @@ export interface JourneyEvent {
   sensitivity: (typeof journalEvents.$inferInsert)['sensitivity'];
   sourceTable: string;
   sourceId: string;
+  /** Loaded from the old system's history (spec: data migration), not recorded as it happened. */
+  migrated?: boolean;
 }
 
 /** The only writer of JournalEvent (ARCHITECTURE.md); timelines read it through TimelineService. */
@@ -42,6 +44,7 @@ export class JourneyService {
         sensitivity: event.sensitivity,
         sourceTable: event.sourceTable,
         sourceId: event.sourceId,
+        migrated: event.migrated ?? false,
         createdBy: actor?.userId ?? null,
         updatedBy: actor?.userId ?? null,
       })
