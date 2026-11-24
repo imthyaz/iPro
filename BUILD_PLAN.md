@@ -209,11 +209,15 @@ real-model selection test runs before go-live.
 engagement, assignment, manager and CTC) and KYC (decision #94); 13c leave balances that must add up and the journey
 back-fill (decision #95; done).
 
-## [ ] Slice 14 — Hardening and go-live readiness
+## [~] Slice 14 — Hardening and go-live readiness
 
 **Done when**
-- [ ] Every role is tested against the permissions table, including denied actions (regression suite green).
+- [x] Every role is tested against the permissions table, including denied actions (regression suite green).
 - [ ] 5 pilot users each complete check-in, leave application and week planning without help on first use.
 - [ ] Non-functional targets met: pages < 2 s on 4G, check-in < 3 s, WCAG 2.1 AA on employee and manager screens.
 - [ ] A backup restore to staging is completed and verified.
 - [ ] An independent security review (penetration test) is done and its findings fixed.
+
+**Notes:** sub-PRs: 14a the permissions regression suite and the generated route table (decision #96; done); 14b speed
+and accessibility; 14c backups and the restore runbook; 14d security hardening, the penetration-test scope and the pilot
+script.
