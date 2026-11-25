@@ -6,10 +6,12 @@ import {
   timelineCategoryColours,
   timelineCategoryWords,
   timelineHiddenByDefault,
-  type PersonTimelineView,
-  type TimelineCategory,
-  type TimelineEvent,
-  type TimelineSegment,
+} from '@ipro/shared/words';
+import type {
+  PersonTimelineView,
+  TimelineCategory,
+  TimelineEvent,
+  TimelineSegment,
 } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
 import { useMe } from '../../auth.js';
@@ -361,15 +363,22 @@ function Track(props: {
                     className={`event-card${e.upcoming ? ' event-upcoming' : ''}${isSelected ? ' event-selected' : ''}`}
                     style={{ left: Math.min(left - 12, w.width - 172), top }}
                     aria-pressed={isSelected}
-                    aria-label={`${e.title}, ${formatDate(e.date)}, ${timelineCategoryWords[e.category]}${e.upcoming ? ', upcoming' : ''}`}
                     onClick={() => props.onSelect(e.id)}
                   >
-                    <span className="cat-label">
-                      <span className="cat-swatch" aria-hidden="true" />
+                    {/* One spoken name, e.g. "Promotion, 1 Dec 2026, Designation, upcoming"; the visible
+                        parts are hidden from screen readers (WCAG 2.5.3; decision #97). */}
+                    <span className="visually-hidden">
+                      {e.title}, {formatDate(e.date)}, {timelineCategoryWords[e.category]}
+                      {e.upcoming ? ', upcoming' : ''}
+                    </span>
+                    <span className="cat-label" aria-hidden="true">
+                      <span className="cat-swatch" />
                       {timelineCategoryWords[e.category]}
                     </span>
-                    <span className="mono">{formatDate(e.date)}</span>
-                    <strong>{e.title}</strong>
+                    <span className="mono" aria-hidden="true">
+                      {formatDate(e.date)}
+                    </span>
+                    <strong aria-hidden="true">{e.title}</strong>
                   </button>
                 </div>
               );

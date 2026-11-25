@@ -84,11 +84,21 @@ export function LeaveBalances({
             <button
               className={`balance-card${b.leaveType.id === selected ? ' balance-card-selected' : ''}`}
               onClick={() => setSelected(b.leaveType.id)}
-              aria-label={`${b.leaveType.name}: ${plural(b.balance)} left`}
             >
-              <span className="balance-name">{b.leaveType.name}</span>
-              <span className="balance-days">{b.balance}</span>
-              <span className="muted">
+              {/* One spoken name, e.g. "Casual leave: 4.5 days left"; the visible parts are hidden from
+                  screen readers so they aren't read twice (WCAG 2.5.3; decision #97). */}
+              <span className="visually-hidden">
+                {b.leaveType.name}: {plural(b.balance)} left
+                {b.accrued || b.granted ? `, +${b.accrued + b.granted} this year` : ''}
+                {b.taken ? `, ${b.taken} taken` : ''}
+              </span>
+              <span className="balance-name" aria-hidden="true">
+                {b.leaveType.name}
+              </span>
+              <span className="balance-days" aria-hidden="true">
+                {b.balance}
+              </span>
+              <span className="muted" aria-hidden="true">
                 {b.accrued || b.granted ? `+${b.accrued + b.granted} this year` : 'days left'}
                 {b.taken ? ` · ${b.taken} taken` : ''}
               </span>

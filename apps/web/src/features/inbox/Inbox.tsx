@@ -11,7 +11,7 @@ import type {
 import { api, errorMessage } from '../../api.js';
 import { useMe } from '../../auth.js';
 import { TodayCard } from '../attendance/Attendance.js';
-import { useOnboarding } from '../onboarding/Onboarding.js';
+import { useOnboarding } from '../onboarding/use-onboarding.js';
 import { CheckInCard, useOpenCheckIns } from '../reviews/CheckIns.js';
 import { useReviews } from '../reviews/Reviews.js';
 import {

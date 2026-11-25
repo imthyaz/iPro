@@ -6,6 +6,8 @@
     <meta name="theme-color" content="#1f4fd1" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <title>iPro</title>
+    <!-- Ask who is signed in while the app downloads, not after (decision #97). -->
+    <link rel="preload" href="/api/me" as="fetch" crossorigin="anonymous" />
   </head>
   <body>
     <div id="root"></div>

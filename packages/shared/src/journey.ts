@@ -1,40 +1,11 @@
 import { z } from 'zod';
+import type { TimelineCategory } from './timeline-words.js';
 
 /**
  * Journey timelines (slice 10; screens E8, H2, M6, H11; decision #84). Timelines read only from the
  * journal; each event shows in one display category with the design's colour.
  */
-export const timelineCategories = [
-  'lifecycle',
-  'career',
-  'team',
-  'pay',
-  'leave',
-  'records',
-] as const;
-export type TimelineCategory = (typeof timelineCategories)[number];
-
-export const timelineCategoryWords: Record<TimelineCategory, string> = {
-  lifecycle: 'Lifecycle',
-  career: 'Designation',
-  team: 'Team & role',
-  pay: 'Pay',
-  leave: 'Leave & attendance',
-  records: 'Records',
-};
-
-/** The timeline design's palette (Employee Journey Timeline canvas). */
-export const timelineCategoryColours: Record<TimelineCategory, string> = {
-  lifecycle: '#2B3140',
-  career: '#2F5BD3',
-  team: '#7A4FD1',
-  pay: '#C2620E',
-  leave: '#0F7F69',
-  records: '#B88400',
-};
-
-/** Shown unless turned on (decision #84: leave and attendance are off by default). */
-export const timelineHiddenByDefault: readonly TimelineCategory[] = ['leave'];
+export * from './timeline-words.js';
 
 export interface TimelineEvent {
   id: string;

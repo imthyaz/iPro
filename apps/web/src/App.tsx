@@ -1,44 +1,130 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, NavLink, Route, Routes } from 'react-router';
 import { queryClient } from './api.js';
 import { apiStatusLabel, fetchApiStatus, type ApiStatus } from './api-status.js';
 import { hasRole, SignIn, useMe, useSignOut } from './auth.js';
 import { Note } from './design-system/index.js';
-import { Import } from './features/admin/Import.js';
-import { PolicyAdmin } from './features/admin/PolicyAdmin.js';
-import { AskIproPanel } from './features/assistant/AskIpro.js';
-import { Templates } from './features/admin/Templates.js';
-import { MyAttendance } from './features/attendance/Attendance.js';
-import { BiometricDevices } from './features/attendance/Devices.js';
-import { AttendanceExceptions } from './features/attendance/Exceptions.js';
-import { Holidays } from './features/holidays/Holidays.js';
-import { MyLeave } from './features/leave/Leave.js';
-import { LeaveImport, LeaveTypes } from './features/leave/LeaveAdmin.js';
-import { AllLeaveBalances, PayrollExport } from './features/leave/LeaveHr.js';
-import { Seats, WorkPolicies } from './features/hybrid/HybridAdmin.js';
-import { PlanWeek } from './features/hybrid/PlanWeek.js';
-import { MyJourney } from './features/journey/Journey.js';
-import { TeamJourneys } from './features/journey/TeamJourneys.js';
-import { ExitTracker, Resign } from './features/exit/Exit.js';
-import { HybridCompliance, TeamCalendar, TeamToday } from './features/hybrid/Team.js';
-import { ChecklistRuns } from './features/checklists/ChecklistRuns.js';
-import { NewOffer } from './features/offers/NewOffer.js';
-import { Offers } from './features/offers/Offers.js';
-import { Probation } from './features/reviews/Probation.js';
-import { Reviews } from './features/reviews/Reviews.js';
-import { Onboarding, useOnboarding } from './features/onboarding/Onboarding.js';
+import { useOnboarding } from './features/onboarding/use-onboarding.js';
 import { Inbox, useNotifications } from './features/inbox/Inbox.js';
-import { NotificationsPage } from './features/inbox/NotificationsPage.js';
-import { OrgSetup } from './features/org/OrgSetup.js';
-import { OrgTree } from './features/org/OrgTree.js';
-import { Directory } from './features/people/Directory.js';
-import { NewPerson } from './features/people/NewPerson.js';
-import { PersonRecord } from './features/people/PersonRecord.js';
-import { MyPolicies } from './features/policies/MyPolicies.js';
-import { Reports } from './features/reports/Reports.js';
-import { Requests } from './features/requests/Requests.js';
-import { Shifts } from './features/shifts/Shifts.js';
+
+// Speed (decision #97): the home page ships in the first download; every other screen loads when
+// it is opened, so employees and managers don't download and parse HR and admin screens.
+const Import = lazy(() =>
+  import('./features/admin/Import.js').then((m) => ({ default: m.Import })),
+);
+const PolicyAdmin = lazy(() =>
+  import('./features/admin/PolicyAdmin.js').then((m) => ({ default: m.PolicyAdmin })),
+);
+const AskIproPanel = lazy(() =>
+  import('./features/assistant/AskIpro.js').then((m) => ({ default: m.AskIproPanel })),
+);
+const Templates = lazy(() =>
+  import('./features/admin/Templates.js').then((m) => ({ default: m.Templates })),
+);
+const MyAttendance = lazy(() =>
+  import('./features/attendance/Attendance.js').then((m) => ({ default: m.MyAttendance })),
+);
+const BiometricDevices = lazy(() =>
+  import('./features/attendance/Devices.js').then((m) => ({ default: m.BiometricDevices })),
+);
+const AttendanceExceptions = lazy(() =>
+  import('./features/attendance/Exceptions.js').then((m) => ({ default: m.AttendanceExceptions })),
+);
+const Holidays = lazy(() =>
+  import('./features/holidays/Holidays.js').then((m) => ({ default: m.Holidays })),
+);
+const MyLeave = lazy(() =>
+  import('./features/leave/Leave.js').then((m) => ({ default: m.MyLeave })),
+);
+const LeaveImport = lazy(() =>
+  import('./features/leave/LeaveAdmin.js').then((m) => ({ default: m.LeaveImport })),
+);
+const LeaveTypes = lazy(() =>
+  import('./features/leave/LeaveAdmin.js').then((m) => ({ default: m.LeaveTypes })),
+);
+const AllLeaveBalances = lazy(() =>
+  import('./features/leave/LeaveHr.js').then((m) => ({ default: m.AllLeaveBalances })),
+);
+const PayrollExport = lazy(() =>
+  import('./features/leave/LeaveHr.js').then((m) => ({ default: m.PayrollExport })),
+);
+const Seats = lazy(() =>
+  import('./features/hybrid/HybridAdmin.js').then((m) => ({ default: m.Seats })),
+);
+const WorkPolicies = lazy(() =>
+  import('./features/hybrid/HybridAdmin.js').then((m) => ({ default: m.WorkPolicies })),
+);
+const PlanWeek = lazy(() =>
+  import('./features/hybrid/PlanWeek.js').then((m) => ({ default: m.PlanWeek })),
+);
+const MyJourney = lazy(() =>
+  import('./features/journey/Journey.js').then((m) => ({ default: m.MyJourney })),
+);
+const TeamJourneys = lazy(() =>
+  import('./features/journey/TeamJourneys.js').then((m) => ({ default: m.TeamJourneys })),
+);
+const ExitTracker = lazy(() =>
+  import('./features/exit/Exit.js').then((m) => ({ default: m.ExitTracker })),
+);
+const Resign = lazy(() => import('./features/exit/Exit.js').then((m) => ({ default: m.Resign })));
+const HybridCompliance = lazy(() =>
+  import('./features/hybrid/Team.js').then((m) => ({ default: m.HybridCompliance })),
+);
+const TeamCalendar = lazy(() =>
+  import('./features/hybrid/Team.js').then((m) => ({ default: m.TeamCalendar })),
+);
+const TeamToday = lazy(() =>
+  import('./features/hybrid/Team.js').then((m) => ({ default: m.TeamToday })),
+);
+const ChecklistRuns = lazy(() =>
+  import('./features/checklists/ChecklistRuns.js').then((m) => ({ default: m.ChecklistRuns })),
+);
+const NewOffer = lazy(() =>
+  import('./features/offers/NewOffer.js').then((m) => ({ default: m.NewOffer })),
+);
+const Offers = lazy(() =>
+  import('./features/offers/Offers.js').then((m) => ({ default: m.Offers })),
+);
+const Probation = lazy(() =>
+  import('./features/reviews/Probation.js').then((m) => ({ default: m.Probation })),
+);
+const Reviews = lazy(() =>
+  import('./features/reviews/Reviews.js').then((m) => ({ default: m.Reviews })),
+);
+const NotificationsPage = lazy(() =>
+  import('./features/inbox/NotificationsPage.js').then((m) => ({ default: m.NotificationsPage })),
+);
+const OrgSetup = lazy(() =>
+  import('./features/org/OrgSetup.js').then((m) => ({ default: m.OrgSetup })),
+);
+const OrgTree = lazy(() =>
+  import('./features/org/OrgTree.js').then((m) => ({ default: m.OrgTree })),
+);
+const Directory = lazy(() =>
+  import('./features/people/Directory.js').then((m) => ({ default: m.Directory })),
+);
+const NewPerson = lazy(() =>
+  import('./features/people/NewPerson.js').then((m) => ({ default: m.NewPerson })),
+);
+const PersonRecord = lazy(() =>
+  import('./features/people/PersonRecord.js').then((m) => ({ default: m.PersonRecord })),
+);
+const MyPolicies = lazy(() =>
+  import('./features/policies/MyPolicies.js').then((m) => ({ default: m.MyPolicies })),
+);
+const Reports = lazy(() =>
+  import('./features/reports/Reports.js').then((m) => ({ default: m.Reports })),
+);
+const Requests = lazy(() =>
+  import('./features/requests/Requests.js').then((m) => ({ default: m.Requests })),
+);
+const Shifts = lazy(() =>
+  import('./features/shifts/Shifts.js').then((m) => ({ default: m.Shifts })),
+);
+const Onboarding = lazy(() =>
+  import('./features/onboarding/Onboarding.js').then((m) => ({ default: m.Onboarding })),
+);
 
 export function App() {
   return (
@@ -280,77 +366,83 @@ function Shell() {
         )}
         {me.data === null && <SignIn />}
         {user && (
-          <Routes>
-            <Route path="/" element={<Inbox />} />
-            <Route path="/approvals" element={<Inbox />} />
-            <Route path="/tasks" element={<Inbox />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/attendance" element={<MyAttendance />} />
-            <Route path="/devices" element={<BiometricDevices />} />
-            <Route path="/attendance-exceptions" element={<AttendanceExceptions />} />
-            <Route path="/leave" element={<MyLeave />} />
-            <Route path="/hybrid" element={<PlanWeek />} />
-            <Route path="/journey" element={<MyJourney />} />
-            <Route path="/team-journeys" element={<TeamJourneys />} />
-            <Route path="/resign" element={<Resign />} />
-            <Route path="/exits" element={<ExitTracker />} />
-            <Route path="/exits/:exitId" element={<ExitTracker />} />
-            <Route path="/team-today" element={<TeamToday />} />
-            <Route path="/team-calendar" element={<TeamCalendar />} />
-            <Route path="/hybrid-compliance" element={<HybridCompliance />} />
-            <Route path="/work-policies" element={<WorkPolicies />} />
-            <Route path="/work-policies/:policyId" element={<WorkPolicies />} />
-            <Route path="/seats" element={<Seats />} />
-            <Route path="/leave-types" element={<LeaveTypes />} />
-            <Route path="/leave-types/:typeId" element={<LeaveTypes />} />
-            <Route path="/leave-import" element={<LeaveImport />} />
-            <Route path="/import" element={<Import />} />
-            <Route path="/leave-balances" element={<AllLeaveBalances />} />
-            <Route path="/payroll-export" element={<PayrollExport />} />
-            <Route path="/requests" element={<Requests />} />
-            <Route path="/requests/:requestId" element={<Requests />} />
-            <Route path="/policies" element={<MyPolicies />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route
-              path="/me"
-              element={
-                user.personId ? (
-                  <main className="page">
-                    <PersonRecord personId={user.personId} />
-                  </main>
-                ) : (
-                  <Navigate to="/" />
-                )
-              }
-            />
-            <Route path="/people" element={<Directory />} />
-            <Route path="/people/new" element={<NewPerson />} />
-            <Route path="/people/:personId" element={<Directory />} />
-            <Route path="/org-tree" element={<OrgTree />} />
-            <Route path="/org-setup" element={<OrgSetup />} />
-            <Route path="/templates" element={<Templates />} />
-            <Route path="/templates/:kind" element={<Templates />} />
-            <Route path="/templates/:kind/:templateKey" element={<Templates />} />
-            <Route path="/policy-admin" element={<PolicyAdmin />} />
-            <Route path="/policy-admin/:policyId" element={<PolicyAdmin />} />
-            <Route path="/holidays" element={<Holidays />} />
-            <Route path="/holidays/:calendarId" element={<Holidays />} />
-            <Route path="/shifts" element={<Shifts />} />
-            <Route path="/shifts/:shiftId" element={<Shifts />} />
-            <Route path="/reviews" element={<Reviews />} />
-            <Route path="/reviews/:reviewId" element={<Reviews />} />
-            <Route path="/probation" element={<Probation />} />
-            <Route path="/offers" element={<Offers />} />
-            <Route path="/offers/new" element={<NewOffer />} />
-            <Route path="/offers/:offerId" element={<Offers />} />
-            <Route path="/checklists" element={<ChecklistRuns />} />
-            <Route path="/checklists/:runId" element={<ChecklistRuns />} />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
+          <Suspense fallback={<p className="muted">Loading…</p>}>
+            <Routes>
+              <Route path="/" element={<Inbox />} />
+              <Route path="/approvals" element={<Inbox />} />
+              <Route path="/tasks" element={<Inbox />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/attendance" element={<MyAttendance />} />
+              <Route path="/devices" element={<BiometricDevices />} />
+              <Route path="/attendance-exceptions" element={<AttendanceExceptions />} />
+              <Route path="/leave" element={<MyLeave />} />
+              <Route path="/hybrid" element={<PlanWeek />} />
+              <Route path="/journey" element={<MyJourney />} />
+              <Route path="/team-journeys" element={<TeamJourneys />} />
+              <Route path="/resign" element={<Resign />} />
+              <Route path="/exits" element={<ExitTracker />} />
+              <Route path="/exits/:exitId" element={<ExitTracker />} />
+              <Route path="/team-today" element={<TeamToday />} />
+              <Route path="/team-calendar" element={<TeamCalendar />} />
+              <Route path="/hybrid-compliance" element={<HybridCompliance />} />
+              <Route path="/work-policies" element={<WorkPolicies />} />
+              <Route path="/work-policies/:policyId" element={<WorkPolicies />} />
+              <Route path="/seats" element={<Seats />} />
+              <Route path="/leave-types" element={<LeaveTypes />} />
+              <Route path="/leave-types/:typeId" element={<LeaveTypes />} />
+              <Route path="/leave-import" element={<LeaveImport />} />
+              <Route path="/import" element={<Import />} />
+              <Route path="/leave-balances" element={<AllLeaveBalances />} />
+              <Route path="/payroll-export" element={<PayrollExport />} />
+              <Route path="/requests" element={<Requests />} />
+              <Route path="/requests/:requestId" element={<Requests />} />
+              <Route path="/policies" element={<MyPolicies />} />
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route
+                path="/me"
+                element={
+                  user.personId ? (
+                    <main className="page">
+                      <PersonRecord personId={user.personId} />
+                    </main>
+                  ) : (
+                    <Navigate to="/" />
+                  )
+                }
+              />
+              <Route path="/people" element={<Directory />} />
+              <Route path="/people/new" element={<NewPerson />} />
+              <Route path="/people/:personId" element={<Directory />} />
+              <Route path="/org-tree" element={<OrgTree />} />
+              <Route path="/org-setup" element={<OrgSetup />} />
+              <Route path="/templates" element={<Templates />} />
+              <Route path="/templates/:kind" element={<Templates />} />
+              <Route path="/templates/:kind/:templateKey" element={<Templates />} />
+              <Route path="/policy-admin" element={<PolicyAdmin />} />
+              <Route path="/policy-admin/:policyId" element={<PolicyAdmin />} />
+              <Route path="/holidays" element={<Holidays />} />
+              <Route path="/holidays/:calendarId" element={<Holidays />} />
+              <Route path="/shifts" element={<Shifts />} />
+              <Route path="/shifts/:shiftId" element={<Shifts />} />
+              <Route path="/reviews" element={<Reviews />} />
+              <Route path="/reviews/:reviewId" element={<Reviews />} />
+              <Route path="/probation" element={<Probation />} />
+              <Route path="/offers" element={<Offers />} />
+              <Route path="/offers/new" element={<NewOffer />} />
+              <Route path="/offers/:offerId" element={<Offers />} />
+              <Route path="/checklists" element={<ChecklistRuns />} />
+              <Route path="/checklists/:runId" element={<ChecklistRuns />} />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </Suspense>
         )}
       </div>
-      {user && asking && <AskIproPanel onClose={() => setAsking(false)} />}
+      {user && asking && (
+        <Suspense fallback={null}>
+          <AskIproPanel onClose={() => setAsking(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

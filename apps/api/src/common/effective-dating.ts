@@ -12,6 +12,9 @@ export interface DatedRow {
 export function addDays(isoDate: string, days: number): string {
   const date = new Date(`${isoDate}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
+  // Name the bad input (a date string, never personal data) instead of toISOString's bare RangeError.
+  if (Number.isNaN(date.getTime()))
+    throw new RangeError(`addDays: not a date: ${JSON.stringify(isoDate)}`);
   return date.toISOString().slice(0, 10);
 }
 

@@ -183,7 +183,13 @@ export function TeamCalendar() {
       {data.error && <Note kind="error">{errorMessage(data.error)}</Note>}
       {v && v.people.length === 0 && <Empty>No one in your team to show.</Empty>}
       {v && v.people.length > 0 && (
-        <div className="calendar-scroll">
+        // Focusable so the month can be scrolled from the keyboard (WCAG 2.1.1).
+        <div
+          className="calendar-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label="Team calendar month"
+        >
           <table className="team-calendar">
             <caption className="visually-hidden">Team calendar for {month}</caption>
             <thead>

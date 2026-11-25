@@ -1,21 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import type { MyPolicyView, MyTaskView, OnboardingView } from '@ipro/shared';
+import type { MyPolicyView, MyTaskView } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
 import { useMe } from '../../auth.js';
 import { Chip, Empty, formatDate, Note } from '../../design-system/index.js';
 import { Task } from '../inbox/Inbox.js';
 import { Documents, Kyc } from '../people/PersonRecord.js';
 import { Policy } from '../policies/MyPolicies.js';
-
-/** The joiner's onboarding, or null when they aren't joining (GET /api/onboarding/me). */
-export function useOnboarding(enabled = true) {
-  return useQuery({
-    queryKey: ['onboarding'],
-    queryFn: async () =>
-      (await api<{ onboarding: OnboardingView | null }>('/onboarding/me')).onboarding,
-    enabled,
-  });
-}
+import { useOnboarding } from './use-onboarding.js';
 
 const countdown = (days: number) =>
   days > 1 ? `in ${days} days` : days === 1 ? 'tomorrow' : days === 0 ? 'today' : 'started';

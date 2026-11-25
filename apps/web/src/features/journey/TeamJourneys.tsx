@@ -6,10 +6,12 @@ import {
   timelineCategoryColours,
   timelineCategoryWords,
   timelineHiddenByDefault,
-  type TeamJourneyEvent,
-  type TeamJourneyPerson,
-  type TeamJourneysView,
-  type TimelineCategory,
+} from '@ipro/shared/words';
+import type {
+  TeamJourneyEvent,
+  TeamJourneyPerson,
+  TeamJourneysView,
+  TimelineCategory,
 } from '@ipro/shared';
 import { api, errorMessage } from '../../api.js';
 import { hasRole, useMe } from '../../auth.js';

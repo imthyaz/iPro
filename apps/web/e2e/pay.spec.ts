@@ -67,5 +67,5 @@ test('an unpaid intern becomes paid: HR asks on the Pay tab; HR head approves on
 
   await page.goto(`/people/${personId}`);
   await record.getByRole('tab', { name: 'Journey' }).click();
-  await expect(record.getByText('Became paid')).toBeVisible();
+  await expect(record.getByRole('button', { name: /^Became paid,/ })).toBeVisible();
 });

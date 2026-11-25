@@ -4,7 +4,10 @@
   --color-text: #1a1f2b;
   --color-muted: #5a6476;
   --color-brand: #1f4fd1;
-  --color-ok: #17803d;
+  /* Text on a brand background: 6.8:1 light, 8.7:1 dark (WCAG AA; decision #97). */
+  --color-on-brand: #ffffff;
+  /* 5.1:1 on --color-ok-bg (WCAG AA; decision #97). */
+  --color-ok: #14743a;
   --color-warn: #a35a00;
   --color-error: #b42318;
   --space: 16px;
@@ -25,6 +28,7 @@
     --color-text: #e7eaf0;
     --color-muted: #a3acbd;
     --color-brand: #8ab0ff;
+    --color-on-brand: #0b1220;
     --color-ok: #5fd08a;
     --color-warn: #f2b55c;
     --color-error: #ff8a80;
@@ -197,7 +201,7 @@ a {
 .button-primary {
   background: var(--color-brand);
   border-color: var(--color-brand);
-  color: #ffffff;
+  color: var(--color-on-brand);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -998,11 +1002,12 @@ a.onboarding-link:hover {
 .segment-on {
   background: var(--color-brand);
   border-color: var(--color-brand);
-  color: #fff;
+  color: var(--color-on-brand);
 }
 
+/* Faded by background, not opacity, so its text keeps AA contrast (decision #97). */
 .day-off {
-  opacity: 0.7;
+  background: var(--color-surface);
 }
 
 .chip-line {
@@ -1186,9 +1191,14 @@ a.onboarding-link:hover {
   cursor: pointer;
 }
 
+/* Off: muted text on the surface (AA), only the swatch fades (decision #97). */
 .cat-chip-off {
   background: var(--color-surface);
-  opacity: 0.55;
+  color: var(--color-muted);
+}
+
+.cat-chip-off .cat-swatch {
+  opacity: 0.4;
 }
 
 .cat-chip-upcoming {
@@ -1248,7 +1258,7 @@ a.onboarding-link:hover {
   white-space: nowrap;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--color-on-brand);
   background: var(--color-brand);
   border-radius: 999px;
   padding: 2px 8px;
@@ -1604,8 +1614,8 @@ a.onboarding-link:hover {
   top: 0;
   bottom: 0;
   width: 2px;
-  background: var(--color-brand);
-  opacity: 0.6;
+  /* The brand blue at 60%, without fading the "Today" pill on it (decision #97). */
+  background: color-mix(in srgb, var(--color-brand) 60%, transparent);
   z-index: 1;
 }
 

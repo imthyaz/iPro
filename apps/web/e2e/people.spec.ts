@@ -39,7 +39,7 @@ test('HR creates a person in one screen; the record opens with a code and a Join
   await expect(record.getByRole('heading', { name })).toBeVisible();
   await expect(record.getByText(/IDS-\d{4} · Software Engineer · Engineering/)).toBeVisible();
   await record.getByRole('tab', { name: 'Journey' }).click();
-  await expect(record.getByText('Joined as Software Engineer')).toBeVisible();
+  await expect(record.getByRole('button', { name: /^Joined as Software Engineer,/ })).toBeVisible();
   await record.getByRole('tab', { name: 'Pay' }).click();
   await expect(record.getByText('₹9,00,000 a year')).toBeVisible();
 });

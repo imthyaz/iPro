@@ -219,5 +219,6 @@ back-fill (decision #95; done).
 - [ ] An independent security review (penetration test) is done and its findings fixed.
 
 **Notes:** sub-PRs: 14a the permissions regression suite and the generated route table (decision #96; done); 14b speed
-and accessibility; 14c backups and the restore runbook; 14d security hardening, the penetration-test scope and the pilot
+and accessibility (decision #97; done: 4G budgets and automated WCAG checks green; the manual accessibility checklist in
+docs/accessibility.md is done before go-live); 14c backups and the restore runbook; 14d security hardening, the penetration-test scope and the pilot
 script.
