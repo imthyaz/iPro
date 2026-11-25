@@ -1,4 +1,6 @@
 import { Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
+import * as backup from 'aws-cdk-lib/aws-backup';
+import * as events from 'aws-cdk-lib/aws-events';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as kms from 'aws-cdk-lib/aws-kms';
@@ -12,7 +14,15 @@ export const DR_REGION = 'ap-south-2';
 
 export interface IproStackProps extends StackProps {
   stage: 'dev' | 'staging' | 'prod';
+  /** The Hyderabad vault and key (IproDrStack). Without them nothing is copied out of Mumbai. */
+  dr?: { vault: backup.IBackupVault; key: kms.IKey };
 }
+
+/**
+ * Backups (spec: nightly full backup plus point-in-time recovery; lose no more than 15 minutes, back
+ * up within 4 hours; decision #98). Kept 35 days in production, 7 elsewhere.
+ */
+export const backupRetentionDays = (stage: IproStackProps['stage']) => (stage === 'prod' ? 35 : 7);
 
 export class IproStack extends Stack {
   constructor(scope: Construct, id: string, props: IproStackProps) {
@@ -32,10 +42,13 @@ export class IproStack extends Stack {
       ],
     });
 
-    // Envelope key for field-level encryption of KYC and compensation.
+    // Envelope key for field-level encryption of KYC and compensation. Multi-Region, with a replica in
+    // Hyderabad (IproDrKeysStack), so a database restored there can still read those fields
+    // (decision #98). Can't be changed after the key exists.
     const fieldKey = new kms.Key(this, 'FieldEncryptionKey', {
       alias: `alias/ipro-${props.stage}-fields`,
       enableKeyRotation: true,
+      multiRegion: true,
       removalPolicy: RemovalPolicy.RETAIN,
     });
 
@@ -45,7 +58,7 @@ export class IproStack extends Stack {
       removalPolicy: RemovalPolicy.RETAIN,
     });
 
-    new s3.Bucket(this, 'Documents', {
+    const documents = new s3.Bucket(this, 'Documents', {
       encryption: s3.BucketEncryption.KMS,
       encryptionKey: storageKey,
       bucketKeyEnabled: true,
@@ -55,7 +68,9 @@ export class IproStack extends Stack {
       removalPolicy: RemovalPolicy.RETAIN,
     });
 
-    new rds.DatabaseInstance(this, 'Database', {
+    const retention = Duration.days(backupRetentionDays(props.stage));
+    // Point-in-time recovery comes from the automated backups: transaction logs every 5 minutes.
+    const database = new rds.DatabaseInstance(this, 'Database', {
       engine: rds.DatabaseInstanceEngine.postgres({ version: rds.PostgresEngineVersion.VER_16 }),
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
@@ -64,9 +79,47 @@ export class IproStack extends Stack {
       storageEncrypted: true,
       storageEncryptionKey: storageKey,
       multiAz: isProd,
-      backupRetention: Duration.days(isProd ? 35 : 7),
+      backupRetention: retention,
+      preferredBackupWindow: '20:00-20:30', // 01:30–02:00 IST, before the nightly plan
       deletionProtection: isProd,
       removalPolicy: isProd ? RemovalPolicy.RETAIN : RemovalPolicy.SNAPSHOT,
+    });
+
+    // The automated backups (and so point-in-time recovery) are also kept in Hyderabad, so a regional
+    // outage loses minutes, not a day.
+    if (props.dr) {
+      const cfn = database.node.defaultChild as rds.CfnDBInstance;
+      cfn.addPropertyOverride('AutomaticBackupReplicationRegion', DR_REGION);
+      cfn.addPropertyOverride('AutomaticBackupReplicationKmsKeyId', props.dr.key.keyArn);
+    }
+
+    // Nightly at 02:00 IST: the database and the documents bucket, copied to Hyderabad.
+    const vault = new backup.BackupVault(this, 'Vault', {
+      backupVaultName: `ipro-${props.stage}`,
+      encryptionKey: storageKey,
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+    const plan = new backup.BackupPlan(this, 'NightlyBackup', {
+      backupPlanName: `ipro-${props.stage}-nightly`,
+      backupVault: vault,
+    });
+    plan.addRule(
+      new backup.BackupPlanRule({
+        ruleName: 'nightly',
+        scheduleExpression: events.Schedule.cron({ minute: '30', hour: '20' }),
+        startWindow: Duration.hours(1),
+        completionWindow: Duration.hours(4),
+        deleteAfter: retention,
+        ...(props.dr && {
+          copyActions: [{ destinationBackupVault: props.dr.vault, deleteAfter: retention }],
+        }),
+      }),
+    );
+    plan.addSelection('DataStores', {
+      resources: [
+        backup.BackupResource.fromRdsDatabaseInstance(database),
+        backup.BackupResource.fromArn(documents.bucketArn),
+      ],
     });
 
     new ecs.Cluster(this, 'Cluster', { vpc, containerInsights: true });

@@ -136,3 +136,12 @@ configurable setting.
       AWS, and iPro accepts only in. ids, so nothing can route data outside India.
 - [x] Ask iPro's link to HR when no policy answers (decision #89): a Teams chat with the company's HR people, the
       question typed in; HR can set a fixed link instead (decision #90).
+
+## Backups (slice 14c, decision #98)
+
+- [ ] Immutable backups: should production's vaults be locked (AWS Backup Vault Lock, compliance mode), so no one,
+      including an administrator, can delete backups before they expire? Once the grace period ends it can't be
+      undone. Not set until agreed.
+- [ ] Longer-term copies: is 35 days enough, or should a monthly backup be kept longer (e.g. 1 year) for audits?
+      Not set; the spec gives only nightly backups and point-in-time recovery.
+- [ ] Who runs the restore test in staging before go-live and each quarter, and where is the result recorded?

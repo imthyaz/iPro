@@ -13,7 +13,8 @@
     "test:int": "vitest run --project integration",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/seed.js"
+    "db:seed": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/seed.js",
+    "ops:restore-check": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/ops/restore-check-cli.js"
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "1.1.0",
