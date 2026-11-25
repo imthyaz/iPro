@@ -214,7 +214,7 @@ export function AttendanceMonth({ personId, self = false }: { personId: string; 
             ))}
             {flagged > 0 && <Chip tone="warn">Flagged {flagged}</Chip>}
           </p>
-          <div className="month-grid" role="grid" aria-label={`Attendance for ${month}`}>
+          <div className="month-grid" role="group" aria-label={`Attendance for ${month}`}>
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((w) => (
               <span key={w} className="month-weekday" aria-hidden="true">
                 {w}
@@ -229,13 +229,20 @@ export function AttendanceMonth({ personId, self = false }: { personId: string; 
                 className={`month-day${d.status ? ` day-${statusTone[d.status]}` : ''}${
                   d.date === selected ? ' month-day-selected' : ''
                 }`}
-                aria-label={`${formatDate(d.date)}: ${d.status ? statusWords[d.status] : 'not yet'}${
-                  d.flags.length ? `, ${d.flags.map((f) => flagWords[f]).join(', ')}` : ''
-                }`}
                 onClick={() => setSelected(d.date)}
               >
-                <span className="month-day-number">{Number(d.date.slice(8))}</span>
-                <span className="month-day-status">{d.status ? statusWords[d.status] : ''}</span>
+                {/* One spoken name, e.g. "9 Nov 2026: Present"; the compact visible text is hidden from
+                    screen readers so it isn't read twice (WCAG 2.5.3; decision #97). */}
+                <span className="visually-hidden">
+                  {formatDate(d.date)}: {d.status ? statusWords[d.status] : 'not yet'}
+                  {d.flags.length ? `, ${d.flags.map((f) => flagWords[f]).join(', ')}` : ''}
+                </span>
+                <span className="month-day-number" aria-hidden="true">
+                  {Number(d.date.slice(8))}
+                </span>
+                <span className="month-day-status" aria-hidden="true">
+                  {d.status ? statusWords[d.status] : ''}
+                </span>
                 {d.flags.length > 0 && <span className="month-day-flag" aria-hidden="true" />}
               </button>
             ))}

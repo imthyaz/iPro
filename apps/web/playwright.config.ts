@@ -6,6 +6,9 @@ import { defineConfig, devices } from '@playwright/test';
 const E2E_DATABASE_URL =
   process.env.E2E_DATABASE_URL ?? 'postgres://ipro:ipro@localhost:5432/ipro_e2e';
 
+/** Run in their own projects after the flows (see projects). */
+const CHECKS = ['accessibility.spec.ts', 'speed.spec.ts'];
+
 export default defineConfig({
   testDir: 'e2e',
   forbidOnly: !!process.env.CI,
@@ -13,8 +16,35 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'list',
   use: { baseURL: 'http://localhost:4173', trace: 'retain-on-failure' },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] }, testIgnore: CHECKS },
+    { name: 'mobile', use: { ...devices['Pixel 7'] }, testIgnore: CHECKS },
+    // Accessibility checks (axe is CPU-heavy) run after the flows, so they don't slow them past their
+    // timeouts; speed budgets run last, one project at a time, so nothing competes while pages are
+    // timed (decision #97).
+    {
+      name: 'a11y-desktop',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: 'accessibility.spec.ts',
+      dependencies: ['desktop', 'mobile'],
+    },
+    {
+      name: 'a11y-mobile',
+      use: { ...devices['Pixel 7'] },
+      testMatch: 'accessibility.spec.ts',
+      dependencies: ['desktop', 'mobile'],
+    },
+    {
+      name: 'speed-desktop',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: 'speed.spec.ts',
+      dependencies: ['a11y-desktop', 'a11y-mobile'],
+    },
+    {
+      name: 'speed-mobile',
+      use: { ...devices['Pixel 7'] },
+      testMatch: 'speed.spec.ts',
+      dependencies: ['speed-desktop'],
+    },
   ],
   webServer: [
     {

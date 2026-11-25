@@ -1,4 +1,4 @@
-import { healthResponseSchema } from '@ipro/shared';
+import type { HealthResponse } from '@ipro/shared';
 
 export type ApiStatus = 'checking' | 'ok' | 'degraded' | 'unreachable';
 
@@ -6,8 +6,10 @@ export type ApiStatus = 'checking' | 'ok' | 'degraded' | 'unreachable';
 export async function fetchApiStatus(fetchFn: typeof fetch = fetch): Promise<ApiStatus> {
   try {
     const response = await fetchFn('/api/health');
-    const parsed = healthResponseSchema.safeParse(await response.json());
-    return parsed.success ? parsed.data.status : 'unreachable';
+    // Checked by hand rather than with the zod schema, which would put zod in the first download
+    // (decision #97).
+    const body = (await response.json()) as Partial<HealthResponse> | null;
+    return body?.status === 'ok' || body?.status === 'degraded' ? body.status : 'unreachable';
   } catch {
     return 'unreachable';
   }
