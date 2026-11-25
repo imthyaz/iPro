@@ -220,5 +220,6 @@ back-fill (decision #95; done).
 
 **Notes:** sub-PRs: 14a the permissions regression suite and the generated route table (decision #96; done); 14b speed
 and accessibility (decision #97; done: 4G budgets and automated WCAG checks green; the manual accessibility checklist in
-docs/accessibility.md is done before go-live); 14c backups and the restore runbook; 14d security hardening, the penetration-test scope and the pilot
+docs/accessibility.md is done before go-live); 14c backups, Hyderabad copies and the restore runbook and check (decision #98;
+done: the test itself is run in staging by someone with AWS access, per docs/runbooks/backup-restore.md); 14d security hardening, the penetration-test scope and the pilot
 script.

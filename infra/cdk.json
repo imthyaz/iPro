@@ -1,3 +1,6 @@
 {
-  "app": "npx tsx bin/ipro.ts"
+  "app": "npx tsx bin/ipro.ts",
+  "context": {
+    "@aws-cdk/core:defaultCrossStackReferences": "strong"
+  }
 }
