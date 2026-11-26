@@ -1,4 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { sendPendingApprovals, installTestClock } from './undo.js';
+
+// Approvals are sent by jumping the page clock past the undo window (decision #86).
+installTestClock();
 
 // Runs against the seeded dev database (synthetic people). Dev Lead Three's ten teammates exist for
 // this test alone, so no other test's cards land in that inbox.
@@ -102,8 +106,7 @@ test('a manager clears 10 leave requests from the Action inbox on a phone in und
   await page.getByRole('button', { name: 'Approve 9' }).click();
   await expect(cards).toHaveCount(0);
   await expect(bar.getByRole('status').filter({ hasText: 'Approved 9 requests' })).toBeVisible();
-  // Both sends go out after their 10-second undo windows; the inbox then shows none left.
-  await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
+  await sendPendingApprovals(page);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Action inbox' })).toBeVisible();
   await expect(cards).toHaveCount(0);

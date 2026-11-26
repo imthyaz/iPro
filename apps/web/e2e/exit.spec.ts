@@ -1,4 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
+import { sendPendingApprovals, installTestClock } from './undo.js';
+
+// Approvals are sent by jumping the page clock past the undo window (decision #86).
+installTestClock();
 
 // Runs against the seeded dev database (synthetic people). Dev Employee resigns, Dev Manager and
 // Dev HR accept, then the resignation is withdrawn and approved, so the dev data ends as it began.
@@ -47,8 +51,6 @@ test('resign, the manager and HR accept, then withdraw with their approval', asy
     testInfo.project.name === 'mobile',
     'one person resigns; the form is checked on mobile below',
   );
-  // Two approvals each wait out their 10-second undo window.
-  test.setTimeout(90_000);
   await tidyUp(page);
 
   await signInAs(page, DEV.employee);
@@ -122,8 +124,7 @@ test('resign, the manager and HR accept, then withdraw with their approval', asy
       .filter({ hasText: 'Withdraw resignation: Dev Employee' });
     await w.getByRole('button', { name: 'Approve' }).click();
     await expect(w).toHaveCount(0);
-    // Approvals wait out their 10-second undo window before they are sent (decision #86).
-    await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
+    await sendPendingApprovals(page);
   }
 
   await signInAs(page, DEV.employee);
