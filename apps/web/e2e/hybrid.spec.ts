@@ -1,4 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
+import { sendPendingApprovals, installTestClock } from './undo.js';
+
+// Approvals are sent by jumping the page clock past the undo window (decision #86).
+installTestClock();
 
 // Runs against the seeded dev database (synthetic people). Desktop and mobile plan as different
 // people, each approved by that person's manager, in the first week ahead nobody has planned yet.
@@ -72,8 +76,7 @@ test('plan a week below policy; the manager approves it on the card', async ({
   await expect(card).toContainText('Release week with the US team');
   await card.getByRole('button', { name: 'Approve' }).click();
   await expect(card).toHaveCount(0);
-  // Approvals wait out their 10-second undo window before they are sent (decision #86).
-  await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
+  await sendPendingApprovals(page);
 
   await signInAs(page, pair.asker);
   await page.goto(`/hybrid?week=${week}`);

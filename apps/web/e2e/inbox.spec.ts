@@ -1,4 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
+import { sendPendingApprovals, installTestClock } from './undo.js';
+
+// Approvals are sent by jumping the page clock past the undo window (decision #86).
+installTestClock();
 
 // Runs against the seeded dev database (synthetic users and people from `pnpm db:seed`).
 const DEV = {
@@ -56,8 +60,7 @@ test('an employee’s change is approved by HR in one tap from the inbox', async
   await expect(card.getByText(`HR review · for ${who.name}`, { exact: false })).toBeVisible();
   await card.getByRole('button', { name: 'Approve' }).click();
   await expect(card).toHaveCount(0);
-  // Approvals wait out their 10-second undo window before they are sent (decision #86).
-  await expect(page.getByText(/· sending/)).toHaveCount(0, { timeout: 20_000 });
+  await sendPendingApprovals(page);
 
   await signInAs(page, who.id);
   await page.goto('/me');
