@@ -59,6 +59,8 @@ export default defineConfig({
       env: {
         JOBS_ENABLED: 'false',
         STORAGE_PROVIDER: 'memory',
+        // The app's own address: changes from any other origin are refused (decision #99).
+        APP_URL: 'http://localhost:4173',
         ...(process.env.CI ? {} : { DATABASE_URL: E2E_DATABASE_URL, E2E_DATABASE_URL }),
       },
     },

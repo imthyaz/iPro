@@ -14,6 +14,15 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
+    /** Rate limits on Ask iPro and the public routes (decision #99). Off only in tests. */
+    RATE_LIMITS_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    /** Questions per minute per session; each one costs a model call. */
+    RATE_LIMIT_ASK_PER_MINUTE: z.coerce.number().int().positive().default(20),
+    /** Proxies in front of the API (the load balancer is 1), so the caller's address is right. */
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
 
     ENTRA_TENANT_ID: optionalText,
     ENTRA_CLIENT_ID: optionalText,
@@ -171,6 +180,11 @@ const envSchema = z
       if (env.MAIL_PROVIDER === 'fake') {
         fail('MAIL_PROVIDER', 'production sends email through Microsoft Graph, or "none"');
       }
+      // Hardening (decision #99): unsigned e-sign callbacks are refused, and only HTTPS is served.
+      if (env.ESIGN_PROVIDER === 'zoho' && !env.ZOHO_SIGN_WEBHOOK_SECRET) {
+        fail('ZOHO_SIGN_WEBHOOK_SECRET', 'required in production, so webhooks are signed');
+      }
+      if (!env.APP_URL.startsWith('https://')) fail('APP_URL', 'production is served over HTTPS');
     }
   });
 
