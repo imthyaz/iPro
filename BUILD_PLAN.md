@@ -222,4 +222,5 @@ back-fill (decision #95; done).
 and accessibility (decision #97; done: 4G budgets and automated WCAG checks green; the manual accessibility checklist in
 docs/accessibility.md is done before go-live); 14c backups, Hyderabad copies and the restore runbook and check (decision #98;
 done: the test itself is run in staging by someone with AWS access, per docs/runbooks/backup-restore.md); 14d security hardening, the penetration-test scope and the pilot
-script.
+script (decision #99; done: the pilot and the independent pen test are run by people, per docs/pilot/pilot-script.md
+and docs/security/pentest-scope.md).

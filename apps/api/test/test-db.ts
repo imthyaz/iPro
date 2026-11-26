@@ -14,4 +14,6 @@ export const testEnv = {
   JOBS_ENABLED: 'false',
   LOCAL_FIELD_KEY: randomBytes(32).toString('base64'),
   STORAGE_PROVIDER: 'memory',
+  // Suites ask many questions as one user; the limits have their own test (hardening.int.test.ts).
+  RATE_LIMITS_ENABLED: 'false',
 };

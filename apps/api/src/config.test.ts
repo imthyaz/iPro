@@ -101,3 +101,40 @@ describe('Ask iPro model ids (slice 12 done-when #5: India-only routing)', () =>
     expect(loadConfig(base).LLM_PROVIDER).toBe('fake');
   });
 });
+
+describe('production hardening (slice 14d; decision #99)', () => {
+  const zoho = {
+    NODE_ENV: 'production',
+    ESIGN_PROVIDER: 'zoho',
+    ZOHO_SIGN_CLIENT_ID: 'client',
+    ZOHO_SIGN_CLIENT_SECRET: 'secret',
+    ZOHO_SIGN_REFRESH_TOKEN: 'token',
+  };
+  const problems = (env: Record<string, string | undefined>) => {
+    try {
+      loadConfig({ ...base, ...env });
+      return [];
+    } catch (error) {
+      return (error as Error).message.replace('Invalid configuration: ', '').split(', ');
+    }
+  };
+
+  it('requires the Zoho Sign webhook secret, so unsigned callbacks are refused', () => {
+    expect(problems(zoho)).toContain('ZOHO_SIGN_WEBHOOK_SECRET');
+    expect(problems({ ...zoho, ZOHO_SIGN_WEBHOOK_SECRET: 'shh' })).not.toContain(
+      'ZOHO_SIGN_WEBHOOK_SECRET',
+    );
+  });
+
+  it('requires the app to be served over HTTPS', () => {
+    expect(problems(zoho)).toContain('APP_URL');
+    expect(problems({ ...zoho, APP_URL: 'https://ipro.example.test' })).not.toContain('APP_URL');
+  });
+
+  it('keeps rate limits on by default, with the Ask iPro limit per session', () => {
+    const config = loadConfig(base);
+    expect(config.RATE_LIMITS_ENABLED).toBe(true);
+    expect(config.RATE_LIMIT_ASK_PER_MINUTE).toBe(20);
+    expect(config.TRUST_PROXY_HOPS).toBe(0);
+  });
+});
