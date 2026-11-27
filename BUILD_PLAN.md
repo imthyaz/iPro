@@ -224,3 +224,10 @@ docs/accessibility.md is done before go-live); 14c backups, Hyderabad copies and
 done: the test itself is run in staging by someone with AWS access, per docs/runbooks/backup-restore.md); 14d security hardening, the penetration-test scope and the pilot
 script (decision #99; done: the pilot and the independent pen test are run by people, per docs/pilot/pilot-script.md
 and docs/security/pentest-scope.md).
+
+## [x] Deployment (added after slice 14, decision #100)
+
+Container images for the API and web app, the running app on AWS (Fargate services, one HTTPS load balancer with a
+web firewall, migrations at task start), stage settings and secrets, and a deploy workflow from GitHub Actions.
+Runbook: docs/runbooks/deploy.md. The first deploy needs the AWS account, DNS names, the Entra app and Zoho Sign
+(docs/open-questions.md).

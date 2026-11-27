@@ -14,6 +14,7 @@ import {
 import { PgBoss } from 'pg-boss';
 import { Authorize } from '../authz/decorators.js';
 import { APP_CONFIG, type AppConfig } from '../config.js';
+import { pgSsl } from '../db/pg-options.js';
 
 export const JOBS = Symbol('JOBS');
 
@@ -93,7 +94,8 @@ export class JobsController {
     {
       provide: JOBS,
       inject: [APP_CONFIG],
-      useFactory: (config: AppConfig) => new PgBoss({ connectionString: config.DATABASE_URL }),
+      useFactory: (config: AppConfig) =>
+        new PgBoss({ connectionString: config.DATABASE_URL, ssl: pgSsl(config) }),
     },
     ScheduledJobs,
     JobsLifecycle,

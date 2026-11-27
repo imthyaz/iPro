@@ -7,6 +7,8 @@ import * as kms from 'aws-cdk-lib/aws-kms';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import type { Construct } from 'constructs';
+import { IproApp, type AppSettings } from './ipro-app.js';
+import type { IproPrereqStack } from './ipro-prereq-stack.js';
 
 /** Personal data stays in India (DPDP): Mumbai primary, Hyderabad for disaster recovery. */
 export const PRIMARY_REGION = 'ap-south-1';
@@ -16,6 +18,8 @@ export interface IproStackProps extends StackProps {
   stage: 'dev' | 'staging' | 'prod';
   /** The Hyderabad vault and key (IproDrStack). Without them nothing is copied out of Mumbai. */
   dr?: { vault: backup.IBackupVault; key: kms.IKey };
+  /** Run the app (decision #100). Without it the stack holds data, keys and backups only. */
+  app?: { settings: AppSettings; prereq: IproPrereqStack };
 }
 
 /**
@@ -76,6 +80,7 @@ export class IproStack extends Stack {
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MEDIUM),
       credentials: rds.Credentials.fromGeneratedSecret('ipro_admin'),
+      databaseName: 'ipro',
       storageEncrypted: true,
       storageEncryptionKey: storageKey,
       multiAz: isProd,
@@ -122,11 +127,25 @@ export class IproStack extends Stack {
       ],
     });
 
-    new ecs.Cluster(this, 'Cluster', { vpc, containerInsights: true });
+    const cluster = new ecs.Cluster(this, 'Cluster', { vpc, containerInsights: true });
+
+    if (props.app) {
+      this.app = new IproApp(this, 'App', {
+        stage: props.stage,
+        vpc,
+        cluster,
+        database,
+        documents,
+        fieldKey,
+        settings: props.app.settings,
+        prereq: props.app.prereq,
+      });
+    }
 
     // Exposed for later slices (API task role grants).
     this.fieldEncryptionKeyArn = fieldKey.keyArn;
   }
 
   readonly fieldEncryptionKeyArn: string;
+  readonly app?: IproApp;
 }

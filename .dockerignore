@@ -1,0 +1,15 @@
+# Built inside the image; never copy local builds, secrets or test output in.
+**/node_modules
+**/dist
+**/dev-dist
+**/cdk.out
+**/test-results
+**/playwright-report
+**/coverage
+.env
+.env.*
+!.env.example
+.git
+docker
+prompts
+docs

@@ -42,7 +42,7 @@ block merging, turn on branch protection for `main` in GitHub (Settings → Bran
 | `apps/api` | NestJS API (ESM). `src/db` schema and tenant context, `drizzle/` SQL migrations, `test/` integration tests |
 | `apps/web` | React + Vite installable PWA, Playwright tests in `e2e/` |
 | `packages/shared` | zod schemas and types shared by API and web |
-| `infra` | AWS CDK skeleton for ap-south-1 (synthesised and tested, not deployed) |
+| `infra` | AWS CDK: Mumbai and Hyderabad stacks, the running app on Fargate; deploy with the Deploy workflow (docs/runbooks/deploy.md) |
 
 ## What's here
 

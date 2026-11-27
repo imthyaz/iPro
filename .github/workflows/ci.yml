@@ -88,3 +88,17 @@ jobs:
         with:
           name: playwright-report
           path: apps/web/playwright-report
+
+  images:
+    name: Container images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The images the deploy pushes (decision #100): built on every change, so a broken Dockerfile
+      # shows up here, not during a deploy.
+      - run: docker build -f apps/api/Dockerfile -t ipro-api:ci .
+      - run: docker build -f apps/web/Dockerfile -t ipro-web:ci .
+      - name: The API image runs as a non-root user and has its migrations
+        run: |
+          test "$(docker run --rm --entrypoint whoami ipro-api:ci)" = node
+          docker run --rm --entrypoint ls ipro-api:ci drizzle/0000_init.sql dist/db/migrate-cli.js
