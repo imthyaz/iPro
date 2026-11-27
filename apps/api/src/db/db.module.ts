@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { APP_CONFIG, type AppConfig } from '../config.js';
 import * as schema from './schema.js';
+import { pgSsl } from './pg-options.js';
 import { TenantDb } from './tenant-db.js';
 import { DB, PG_POOL, type Db } from './tokens.js';
 
@@ -24,7 +25,7 @@ class PoolShutdown implements OnApplicationShutdown {
       provide: PG_POOL,
       inject: [APP_CONFIG],
       useFactory: (config: AppConfig) =>
-        new pg.Pool({ connectionString: config.DATABASE_URL, max: 10 }),
+        new pg.Pool({ connectionString: config.DATABASE_URL, ssl: pgSsl(config), max: 10 }),
     },
     {
       provide: DB,

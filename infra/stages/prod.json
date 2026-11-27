@@ -1,0 +1,19 @@
+{
+  "domainName": "REPLACE_ME",
+  "certificateArn": "REPLACE_ME",
+  "desiredCount": 2,
+  "environment": {
+    "TENANT_ID": "REPLACE_ME",
+    "TENANT_NAME": "Ideassion",
+    "ENTRA_TENANT_ID": "REPLACE_ME",
+    "ENTRA_CLIENT_ID": "REPLACE_ME",
+    "ZOHO_SIGN_CLIENT_ID": "REPLACE_ME",
+    "INVITES_PROVIDER": "graph",
+    "GRAPH_CLIENT_ID": "REPLACE_ME",
+    "PREJOINER_GROUP_ID": "REPLACE_ME",
+    "DIRECTORY_PROVIDER": "none",
+    "TEAMS_PROVIDER": "none",
+    "MAIL_PROVIDER": "none",
+    "LLM_PROVIDER": "none"
+  }
+}

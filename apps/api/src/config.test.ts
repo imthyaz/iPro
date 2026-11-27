@@ -138,3 +138,40 @@ describe('production hardening (slice 14d; decision #99)', () => {
     expect(config.TRUST_PROXY_HOPS).toBe(0);
   });
 });
+
+describe('database connection on AWS (decision #100)', () => {
+  const parts = {
+    DATABASE_URL: undefined,
+    DATABASE_HOST: 'db.internal.test',
+    DATABASE_PORT: '5432',
+    DATABASE_USER: 'ipro_admin',
+    DATABASE_PASSWORD: 'p@ss:w/rd',
+  };
+
+  it('builds the URL from the parts the database secret provides', () => {
+    const config = loadConfig({ ...base, ...parts });
+    expect(config.DATABASE_URL).toBe(
+      'postgres://ipro_admin:p%40ss%3Aw%2Frd@db.internal.test:5432/ipro',
+    );
+  });
+
+  it('still needs a database when neither is given', () => {
+    expect(() => loadConfig({ ...base, DATABASE_URL: undefined })).toThrow('DATABASE_URL');
+  });
+
+  it('connects without TLS locally, and only with a verified certificate in production', () => {
+    expect(loadConfig(base).DATABASE_SSL).toBe('off');
+    expect(() =>
+      loadConfig({ ...base, DATABASE_SSL: 'verify', DATABASE_SSL_CA_FILE: undefined }),
+    ).toThrow('DATABASE_SSL_CA_FILE');
+    expect(() => loadConfig({ ...base, NODE_ENV: 'production' })).toThrow(/DATABASE_SSL/);
+  });
+});
+
+describe('unfilled deploy placeholders (decision #100)', () => {
+  it('refuses to start while a setting still says REPLACE_ME, naming it', () => {
+    expect(() =>
+      loadConfig({ ...base, ENTRA_CLIENT_SECRET: 'REPLACE_ME', MAIL_FROM: 'REPLACE_ME' }),
+    ).toThrow(/ENTRA_CLIENT_SECRET.*MAIL_FROM|MAIL_FROM.*ENTRA_CLIENT_SECRET/);
+  });
+});

@@ -145,3 +145,10 @@ configurable setting.
 - [ ] Longer-term copies: is 35 days enough, or should a monthly backup be kept longer (e.g. 1 year) for audits?
       Not set; the spec gives only nightly backups and point-in-time recovery.
 - [ ] Who runs the restore test in staging before go-live and each quarter, and where is the result recorded?
+
+## Deployment (decision #100)
+
+- [ ] Which AWS account hosts iPro, and who is its administrator (CDK bootstrap, the GitHub deploy role)?
+- [ ] The names for staging and production (e.g. ipro-staging.ideassion.com, ipro.ideassion.com) and who manages
+      that DNS zone.
+- [ ] Who approves production deploys (reviewers on the GitHub `prod` environment)?

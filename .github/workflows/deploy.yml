@@ -1,0 +1,104 @@
+name: Deploy
+
+# Builds the API and web images, pushes them to the stage's repositories and deploys the stage's stacks
+# (decision #100; docs/runbooks/deploy.md). Run by hand from the Actions tab. Production runs only after
+# a reviewer approves the "prod" GitHub environment.
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: Stage to deploy
+        type: choice
+        options: [staging, prod]
+        default: staging
+      prereq_only:
+        description: First time only - create the image repositories and the app secret, then stop
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-${{ inputs.stage }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # sign in to AWS with GitHub's OIDC token: no stored AWS keys
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.stage }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.stage }}
+    env:
+      STAGE: ${{ inputs.stage }}
+      TAG: ${{ github.sha }}
+      AWS_REGION: ap-south-1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Deploys run from main only." >&2
+          exit 1
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Sign in to AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Repositories and the app secret
+        working-directory: infra
+        run: pnpm exec cdk deploy "ipro-$STAGE-prereq" -c "stage=$STAGE" --require-approval never
+
+      - name: Stop here on a first run
+        if: inputs.prereq_only
+        run: |
+          echo "Created the repositories and the secret ipro/$STAGE/app."
+          echo "Fill in every REPLACE_ME in that secret, then run this workflow again."
+
+      - name: Build and push images
+        if: ${{ !inputs.prereq_only }}
+        run: |
+          registry="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.$AWS_REGION.amazonaws.com"
+          aws ecr get-login-password | docker login --username AWS --password-stdin "$registry"
+          for app in api web; do
+            image="$registry/ipro-$STAGE-$app:$TAG"
+            # Tags are immutable: a commit already pushed is reused, never rebuilt.
+            if aws ecr describe-images --repository-name "ipro-$STAGE-$app" --image-ids "imageTag=$TAG" >/dev/null 2>&1; then
+              echo "$image already pushed"
+            else
+              docker build -f "apps/$app/Dockerfile" -t "$image" .
+              docker push "$image"
+            fi
+          done
+
+      - name: Deploy the stacks
+        if: ${{ !inputs.prereq_only }}
+        working-directory: infra
+        run: |
+          pnpm exec cdk deploy "ipro-$STAGE-dr" "ipro-$STAGE" "ipro-$STAGE-dr-keys" \
+            -c "stage=$STAGE" -c "imageTag=$TAG" --require-approval never
+
+      # Straight to the load balancer, still checking the certificate for the real name, so it works
+      # before DNS points at a new stage.
+      - name: Smoke check
+        if: ${{ !inputs.prereq_only }}
+        run: |
+          domain=$(node -p "require('./infra/stages/$STAGE.json').domainName")
+          lb=$(aws cloudformation describe-stacks --stack-name "ipro-$STAGE" \
+            --query "Stacks[0].Outputs[?contains(OutputKey,'LoadBalancerDns')].OutputValue" --output text)
+          for i in $(seq 1 30); do
+            ip=$(getent hosts "$lb" | awk '{print $1; exit}')
+            if [ -n "$ip" ] && curl -fsS --resolve "$domain:443:$ip" "https://$domain/api/health" | grep -q '"status":"ok"'; then
+              echo "https://$domain answers through $lb"; exit 0
+            fi
+            sleep 10
+          done
+          echo "https://$domain/api/health did not answer ok through $lb" >&2
+          exit 1

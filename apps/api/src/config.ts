@@ -8,6 +8,12 @@ const envSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(3000),
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+    /**
+     * TLS to the database (decision #100): off locally; "verify" on AWS, where RDS requires TLS and the
+     * server is checked against the RDS CA bundle in the image.
+     */
+    DATABASE_SSL: z.enum(['off', 'verify']).default('off'),
+    DATABASE_SSL_CA_FILE: optionalText,
     /** Phase 1 runs one tenant per deployment; later, the tenant comes from the hostname. */
     TENANT_ID: z.uuid(),
     JOBS_ENABLED: z
@@ -94,6 +100,9 @@ const envSchema = z
   .superRefine((env, ctx) => {
     const fail = (path: string, message: string) =>
       ctx.addIssue({ code: 'custom', path: [path], message });
+    if (env.DATABASE_SSL === 'verify' && !env.DATABASE_SSL_CA_FILE) {
+      fail('DATABASE_SSL_CA_FILE', 'required to verify the database certificate');
+    }
     if (env.AUTH_MODE === 'entra') {
       for (const key of ['ENTRA_CLIENT_ID', 'ENTRA_CLIENT_SECRET', 'OIDC_REDIRECT_URI'] as const) {
         if (!env[key]) fail(key, 'required when ENTRA_TENANT_ID is set');
@@ -185,6 +194,9 @@ const envSchema = z
         fail('ZOHO_SIGN_WEBHOOK_SECRET', 'required in production, so webhooks are signed');
       }
       if (!env.APP_URL.startsWith('https://')) fail('APP_URL', 'production is served over HTTPS');
+      if (env.DATABASE_SSL !== 'verify') {
+        fail('DATABASE_SSL', 'production connects to the database over verified TLS');
+      }
     }
   });
 
@@ -198,8 +210,30 @@ export function isIndiaModelId(id: string): boolean {
 export const APP_CONFIG = Symbol('APP_CONFIG');
 
 /** Parses environment variables; fails fast at startup with the names (never values) of bad settings. */
+/**
+ * On AWS the database secret supplies the parts (host, port, user, password) as separate variables;
+ * the URL is built from them when DATABASE_URL isn't set (decision #100).
+ */
+function withDatabaseUrl(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (env.DATABASE_URL || !env.DATABASE_HOST) return env;
+  const user = encodeURIComponent(env.DATABASE_USER ?? '');
+  const password = encodeURIComponent(env.DATABASE_PASSWORD ?? '');
+  const port = env.DATABASE_PORT || '5432';
+  const name = env.DATABASE_NAME || 'ipro';
+  return {
+    ...env,
+    DATABASE_URL: `postgres://${user}:${password}@${env.DATABASE_HOST}:${port}/${name}`,
+  };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const result = envSchema.safeParse(env);
+  // A secret or setting nobody filled in after deploying stops the app here, by name.
+  const unfilled = Object.entries(env)
+    .filter(([key, value]) => value === 'REPLACE_ME' && /^[A-Z][A-Z0-9_]*$/.test(key))
+    .map(([key]) => key)
+    .sort();
+  if (unfilled.length > 0) throw new Error(`Invalid configuration: ${unfilled.join(', ')}`);
+  const result = envSchema.safeParse(withDatabaseUrl(env));
   if (!result.success) {
     const names = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))].join(', ');
     throw new Error(`Invalid configuration: ${names}`);
